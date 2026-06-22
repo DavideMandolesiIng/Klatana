@@ -5,7 +5,7 @@ import { generateStandardMap } from '../game/MapGenerator';
 import { type MapTemplate } from '../game/mapTemplates';
 import { type PlayerData, type PlayerColor, PLAYER_COLORS } from '../game/Player';
 
-export const Lobby: React.FC<{ onStartGame: (map: MapTemplate) => void }> = ({ onStartGame }) => {
+export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerData[]) => void }> = ({ onStartGame }) => {
   const [messages, setMessages] = useState<{ senderId: string; text: string }[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [balancedResources, setBalancedResources] = useState(false);
@@ -56,7 +56,7 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate) => void }> = ({ o
       } 
       else if (data.type === 'startGame') {
         peerService.gameStatus = 'IN_PROGRESS';
-        onStartGame(data.map);
+        onStartGame(data.map, data.players);
       }
       else if (data.type === 'LOBBY_STATE') {
         // Client receives master lobby state from Host
@@ -123,8 +123,8 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate) => void }> = ({ o
     if (peerService.role === 'host') {
       const newMap = generateStandardMap(balancedResources);
       await peerService.setGameStarted();
-      peerService.broadcast({ type: 'startGame', map: newMap });
-      onStartGame(newMap);
+      peerService.broadcast({ type: 'startGame', map: newMap, players });
+      onStartGame(newMap, players);
     }
   };
 

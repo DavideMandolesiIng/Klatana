@@ -3,11 +3,13 @@ import { MainMenu } from './components/MainMenu';
 import { Lobby } from './components/Lobby';
 import { GameScreen } from './components/GameScreen';
 import { type MapTemplate } from './game/mapTemplates';
+import { type PlayerData } from './game/Player';
 import { peerService } from './network/PeerService';
 
 function App() {
   const [gameState, setGameState] = useState<'menu' | 'lobby' | 'playing'>('menu');
   const [gameMap, setGameMap] = useState<MapTemplate | null>(null);
+  const [gamePlayers, setGamePlayers] = useState<PlayerData[]>([]);
 
   useEffect(() => {
     peerService.onConnectionRejected((reason) => {
@@ -20,8 +22,8 @@ function App() {
   return (
     <div className="App">
       {gameState === 'menu' && <MainMenu onJoinLobby={() => setGameState('lobby')} />}
-      {gameState === 'lobby' && <Lobby onStartGame={(map: MapTemplate) => { setGameMap(map); setGameState('playing'); }} />}
-      {gameState === 'playing' && gameMap && <GameScreen map={gameMap} />}
+      {gameState === 'lobby' && <Lobby onStartGame={(map: MapTemplate, players: PlayerData[]) => { setGameMap(map); setGamePlayers(players); setGameState('playing'); }} />}
+      {gameState === 'playing' && gameMap && <GameScreen map={gameMap} initialPlayers={gamePlayers} />}
     </div>
   );
 }
