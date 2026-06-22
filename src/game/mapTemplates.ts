@@ -1,6 +1,7 @@
 import { type Axial } from './HexMath';
 
 export type ResourceType = 'WOOD' | 'CLAY' | 'WHEAT' | 'WOOL' | 'ORE' | 'GOLD' | 'DESERT';
+export type PortType = '3:1' | 'WOOD' | 'CLAY' | 'WHEAT' | 'WOOL' | 'ORE';
 
 export interface HexData {
   coords: Axial;
@@ -8,9 +9,16 @@ export interface HexData {
   number: number | null; // 2-12, null for desert
 }
 
+export interface PortData {
+  coords: Axial;
+  edgeDirection: number;
+  type: PortType;
+}
+
 export interface MapTemplate {
   name: string;
   hexes: HexData[];
+  ports?: PortData[];
 }
 
 export const StandardMap: MapTemplate = {
@@ -40,5 +48,16 @@ export const StandardMap: MapTemplate = {
     { coords: { q: -2, r: 1 }, resource: 'WHEAT', number: 3 },
     { coords: { q: -2, r: 0 }, resource: 'CLAY', number: 5 },
     { coords: { q: -1, r: -1 }, resource: 'WOOL', number: 6 },
+  ],
+  ports: [
+    { coords: { q: 1, r: -2 }, edgeDirection: 5, type: '3:1' },
+    { coords: { q: 2, r: -2 }, edgeDirection: 0, type: '3:1' },
+    { coords: { q: 2, r: 0 }, edgeDirection: 1, type: '3:1' },
+    { coords: { q: 1, r: 1 }, edgeDirection: 1, type: '3:1' },
+    { coords: { q: -1, r: 2 }, edgeDirection: 2, type: '3:1' },
+    { coords: { q: -2, r: 2 }, edgeDirection: 3, type: '3:1' },
+    { coords: { q: -2, r: 0 }, edgeDirection: 4, type: '3:1' },
+    { coords: { q: -1, r: -1 }, edgeDirection: 4, type: '3:1' },
+    { coords: { q: 0, r: -2 }, edgeDirection: 4, type: '3:1' },
   ]
 };

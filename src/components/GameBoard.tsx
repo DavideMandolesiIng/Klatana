@@ -64,6 +64,71 @@ export const GameBoard: React.FC<GameBoardProps> = ({ template }) => {
             </g>
           );
         })}
+
+        {/* RENDER PORTS */}
+        {template.ports?.map((port, i) => {
+           const center = HexMath.hexToPixel(port.coords, hexSize);
+           const corners = HexMath.hexCorners(center, hexSize);
+           
+           // Edge points
+           const p1 = corners[port.edgeDirection];
+           const p2 = corners[(port.edgeDirection + 1) % 6];
+           
+           // Midpoint of the edge
+           const midX = (p1.x + p2.x) / 2;
+           const midY = (p1.y + p2.y) / 2;
+
+           // Calculate outward vector from hex center to midpoint
+           const dx = midX - center.x;
+           const dy = midY - center.y;
+           
+           // Port visualization coordinate (slightly outside the hex edge)
+           const portX = midX + dx * 0.25;
+           const portY = midY + dy * 0.25;
+
+           // Port colors
+           const getPortColor = (type: string) => {
+             switch(type) {
+                case 'WOOD': return '#14532d'; // Dark forest green
+                case 'CLAY': return '#7c2d12'; // Dark terracotta
+                case 'WOOL': return '#86efac'; // Light pastel green
+                case 'WHEAT': return '#fef08a'; // Bright yellow
+                case 'ORE': return '#94a3b8';  // Slate grey
+                default: return '#f8fafc';    // White for 3:1
+             }
+           };
+
+           return (
+              <g key={`port-${i}`} transform={`translate(${portX}, ${portY})`}>
+                 {/* Outer dock rectangle / circle */}
+                 <circle cx="0" cy="0" r="16" fill="#1e293b" stroke="#334155" strokeWidth="2" />
+                 <circle cx="0" cy="0" r="12" fill={getPortColor(port.type)} />
+                 
+                 {/* Add label */}
+                 <text 
+                   x="0" 
+                   y="4" 
+                   textAnchor="middle" 
+                   fontSize={port.type === '3:1' ? '8px' : '5px'} 
+                   fontWeight="bold" 
+                   fill={['WOOD', 'CLAY'].includes(port.type) ? 'white' : '#0f172a'}
+                 >
+                    {port.type}
+                 </text>
+                 <text 
+                   x="0" 
+                   y="-6" 
+                   textAnchor="middle" 
+                   fontSize="4px" 
+                   fontWeight="bold" 
+                   fill="white"
+                   style={{ textShadow: '0px 1px 2px rgba(0,0,0,0.8)' }}
+                 >
+                    {port.type === '3:1' ? '' : '2:1'}
+                 </text>
+              </g>
+           );
+        })}
       </svg>
     </div>
   );

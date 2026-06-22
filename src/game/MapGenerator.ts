@@ -1,5 +1,5 @@
 import { type Axial, HexMath } from './HexMath';
-import { type ResourceType, type HexData, type MapTemplate } from './mapTemplates';
+import { type ResourceType, type HexData, type MapTemplate, type PortType, type PortData, StandardMap } from './mapTemplates';
 
 const STANDARD_TERRAINS: ResourceType[] = [
     'WOOD', 'WOOD', 'WOOD', 'WOOD',
@@ -8,6 +8,11 @@ const STANDARD_TERRAINS: ResourceType[] = [
     'CLAY', 'CLAY', 'CLAY',
     'ORE', 'ORE', 'ORE',
     'DESERT'
+];
+
+const STANDARD_PORTS: PortType[] = [
+    '3:1', '3:1', '3:1', '3:1',
+    'WOOD', 'CLAY', 'WHEAT', 'WOOL', 'ORE'
 ];
 
 const STANDARD_NUMBERS: number[] = [
@@ -100,8 +105,17 @@ export function generateStandardMap(balancedResources: boolean = false): MapTemp
         }
     }
 
+    // 5. Generate Ports based on standard map template
+    const shuffledPorts = shuffle(STANDARD_PORTS);
+    const ports: PortData[] = StandardMap.ports!.map((loc: any, i: number) => ({
+        coords: loc.coords,
+        edgeDirection: loc.edgeDirection,
+        type: shuffledPorts[i]
+    }));
+
     return {
         name: "Random Standard Map",
-        hexes
+        hexes,
+        ports
     };
 }
