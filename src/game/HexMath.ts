@@ -44,4 +44,52 @@ export class HexMath {
     const ds = Math.abs((-a.q - a.r) - (-b.q - b.r));
     return Math.max(dq, dr, ds) === 1;
   }
+
+  static getEdgeId(a: Axial, b: Axial): string {
+    const s1 = `${a.q},${a.r}`;
+    const s2 = `${b.q},${b.r}`;
+    return s1 < s2 ? `${s1}|${s2}` : `${s2}|${s1}`;
+  }
+
+  static getNodeId(a: Axial, b: Axial, c: Axial): string {
+    const arr = [`${a.q},${a.r}`, `${b.q},${b.r}`, `${c.q},${c.r}`].sort();
+    return arr.join('|');
+  }
+
+  static getHexNodeIds(axial: Axial): string[] {
+    const ids = [];
+    for (let i = 0; i < 6; i++) {
+        const n2 = { q: axial.q + this.directions[i].q, r: axial.r + this.directions[i].r };
+        const nextDir = (i + 1) % 6;
+        const n3 = { q: axial.q + this.directions[nextDir].q, r: axial.r + this.directions[nextDir].r };
+        ids.push(this.getNodeId(axial, n2, n3));
+    }
+    return ids;
+  }
+
+  // Returns { id, x, y } for all 6 nodes of a hex
+  static hexNodes(axial: Axial, size: number): { id: string, x: number, y: number }[] {
+    const center = this.hexToPixel(axial, size);
+    const corners = this.hexCorners(center, size);
+    const nodeIds = this.getHexNodeIds(axial);
+    return nodeIds.map((id, i) => ({ id, x: corners[i].x, y: corners[i].y }));
+  }
+
+  // Returns { id, x1, y1, x2, y2 } for all 6 edges of a hex
+  static hexEdges(axial: Axial, size: number): { id: string, x1: number, y1: number, x2: number, y2: number }[] {
+    const center = this.hexToPixel(axial, size);
+    const corners = this.hexCorners(center, size);
+    const edges = [];
+    for (let i = 0; i < 6; i++) {
+        const p1 = corners[i];
+        const p2 = corners[(i + 1) % 6];
+        const n2 = { q: axial.q + this.directions[i].q, r: axial.r + this.directions[i].r };
+        edges.push({
+            id: this.getEdgeId(axial, n2),
+            x1: p1.x, y1: p1.y,
+            x2: p2.x, y2: p2.y
+        });
+    }
+    return edges;
+  }
 }

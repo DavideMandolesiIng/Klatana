@@ -9,7 +9,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const [gameState, setGameState] = useState<GameState>(() => createInitialGameState(initialPlayers));
 
     useEffect(() => {
-        peerService.onMessage((data, peerId) => {
+        peerService.onMessage((data, _peerId) => {
             if (data.type === 'GAME_STATE_UPDATE') {
                 setGameState(data.state);
             }
@@ -29,10 +29,10 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         if (!isMyTurn || gameState.phase !== 'ROLL') return;
         
         const roll = rollDice();
-        let newState = {
+        let newState: GameState = {
             ...gameState,
             diceRoll: roll,
-            phase: 'TRADE' as const,
+            phase: 'TRADE',
             logs: [...gameState.logs, `${currentPlayer.username} rolled a ${roll.total} (${roll.die1} + ${roll.die2}).`]
         };
         

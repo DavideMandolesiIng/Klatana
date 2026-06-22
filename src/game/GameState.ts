@@ -1,5 +1,6 @@
 import { type ResourceType, type MapTemplate } from './mapTemplates';
 import { type PlayerData } from './Player';
+import { HexMath } from './HexMath';
 
 export type TurnPhase = 'ROLL' | 'TRADE' | 'BUILD';
 
@@ -14,12 +15,25 @@ export interface PlayerState {
   victoryPoints: number;
 }
 
+export interface Settlement {
+  ownerId: string;
+  isCity: boolean;
+  nodeId: string;
+}
+
+export interface Road {
+  ownerId: string;
+  edgeId: string;
+}
+
 export interface GameState {
   players: PlayerState[];
   currentTurnIndex: number;
   phase: TurnPhase;
   diceRoll: { die1: number; die2: number, total: number } | null;
   logs: string[];
+  settlements: Record<string, Settlement>;
+  roads: Record<string, Road>;
 }
 
 export const createInitialGameState = (lobbyPlayers: PlayerData[]): GameState => {
@@ -34,7 +48,9 @@ export const createInitialGameState = (lobbyPlayers: PlayerData[]): GameState =>
     currentTurnIndex: 0,
     phase: 'ROLL',
     diceRoll: null,
-    logs: ['Game started!']
+    logs: ['Game started!'],
+    settlements: {},
+    roads: {}
   };
 };
 
@@ -50,24 +66,44 @@ export const distributeResources = (gameState: GameState, map: MapTemplate, roll
   if (roll === 7) {
     return {
       ...gameState,
-      logs: [...gameState.logs, `A 7 was rolled! Robber activated. (Half cards rule not fully implemented yet)`]
+      logs: [...gameState.logs, `A 7 was rolled! Robber activated.`]
     };
   }
 
   // Find hexes with this number
   const activeHexes = map.hexes.filter(h => h.number === roll);
   if (activeHexes.length === 0) {
-    return {
-      ...gameState,
-      logs: [...gameState.logs, `Rolled ${roll}, but no hexes produce resources.`]
-    };
+    return gameState;
   }
 
-  const logEntries = activeHexes.map(h => `Hex at (${h.coords.q},${h.coords.r}) produces ${h.resource}.`);
-  logEntries.push('(Settlement distribution logic will be added in Phase 4)');
+  const logEntries: string[] = [];
+  // Deep clone players to safely mutate resources
+  const newPlayers = JSON.parse(JSON.stringify(gameState.players)) as PlayerState[];
+
+  activeHexes.forEach(hex => {
+    if (hex.resource === 'DESERT') return;
+    
+    const nodeIds = HexMath.getHexNodeIds(hex.coords);
+    nodeIds.forEach(nodeId => {
+      const settlement = gameState.settlements[nodeId];
+      if (settlement) {
+         const owner = newPlayers.find(p => p.peerId === settlement.ownerId);
+         if (owner) {
+            const amount = settlement.isCity ? 2 : 1;
+            owner.resources[hex.resource] += amount;
+            logEntries.push(`${owner.username} got ${amount} ${hex.resource}`);
+         }
+      }
+    });
+  });
+
+  if (logEntries.length === 0) {
+    logEntries.push(`Rolled ${roll}, but no one received resources.`);
+  }
 
   return {
     ...gameState,
+    players: newPlayers,
     logs: [...gameState.logs, ...logEntries]
   };
 };
