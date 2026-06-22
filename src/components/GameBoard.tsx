@@ -9,6 +9,10 @@ interface GameBoardProps {
   template: MapTemplate;
   gameState?: GameState;
   buildMode?: 'NONE' | 'SETTLEMENT' | 'ROAD';
+  /** Pre-computed set of valid edge IDs for road placement highlighting */
+  validRoadEdges?: Set<string>;
+  /** Pre-computed set of valid node IDs for settlement placement highlighting */
+  validSettlementNodes?: Set<string>;
   onNodeClick?: (nodeId: string) => void;
   onEdgeClick?: (edgeId: string) => void;
 }
@@ -24,7 +28,15 @@ const RESOURCE_COLORS: Record<string, string> = {
   DESERT: '#e0afa0'
 };
 
-export const GameBoard: React.FC<GameBoardProps> = ({ template, gameState, buildMode = 'NONE', onNodeClick, onEdgeClick }) => {
+export const GameBoard: React.FC<GameBoardProps> = ({
+  template,
+  gameState,
+  buildMode = 'NONE',
+  validRoadEdges,
+  validSettlementNodes,
+  onNodeClick,
+  onEdgeClick
+}) => {
   const hexSize = 55;
   
   const { uniqueNodes, uniqueEdges } = useMemo(() => {
@@ -126,14 +138,17 @@ export const GameBoard: React.FC<GameBoardProps> = ({ template, gameState, build
         {/* RENDER EDGES (ROADS) */}
         {uniqueEdges.map(edge => {
             const road = gameState?.roads[edge.id];
-            const isClickable = buildMode === 'ROAD' && !road;
+            // Only highlight if this specific edge is in the pre-validated set
+            const isValidPlacement = buildMode === 'ROAD' && !road && (validRoadEdges?.has(edge.id) ?? false);
+            const isClickable = isValidPlacement;
             return (
                 <g key={`edge-${edge.id}`} onClick={() => isClickable && onEdgeClick?.(edge.id)} style={{ cursor: isClickable ? 'pointer' : 'default' }}>
+                    {/* Invisible wide hit-area */}
                     <line x1={edge.x1} y1={edge.y1} x2={edge.x2} y2={edge.y2} stroke="transparent" strokeWidth="20" />
                     {road ? (
                         <RoadAsset x={edge.x1} y={edge.y1} x2={edge.x2} y2={edge.y2} playerColor={PLAYER_COLORS[gameState!.players.find(p => p.peerId === road.ownerId)?.color as any]?.hex || 'white'} />
                     ) : (
-                        isClickable && <line x1={edge.x1} y1={edge.y1} x2={edge.x2} y2={edge.y2} stroke="white" strokeWidth="6" opacity="0.4" strokeDasharray="4 4" />
+                        isValidPlacement && <line x1={edge.x1} y1={edge.y1} x2={edge.x2} y2={edge.y2} stroke="white" strokeWidth="6" opacity="0.4" strokeDasharray="4 4" />
                     )}
                 </g>
             );
@@ -142,14 +157,16 @@ export const GameBoard: React.FC<GameBoardProps> = ({ template, gameState, build
         {/* RENDER NODES (SETTLEMENTS/CITIES) */}
         {uniqueNodes.map(node => {
             const settlement = gameState?.settlements[node.id];
-            const isClickable = buildMode === 'SETTLEMENT' && !settlement;
+            // Only highlight if this specific node is in the pre-validated set
+            const isValidPlacement = buildMode === 'SETTLEMENT' && !settlement && (validSettlementNodes?.has(node.id) ?? false);
+            const isClickable = isValidPlacement;
             return (
                 <g key={`node-${node.id}`} onClick={() => isClickable && onNodeClick?.(node.id)} style={{ cursor: isClickable ? 'pointer' : 'default' }}>
                     <circle cx={node.x} cy={node.y} r="15" fill="transparent" />
                     {settlement ? (
                         <SettlementAsset x={node.x} y={node.y} playerColor={PLAYER_COLORS[gameState!.players.find(p => p.peerId === settlement.ownerId)?.color as any]?.hex || 'white'} />
                     ) : (
-                        isClickable && <circle cx={node.x} cy={node.y} r="8" fill="white" opacity="0.6" />
+                        isValidPlacement && <circle cx={node.x} cy={node.y} r="8" fill="white" opacity="0.6" />
                     )}
                 </g>
             );

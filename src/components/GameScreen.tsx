@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { GameBoard } from './GameBoard';
 import { type MapTemplate } from '../game/mapTemplates';
 import { type PlayerData, PLAYER_COLORS } from '../game/Player';
 import { peerService } from '../network/PeerService';
-import { type GameState, createInitialGameState, rollDice, distributeResources, validateSettlementPlacement, validateRoadPlacement, getStartingResources, advanceSetupTurn } from '../game/GameState';
+import { type GameState, createInitialGameState, rollDice, distributeResources, validateSettlementPlacement, validateRoadPlacement, getStartingResources, advanceSetupTurn, getValidRoadPlacements, getValidSettlementPlacements } from '../game/GameState';
 import { HexMath } from '../game/HexMath';
 
 export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData[] }> = ({ map, initialPlayers }) => {
@@ -62,6 +62,30 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
     const isSetupPhase = gameState.gamePhase === 'SETUP_1' || gameState.gamePhase === 'SETUP_2';
     const activeBuildMode = isSetupPhase ? (gameState.setupAction || 'NONE') : buildMode;
+
+    // Pre-compute valid placements for UI highlighting (derived from authoritative validation)
+    const { allEdgeIds, allNodeIds } = useMemo(() => {
+        const nodeSet = new Map<string, boolean>();
+        const edgeSet = new Map<string, boolean>();
+        map.hexes.forEach(hex => {
+            HexMath.hexNodes(hex.coords, 55).forEach(n => nodeSet.set(n.id, true));
+            HexMath.hexEdges(hex.coords, 55).forEach(e => edgeSet.set(e.id, true));
+        });
+        return {
+            allEdgeIds: Array.from(edgeSet.keys()),
+            allNodeIds: Array.from(nodeSet.keys())
+        };
+    }, [map]);
+
+    const validRoadEdges = useMemo(() => {
+        if (!myPlayer || activeBuildMode !== 'ROAD') return new Set<string>();
+        return getValidRoadPlacements(gameState, myPlayer.peerId, allEdgeIds);
+    }, [gameState, myPlayer, activeBuildMode, allEdgeIds]);
+
+    const validSettlementNodes = useMemo(() => {
+        if (!myPlayer || activeBuildMode !== 'SETTLEMENT') return new Set<string>();
+        return getValidSettlementPlacements(gameState, myPlayer.peerId, allNodeIds);
+    }, [gameState, myPlayer, activeBuildMode, allNodeIds]);
 
     const handleNodeClick = (nodeId: string) => {
         if (activeBuildMode !== 'SETTLEMENT') return;
@@ -172,7 +196,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                     <GameBoard 
                         template={map} 
                         gameState={gameState} 
-                        buildMode={activeBuildMode} 
+                        buildMode={activeBuildMode}
+                        validRoadEdges={validRoadEdges}
+                        validSettlementNodes={validSettlementNodes}
                         onNodeClick={handleNodeClick} 
                         onEdgeClick={handleEdgeClick} 
                     />

@@ -83,13 +83,59 @@ export const validateRoadPlacement = (gameState: GameState, edgeId: string, peer
             return {valid: false, reason: "Road must connect to your newly placed settlement."};
         }
     } else {
-        const connectsToOwnSettlement = Object.values(gameState.settlements).some(s => s.ownerId === peerId && HexMath.isEdgeAdjacentToNode(edgeId, s.nodeId));
-        const connectsToOwnRoad = Object.values(gameState.roads).some(r => r.ownerId === peerId && HexMath.areEdgesAdjacent(edgeId, r.edgeId));
-        if (!connectsToOwnSettlement && !connectsToOwnRoad) {
-            return {valid: false, reason: "Road must connect to your own settlement, city, or road."};
+        // Check: connects to own settlement/city at one of the two edge endpoints
+        const connectsToOwnSettlement = Object.values(gameState.settlements).some(
+            s => s.ownerId === peerId && HexMath.isEdgeAdjacentToNode(edgeId, s.nodeId)
+        );
+
+        // Check: connects to own road, but NOT if the shared node is blocked by an enemy settlement
+        const edgeNodes = HexMath.getEdgeNodeIds(edgeId);
+        const connectsToOwnRoadUnblocked = Object.values(gameState.roads).some(r => {
+            if (r.ownerId !== peerId) return false;
+            if (!HexMath.areEdgesAdjacent(edgeId, r.edgeId)) return false;
+            // Find the shared node between the two edges
+            const existingEdgeNodes = HexMath.getEdgeNodeIds(r.edgeId);
+            const sharedNode = edgeNodes.find(n => existingEdgeNodes.includes(n));
+            if (!sharedNode) return false;
+            // BLOCKED if an enemy settlement/city sits on the shared node
+            const nodeOccupant = gameState.settlements[sharedNode];
+            if (nodeOccupant && nodeOccupant.ownerId !== peerId) return false;
+            return true;
+        });
+
+        if (!connectsToOwnSettlement && !connectsToOwnRoadUnblocked) {
+            return {valid: false, reason: "Road must connect to your own settlement, city, or an unblocked road."};
         }
     }
     return {valid: true};
+};
+
+/**
+ * Returns the Set of edge IDs where the current player is allowed to place a road.
+ * This is used by the UI to highlight only truly valid edges.
+ */
+export const getValidRoadPlacements = (gameState: GameState, peerId: string, allEdgeIds: string[]): Set<string> => {
+    const valid = new Set<string>();
+    for (const edgeId of allEdgeIds) {
+        if (validateRoadPlacement(gameState, edgeId, peerId).valid) {
+            valid.add(edgeId);
+        }
+    }
+    return valid;
+};
+
+/**
+ * Returns the Set of node IDs where the current player is allowed to place a settlement.
+ * This is used by the UI to highlight only truly valid nodes.
+ */
+export const getValidSettlementPlacements = (gameState: GameState, peerId: string, allNodeIds: string[]): Set<string> => {
+    const valid = new Set<string>();
+    for (const nodeId of allNodeIds) {
+        if (validateSettlementPlacement(gameState, nodeId, peerId).valid) {
+            valid.add(nodeId);
+        }
+    }
+    return valid;
 };
 
 export const getStartingResources = (gameState: GameState, nodeId: string, map: MapTemplate): Partial<Record<string, number>> => {
