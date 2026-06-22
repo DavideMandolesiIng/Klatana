@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { peerService } from '../network/PeerService';
 import { Send, Users, Wifi } from 'lucide-react';
+import { generateStandardMap } from '../game/MapGenerator';
+import { type MapTemplate } from '../game/mapTemplates';
 
-export const Lobby: React.FC = () => {
+export const Lobby: React.FC<{ onStartGame: (map: MapTemplate) => void }> = ({ onStartGame }) => {
   const [peers, setPeers] = useState<string[]>([]);
   const [messages, setMessages] = useState<{ sender: string; text: string }[]>([]);
   const [inputValue, setInputValue] = useState('');
+  const [balancedResources, setBalancedResources] = useState(false);
 
   useEffect(() => {
     // Initial peers if any
@@ -25,6 +28,8 @@ export const Lobby: React.FC = () => {
     peerService.onMessage((data: any, peerId: string) => {
       if (data.type === 'chat') {
         setMessages((prev) => [...prev, { sender: peerId.substring(0, 6), text: data.message }]);
+      } else if (data.type === 'startGame') {
+        onStartGame(data.map);
       }
     });
 
@@ -48,6 +53,14 @@ export const Lobby: React.FC = () => {
 
     setMessages((prev) => [...prev, { sender: 'You', text: inputValue }]);
     setInputValue('');
+  };
+
+  const handleStartGameClick = () => {
+    if (peerService.role === 'host') {
+      const newMap = generateStandardMap(balancedResources);
+      peerService.broadcast({ type: 'startGame', map: newMap });
+      onStartGame(newMap);
+    }
   };
 
   return (
@@ -88,6 +101,31 @@ export const Lobby: React.FC = () => {
               </li>
             ))}
           </ul>
+          
+          <div className="mt-6 pt-4 border-t border-slate-700">
+            {peerService.role === 'host' && (
+              <div className="mb-4 flex items-center gap-3 bg-slate-900/50 p-3 rounded-lg border border-slate-700">
+                <input 
+                  type="checkbox" 
+                  id="balanced" 
+                  checked={balancedResources}
+                  onChange={(e) => setBalancedResources(e.target.checked)}
+                  className="w-4 h-4 text-emerald-500 rounded border-slate-600 bg-slate-700 focus:ring-emerald-500"
+                />
+                <label htmlFor="balanced" className="text-sm text-slate-300 select-none cursor-pointer">
+                  <span className="font-semibold block text-slate-200">Balanced Resources</span>
+                  <span className="text-xs text-slate-500">Prevent red numbers on same terrain types</span>
+                </label>
+              </div>
+            )}
+            <button 
+              onClick={handleStartGameClick}
+              disabled={peerService.role !== 'host'}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
+            >
+              {peerService.role === 'host' ? 'Launch Game' : 'Waiting for Host...'}
+            </button>
+          </div>
         </div>
       </div>
 
