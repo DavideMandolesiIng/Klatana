@@ -1,5 +1,5 @@
 import Peer, { type DataConnection } from 'peerjs';
-import { registerRoomCode, getHostPeerId } from './firebase';
+import { registerRoomCode, getRoomInfo, setRoomStatus } from './firebase';
 
 export type NetworkRole = 'host' | 'client' | 'none';
 
@@ -8,8 +8,11 @@ type ConnectionHandler = (conn: DataConnection) => void;
 
 export class PeerService {
   private peer: Peer | null = null;
+  public peerId: string = '';
   public role: NetworkRole = 'none';
   public roomCode: string = '';
+  public gameStatus: 'LOBBY' | 'IN_PROGRESS' = 'LOBBY';
+  public knownPlayers: Set<string> = new Set();
   
   // Connections (for Host: multiple clients. For Client: only the host)
   private connections: Map<string, DataConnection> = new Map();
@@ -17,6 +20,8 @@ export class PeerService {
   private onMessageCallback: MessageHandler | null = null;
   private onConnectionCallback: ConnectionHandler | null = null;
   private onDisconnectCallback: ((peerId: string) => void) | null = null;
+  private onConnectionRejectedCallback: ((reason: string) => void) | null = null;
+  private onPlayerReconnectedCallback: ((peerId: string) => void) | null = null;
 
   constructor() {}
 
@@ -32,6 +37,23 @@ export class PeerService {
     this.onDisconnectCallback = callback;
   }
 
+  public onConnectionRejected(callback: (reason: string) => void) {
+    this.onConnectionRejectedCallback = callback;
+  }
+
+  public onPlayerReconnected(callback: (peerId: string) => void) {
+    this.onPlayerReconnectedCallback = callback;
+  }
+
+  public async setGameStarted() {
+    if (this.role === 'host') {
+      this.gameStatus = 'IN_PROGRESS';
+      // Snapshot all currently connected peers as valid players
+      this.connections.forEach((v, k) => this.knownPlayers.add(k));
+      await setRoomStatus(this.roomCode, 'IN_PROGRESS');
+    }
+  }
+
   /**
    * Initializes as Host, generates a 4-letter room code, and registers it.
    */
@@ -41,6 +63,7 @@ export class PeerService {
 
       this.peer.on('open', async (id) => {
         this.role = 'host';
+        this.peerId = id;
         
         // Generate random 4-letter code
         let code = '';
@@ -51,10 +74,33 @@ export class PeerService {
         }
 
         this.roomCode = code;
+        localStorage.setItem('klatana_peer_id', id);
+        localStorage.setItem('klatana_room_code', code);
         resolve(code);
       });
 
       this.peer.on('connection', (conn) => {
+        if (this.gameStatus === 'IN_PROGRESS') {
+          if (!this.knownPlayers.has(conn.peer)) {
+            // New player trying to join after game started. Reject.
+            conn.on('open', () => {
+              conn.send({ type: 'CONNECTION_REJECTED', reason: 'Game already started' });
+              setTimeout(() => conn.close(), 500);
+            });
+            return;
+          } else {
+            // Reconnecting player
+            this.handleNewConnection(conn);
+            conn.on('open', () => {
+               if (this.onPlayerReconnectedCallback) {
+                  this.onPlayerReconnectedCallback(conn.peer);
+               }
+            });
+            return;
+          }
+        }
+        
+        // Normal lobby join
         this.handleNewConnection(conn);
       });
 
@@ -67,21 +113,24 @@ export class PeerService {
   /**
    * Initializes as Client and connects to a Room via code.
    */
-  public async joinRoom(code: string): Promise<boolean> {
+  public async joinRoom(code: string, peerIdOverride?: string): Promise<boolean> {
     const codeUpper = code.toUpperCase();
-    const hostPeerId = await getHostPeerId(codeUpper);
-    if (!hostPeerId) {
+    const roomInfo = await getRoomInfo(codeUpper);
+    if (!roomInfo) {
       throw new Error("Room not found");
     }
 
     return new Promise((resolve, reject) => {
-      this.peer = new Peer();
+      this.peer = peerIdOverride ? new Peer(peerIdOverride) : new Peer();
 
-      this.peer.on('open', () => {
+      this.peer.on('open', (id) => {
         this.role = 'client';
+        this.peerId = id;
         this.roomCode = codeUpper;
+        localStorage.setItem('klatana_peer_id', id);
+        localStorage.setItem('klatana_room_code', codeUpper);
         
-        const conn = this.peer!.connect(hostPeerId, { reliable: true });
+        const conn = this.peer!.connect(roomInfo.hostPeerId, { reliable: true });
         
         conn.on('open', () => {
           this.handleNewConnection(conn);
@@ -102,7 +151,14 @@ export class PeerService {
   private handleNewConnection(conn: DataConnection) {
     this.connections.set(conn.peer, conn);
 
-    conn.on('data', (data) => {
+    conn.on('data', (data: any) => {
+      if (data && data.type === 'CONNECTION_REJECTED') {
+        if (this.onConnectionRejectedCallback) {
+          this.onConnectionRejectedCallback(data.reason);
+        }
+        this.destroy();
+        return;
+      }
       if (this.onMessageCallback) {
         this.onMessageCallback(data, conn.peer);
       }

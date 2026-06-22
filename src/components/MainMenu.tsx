@@ -8,14 +8,19 @@ interface MainMenuProps {
 
 export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby }) => {
   const [joinCode, setJoinCode] = useState('');
+  const [username, setUsername] = useState(localStorage.getItem('klatana_username') || '');
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState('');
 
   const handleCreateRoom = async () => {
+    if (!username.trim()) { setError('Please enter a username'); return; }
+    localStorage.setItem('klatana_username', username.trim());
     try {
       setIsCreating(true);
       setError('');
+      
+      // Need lazy initialization of peer service or something similar, but let's just use it
       await peerService.createRoom();
       onJoinLobby();
     } catch (err: any) {
@@ -26,15 +31,33 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby }) => {
 
   const handleJoinRoom = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!username.trim()) { setError('Please enter a username'); return; }
     if (!joinCode || joinCode.length !== 4) {
       setError('Please enter a valid 4-letter code');
       return;
     }
     
+    localStorage.setItem('klatana_username', username.trim());
+    
     try {
       setIsJoining(true);
       setError('');
-      await peerService.joinRoom(joinCode);
+      
+      const { getRoomInfo } = await import('../network/firebase');
+      const roomInfo = await getRoomInfo(joinCode.toUpperCase());
+      if (!roomInfo) {
+        throw new Error('Room not found');
+      }
+
+      const savedPeerId = localStorage.getItem('klatana_peer_id');
+      const savedRoomCode = localStorage.getItem('klatana_room_code');
+      const isReconnecting = savedRoomCode === joinCode.toUpperCase() && !!savedPeerId;
+
+      if (roomInfo.status === 'IN_PROGRESS' && !isReconnecting) {
+        throw new Error('Error: Game already in progress');
+      }
+
+      await peerService.joinRoom(joinCode, isReconnecting ? savedPeerId! : undefined);
       onJoinLobby();
     } catch (err: any) {
       setError(err.message || 'Failed to join room');
@@ -59,6 +82,21 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby }) => {
               {error}
             </div>
           )}
+
+          <div>
+            <label htmlFor="username" className="block text-sm font-medium text-slate-400 mb-1">
+              Player Identity
+            </label>
+            <input
+              id="username"
+              type="text"
+              maxLength={15}
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Enter your Username"
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-center font-medium"
+            />
+          </div>
 
           <button
             onClick={handleCreateRoom}

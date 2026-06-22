@@ -24,21 +24,23 @@ export const registerRoomCode = async (roomCode: string, peerId: string): Promis
   if (snapshot.exists()) {
     return false; // Room already exists
   }
-  await set(roomRef, { hostPeerId: peerId, createdAt: Date.now() });
+  await set(roomRef, { hostPeerId: peerId, status: 'LOBBY', createdAt: Date.now() });
   
   // Cleanup if host disconnects from Firebase
   onDisconnect(roomRef).remove();
   return true;
 };
 
-/**
- * Retrieves the Host Peer ID for a given Room Code.
- */
-export const getHostPeerId = async (roomCode: string): Promise<string | null> => {
+export const setRoomStatus = async (roomCode: string, status: string): Promise<void> => {
+  const statusRef = ref(db, `rooms/${roomCode}/status`);
+  await set(statusRef, status);
+};
+
+export const getRoomInfo = async (roomCode: string): Promise<{ hostPeerId: string, status: string } | null> => {
   const roomRef = ref(db, `rooms/${roomCode}`);
   const snapshot = await get(roomRef);
   if (snapshot.exists()) {
-    return snapshot.val().hostPeerId;
+    return snapshot.val();
   }
   return null;
 };
