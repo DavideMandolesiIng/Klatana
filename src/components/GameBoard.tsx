@@ -3,18 +3,20 @@ import { HexMath } from '../game/HexMath';
 import { type MapTemplate } from '../game/mapTemplates';
 import { type GameState } from '../game/GameState';
 import { PLAYER_COLORS } from '../game/Player';
-import { SettlementAsset, RoadAsset } from './Assets';
+import { SettlementAsset, RoadAsset, CityAsset } from './Assets';
 
 interface GameBoardProps {
   template: MapTemplate;
   gameState?: GameState;
-  buildMode?: 'NONE' | 'SETTLEMENT' | 'ROAD';
+  buildMode?: 'NONE' | 'SETTLEMENT' | 'ROAD' | 'CITY';
   /** Pre-computed set of valid edge IDs for road placement highlighting */
   validRoadEdges?: Set<string>;
   /** Pre-computed set of valid node IDs for settlement placement highlighting */
   validSettlementNodes?: Set<string>;
+  validCityNodes?: Set<string>;
   onNodeClick?: (nodeId: string) => void;
   onEdgeClick?: (edgeId: string) => void;
+  onHexClick?: (q: number, r: number) => void;
 }
 
 // Default fallback colors if no custom assets are provided
@@ -34,8 +36,10 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   buildMode = 'NONE',
   validRoadEdges,
   validSettlementNodes,
+  validCityNodes,
   onNodeClick,
-  onEdgeClick
+  onEdgeClick,
+  onHexClick
 }) => {
   const hexSize = 55;
   
@@ -58,13 +62,17 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           const corners = HexMath.hexCorners(center, hexSize);
           const pointsString = corners.map(p => `${p.x},${p.y}`).join(' ');
           
+          const isCurrentNinjaHex = gameState?.ninjaHexCoords && hex.coords.q === gameState.ninjaHexCoords.q && hex.coords.r === gameState.ninjaHexCoords.r;
+          const isHexClickable = gameState?.gamePhase === 'NINJA_MOVE' && !isCurrentNinjaHex;
+
           return (
-            <g key={`hex-${i}`}>
+            <g key={`hex-${i}`} onClick={() => isHexClickable && onHexClick?.(hex.coords.q, hex.coords.r)} style={{ cursor: isHexClickable ? 'pointer' : 'default' }}>
               <polygon 
                 points={pointsString} 
                 fill={RESOURCE_COLORS[hex.resource]} 
-                stroke="#0f172a" 
-                strokeWidth="2"
+                stroke={isHexClickable ? '#fbbf24' : '#0f172a'} 
+                strokeWidth={isHexClickable ? '4' : '2'}
+                className={isHexClickable ? 'animate-pulse' : ''}
               />
               
               {/* Draw the Number Token if it's not a desert */}
@@ -82,6 +90,14 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                   >
                     {hex.number}
                   </text>
+                </g>
+              )}
+              
+              {/* Draw Ninja Token */}
+              {isCurrentNinjaHex && (
+                <g transform={`translate(${center.x}, ${center.y + 15})`}>
+                  <circle cx="0" cy="0" r="14" fill="#000" stroke="#fff" strokeWidth="1" />
+                  <text x="0" y="0" textAnchor="middle" dy=".35em" fontSize="14" fontWeight="bold" fill="#fff">🥷</text>
                 </g>
               )}
             </g>
@@ -159,13 +175,32 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             const settlement = gameState?.settlements[node.id];
             // Only highlight if this specific node is in the pre-validated set
             const isValidPlacement = buildMode === 'SETTLEMENT' && !settlement && (validSettlementNodes?.has(node.id) ?? false);
-            const isClickable = isValidPlacement;
+            const isValidCityUpgrade = buildMode === 'CITY' && settlement && !settlement.isCity && (validCityNodes?.has(node.id) ?? false);
+            const isClickable = isValidPlacement || isValidCityUpgrade;
+
+            let nodeAsset = null;
+            if (settlement) {
+                const color = PLAYER_COLORS[gameState!.players.find(p => p.peerId === settlement.ownerId)?.color as any]?.hex || 'white';
+                if (settlement.isCity) {
+                    nodeAsset = <CityAsset x={node.x} y={node.y} playerColor={color} />;
+                } else {
+                    nodeAsset = <SettlementAsset x={node.x} y={node.y} playerColor={color} />;
+                    if (isValidCityUpgrade) {
+                        // overlay pulse ring
+                        nodeAsset = (
+                            <g>
+                                {nodeAsset}
+                                <circle cx={node.x} cy={node.y} r="15" fill="none" stroke="#fbbf24" strokeWidth="3" className="animate-ping" />
+                            </g>
+                        );
+                    }
+                }
+            }
+
             return (
                 <g key={`node-${node.id}`} onClick={() => isClickable && onNodeClick?.(node.id)} style={{ cursor: isClickable ? 'pointer' : 'default' }}>
                     <circle cx={node.x} cy={node.y} r="15" fill="transparent" />
-                    {settlement ? (
-                        <SettlementAsset x={node.x} y={node.y} playerColor={PLAYER_COLORS[gameState!.players.find(p => p.peerId === settlement.ownerId)?.color as any]?.hex || 'white'} />
-                    ) : (
+                    {nodeAsset ? nodeAsset : (
                         isValidPlacement && <circle cx={node.x} cy={node.y} r="8" fill="white" opacity="0.6" />
                     )}
                 </g>

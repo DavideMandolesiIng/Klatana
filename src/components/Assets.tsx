@@ -32,3 +32,16 @@ export const RoadAsset: React.FC<RoadAssetProps> = ({ x, y, x2, y2, playerColor,
   // Add more custom skins here later
   return null;
 };
+
+export const CityAsset: React.FC<AssetProps> = ({ x, y, playerColor, skinId = 'classic' }) => {
+  if (skinId === 'classic') {
+    return (
+      <g transform={`translate(${x}, ${y})`}>
+        <rect x="-10" y="-10" width="20" height="20" rx="3" fill={playerColor} stroke="#000" strokeWidth="2" />
+        <path d="M -6 10 L -6 -6 L 0 -14 L 6 -6 L 6 10 Z" fill="#fff" opacity="0.3" />
+      </g>
+    );
+  }
+  return null;
+};
+

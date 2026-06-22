@@ -3,11 +3,28 @@ import { type PlayerData } from './Player';
 import { HexMath } from './HexMath';
 
 export type TurnPhase = 'ROLL' | 'TRADE' | 'BUILD';
-export type GamePhase = 'SETUP_1' | 'SETUP_2' | 'MAIN_GAME';
+export type GamePhase = 'SETUP_1' | 'SETUP_2' | 'MAIN_GAME' | 'NINJA_DISCARD' | 'NINJA_MOVE' | 'NINJA_STEAL' | 'FREE_ROAD_BUILDING';
+export type ActionCardType = 'NINJA' | 'MONUMENT' | 'MONOPOLY' | 'ABUNDANCE' | 'RAPID_EXPANSION';
 export type SetupAction = 'SETTLEMENT' | 'ROAD';
 
 // We map generic resource types. DESERT produces nothing.
 export type ResourceCounts = Record<Exclude<ResourceType, 'DESERT'>, number>;
+
+export const BUILD_COSTS = {
+  ROAD: { WOOD: 1, CLAY: 1 },
+  SETTLEMENT: { WOOD: 1, CLAY: 1, WHEAT: 1, WOOL: 1 },
+  CITY: { ORE: 3, WHEAT: 2 },
+  ACTION_CARD: { ORE: 1, WHEAT: 1, WOOL: 1 }
+};
+
+export const canAfford = (resources: ResourceCounts, cost: Partial<Record<string, number>>): boolean => {
+    for (const [res, amount] of Object.entries(cost)) {
+        if ((resources[res as keyof ResourceCounts] || 0) < amount) {
+            return false;
+        }
+    }
+    return true;
+};
 
 export interface PlayerState {
   peerId: string;
@@ -15,6 +32,7 @@ export interface PlayerState {
   color: string;
   resources: ResourceCounts;
   victoryPoints: number;
+  actionCards: { type: ActionCardType, boughtThisTurn: boolean }[];
 }
 
 export interface Settlement {
@@ -39,16 +57,41 @@ export interface GameState {
   logs: string[];
   settlements: Record<string, Settlement>;
   roads: Record<string, Road>;
+  actionCardDeck: ActionCardType[];
+  ninjaHexCoords: { q: number, r: number };
+  playersNeedingToDiscard: string[];
+  activeTurnPlayedCard: boolean;
+  freeRoadsLeft: number;
 }
 
-export const createInitialGameState = (lobbyPlayers: PlayerData[]): GameState => {
+export const createInitialGameState = (lobbyPlayers: PlayerData[], map?: MapTemplate): GameState => {
+  const deck: ActionCardType[] = [
+      ...Array(14).fill('NINJA'),
+      ...Array(5).fill('MONUMENT'),
+      ...Array(2).fill('MONOPOLY'),
+      ...Array(2).fill('ABUNDANCE'),
+      ...Array(2).fill('RAPID_EXPANSION')
+  ];
+  // Fisher-Yates shuffle
+  for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+
+  let desertCoords = { q: 0, r: 0 };
+  if (map) {
+      const desert = map.hexes.find(h => h.resource === 'DESERT');
+      if (desert) desertCoords = { ...desert.coords };
+  }
+
   return {
     players: lobbyPlayers.map(p => ({
       peerId: p.peerId,
       username: p.username,
       color: p.color || 'RED',
       resources: { WOOD: 0, CLAY: 0, WHEAT: 0, WOOL: 0, ORE: 0, GOLD: 0 },
-      victoryPoints: 0
+      victoryPoints: 0,
+      actionCards: []
     })),
     currentTurnIndex: 0,
     gamePhase: 'SETUP_1',
@@ -57,7 +100,12 @@ export const createInitialGameState = (lobbyPlayers: PlayerData[]): GameState =>
     diceRoll: null,
     logs: ['Game started! Setup Phase 1: Place a settlement and a road.'],
     settlements: {},
-    roads: {}
+    roads: {},
+    actionCardDeck: deck,
+    ninjaHexCoords: desertCoords,
+    playersNeedingToDiscard: [],
+    activeTurnPlayedCard: false,
+    freeRoadsLeft: 0
   };
 };
 
@@ -68,6 +116,11 @@ export const validateSettlementPlacement = (gameState: GameState, nodeId: string
     if (isTooClose) return {valid: false, reason: "Distance Rule: Too close to another settlement."};
 
     if (gameState.gamePhase === 'MAIN_GAME') {
+        const player = gameState.players.find(p => p.peerId === peerId);
+        if (player && !canAfford(player.resources, BUILD_COSTS.SETTLEMENT)) {
+            return {valid: false, reason: "Not enough resources."};
+        }
+
         const ownsConnectedRoad = Object.values(gameState.roads).some(r => r.ownerId === peerId && HexMath.isEdgeAdjacentToNode(r.edgeId, nodeId));
         if (!ownsConnectedRoad) return {valid: false, reason: "Must connect to one of your roads."};
     }
@@ -83,6 +136,11 @@ export const validateRoadPlacement = (gameState: GameState, edgeId: string, peer
             return {valid: false, reason: "Road must connect to your newly placed settlement."};
         }
     } else {
+        const player = gameState.players.find(p => p.peerId === peerId);
+        if (player && !canAfford(player.resources, BUILD_COSTS.ROAD)) {
+            return {valid: false, reason: "Not enough resources."};
+        }
+
         // Check: connects to own settlement/city at one of the two edge endpoints
         const connectsToOwnSettlement = Object.values(gameState.settlements).some(
             s => s.ownerId === peerId && HexMath.isEdgeAdjacentToNode(edgeId, s.nodeId)
@@ -197,9 +255,15 @@ export const rollDice = () => {
 // Real node-checking logic will come in Phase 4 when nodes/settlements exist.
 export const distributeResources = (gameState: GameState, map: MapTemplate, roll: number): GameState => {
   if (roll === 7) {
+    const playersNeedingToDiscard = gameState.players
+      .filter(p => Object.values(p.resources).reduce((sum, count) => sum + count, 0) > 7)
+      .map(p => p.peerId);
+
     return {
       ...gameState,
-      logs: [...gameState.logs, `A 7 was rolled! Robber activated.`]
+      gamePhase: playersNeedingToDiscard.length > 0 ? 'NINJA_DISCARD' : 'NINJA_MOVE',
+      playersNeedingToDiscard,
+      logs: [...gameState.logs, `A 7 was rolled! Ninja activated. ${playersNeedingToDiscard.length > 0 ? 'Some players must discard.' : ''}`]
     };
   }
 
@@ -215,6 +279,10 @@ export const distributeResources = (gameState: GameState, map: MapTemplate, roll
 
   activeHexes.forEach(hex => {
     if (hex.resource === 'DESERT') return;
+    if (hex.coords.q === gameState.ninjaHexCoords.q && hex.coords.r === gameState.ninjaHexCoords.r) {
+        logEntries.push(`Ninja blocked production on ${hex.resource} hex.`);
+        return;
+    }
     
     const nodeIds = HexMath.getHexNodeIds(hex.coords);
     nodeIds.forEach(nodeId => {
@@ -223,7 +291,7 @@ export const distributeResources = (gameState: GameState, map: MapTemplate, roll
          const owner = newPlayers.find(p => p.peerId === settlement.ownerId);
          if (owner) {
             const amount = settlement.isCity ? 2 : 1;
-            owner.resources[hex.resource] += amount;
+            owner.resources[hex.resource as keyof ResourceCounts] += amount;
             logEntries.push(`${owner.username} got ${amount} ${hex.resource}`);
          }
       }
