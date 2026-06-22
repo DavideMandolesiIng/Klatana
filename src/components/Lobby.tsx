@@ -9,6 +9,7 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate) => void }> = ({ o
   const [messages, setMessages] = useState<{ senderId: string; text: string }[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [balancedResources, setBalancedResources] = useState(false);
+  const balancedResourcesRef = React.useRef(false);
   const [players, setPlayers] = useState<PlayerData[]>([]);
 
   // Automatically executed when component mounts
@@ -61,6 +62,10 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate) => void }> = ({ o
         // Client receives master lobby state from Host
         setPlayers(data.players);
       }
+      else if (data.type === 'LOBBY_SETTINGS') {
+        setBalancedResources(data.balancedResources);
+        balancedResourcesRef.current = data.balancedResources;
+      }
       else if (peerService.role === 'host') {
         // HOST ONLY ACTIONS
         if (data.type === 'JOIN_LOBBY') {
@@ -74,7 +79,10 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate) => void }> = ({ o
              const assigned = available.length > 0 ? available[0] : null;
 
              const next = [...prev, { peerId: incomingPeerId, username: data.username, color: assigned, isHost: false }];
-             setTimeout(() => peerService.broadcast({ type: 'LOBBY_STATE', players: next }), 100);
+             setTimeout(() => {
+               peerService.broadcast({ type: 'LOBBY_STATE', players: next });
+               peerService.broadcast({ type: 'LOBBY_SETTINGS', balancedResources: balancedResourcesRef.current });
+             }, 100);
              return next;
            });
         }
@@ -103,6 +111,14 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate) => void }> = ({ o
     setInputValue('');
   };
 
+  const handleBalancedResourcesChange = (checked: boolean) => {
+    setBalancedResources(checked);
+    balancedResourcesRef.current = checked;
+    if (peerService.role === 'host') {
+      peerService.broadcast({ type: 'LOBBY_SETTINGS', balancedResources: checked });
+    }
+  };
+
   const handleStartGameClick = async () => {
     if (peerService.role === 'host') {
       const newMap = generateStandardMap(balancedResources);
@@ -129,9 +145,9 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate) => void }> = ({ o
   const getMyPlayer = () => players.find(p => p.peerId === peerService.peerId);
 
   return (
-    <div className="min-h-screen bg-slate-900 p-8 text-slate-100 flex gap-8 max-w-6xl mx-auto">
-      {/* Sidebar */}
-      <div className="w-80 flex flex-col gap-6">
+    <div className="min-h-screen bg-slate-900 p-8 text-slate-100 flex gap-8 w-full max-w-[1600px] mx-auto">
+      {/* Left Sidebar */}
+      <div className="w-80 flex flex-col gap-6 flex-shrink-0">
         <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-xl">
           <div className="flex items-center gap-3 mb-4">
             <div className="bg-emerald-500/10 p-2 rounded-lg">
@@ -193,21 +209,6 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate) => void }> = ({ o
           </div>
 
           <div className="mt-6 pt-4 border-t border-slate-700">
-            {peerService.role === 'host' && (
-              <div className="mb-4 flex items-center gap-3 bg-slate-900/50 p-3 rounded-lg border border-slate-700">
-                <input 
-                  type="checkbox" 
-                  id="balanced" 
-                  checked={balancedResources}
-                  onChange={(e) => setBalancedResources(e.target.checked)}
-                  className="w-4 h-4 text-emerald-500 rounded border-slate-600 bg-slate-700 focus:ring-emerald-500"
-                />
-                <label htmlFor="balanced" className="text-sm text-slate-300 select-none cursor-pointer">
-                  <span className="font-semibold block text-slate-200">Balanced Resources</span>
-                  <span className="text-xs text-slate-500">Prevent red numbers on same terrain types</span>
-                </label>
-              </div>
-            )}
             <button 
               onClick={handleStartGameClick}
               disabled={peerService.role !== 'host'}
@@ -219,46 +220,80 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate) => void }> = ({ o
         </div>
       </div>
 
-      {/* Chat Area */}
-      <div className="flex-grow bg-slate-800 rounded-xl border border-slate-700 shadow-xl flex flex-col overflow-hidden">
+      {/* Central Area: Game Settings */}
+      <div className="flex-grow bg-slate-800 rounded-xl p-8 border border-slate-700 shadow-xl flex flex-col">
+        <h2 className="text-2xl font-bold mb-8 border-b border-slate-700 pb-4 text-emerald-400">Game Settings</h2>
+        
+        <div className="space-y-6">
+          {/* Balanced Resources Toggle */}
+          <div className="flex items-center gap-4 bg-slate-900/50 p-4 rounded-xl border border-slate-700 hover:border-slate-600 transition-colors w-fit">
+            <input 
+              type="checkbox" 
+              id="balanced" 
+              checked={balancedResources}
+              onChange={(e) => peerService.role === 'host' && handleBalancedResourcesChange(e.target.checked)}
+              disabled={peerService.role !== 'host'}
+              className={`w-6 h-6 text-emerald-500 rounded border-slate-600 bg-slate-700 ${peerService.role === 'host' ? 'cursor-pointer focus:ring-emerald-500' : 'opacity-50 cursor-not-allowed'}`}
+            />
+            <label htmlFor="balanced" className={peerService.role === 'host' ? 'select-none cursor-pointer' : 'select-none opacity-80'}>
+              <span className="font-bold block text-slate-200 text-lg">Balanced Resources</span>
+              <span className="text-sm text-slate-400">Prevent red numbers (6, 8) from being placed on adjacent hexes or same terrain types.</span>
+            </label>
+          </div>
+          
+          {/* Future settings can go here */}
+          <div className="p-8 border-2 border-dashed border-slate-700 rounded-xl flex items-center justify-center text-slate-500 mt-8">
+            {peerService.role === 'host' ? 'More settings coming soon...' : 'Waiting for host to launch the game...'}
+          </div>
+        </div>
+      </div>
+
+      {/* Right Sidebar: Chat Area */}
+      <div className="w-80 bg-slate-800 rounded-xl border border-slate-700 shadow-xl flex flex-col overflow-hidden flex-shrink-0">
         <div className="bg-slate-800/80 backdrop-blur border-b border-slate-700 p-4">
           <h2 className="font-semibold text-lg flex items-center gap-2">
             Network Test Chat
           </h2>
         </div>
         
-        <div className="flex-grow p-6 overflow-y-auto space-y-4">
+        <div className="flex-grow p-4 overflow-y-auto space-y-4">
           {messages.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-slate-500 italic">
+            <div className="h-full flex items-center justify-center text-slate-500 italic text-sm text-center">
               No messages yet. Send one to test the WebRTC connection.
             </div>
           ) : (
             messages.map((m, i) => {
               let dispName = m.senderId;
               let dispColor = 'text-indigo-400';
+              let dispColorHex = '';
               if (m.senderId === 'SYSTEM') {
                  dispName = 'System';
                  dispColor = 'text-slate-500';
               } else if (m.senderId === 'YOU') {
                  dispName = 'You';
-                 dispColor = 'text-emerald-400';
+                 const me = getMyPlayer();
+                 if (me && me.color) dispColorHex = PLAYER_COLORS[me.color].hex;
+                 else dispColor = 'text-emerald-400';
               } else {
                  const pl = players.find(p => p.peerId === m.senderId);
-                 if (pl) dispName = pl.username;
+                 if (pl) {
+                    dispName = pl.username;
+                    if (pl.color) dispColorHex = PLAYER_COLORS[pl.color].hex;
+                 }
                  else dispName = m.senderId.substring(0, 6);
               }
               
               return (
                 <div key={i} className={`flex ${m.senderId === 'YOU' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[80%] rounded-2xl px-4 py-2 ${
+                  <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
                     m.senderId === 'YOU' 
                       ? 'bg-indigo-600 text-white rounded-br-sm' 
                       : m.senderId === 'SYSTEM'
-                      ? 'bg-slate-700/50 text-slate-400 italic text-sm w-full text-center'
+                      ? 'bg-slate-700/50 text-slate-400 italic text-xs w-full text-center'
                       : 'bg-slate-700 text-slate-100 rounded-bl-sm'
                   }`}>
                     {m.senderId !== 'YOU' && m.senderId !== 'SYSTEM' && (
-                      <div className={`text-xs ${dispColor} font-medium mb-1`}>{dispName}</div>
+                      <div className={`text-xs font-medium mb-1 ${dispColorHex ? '' : dispColor}`} style={dispColorHex ? { color: dispColorHex } : {}}>{dispName}</div>
                     )}
                     <div>{m.text}</div>
                   </div>
@@ -268,20 +303,19 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate) => void }> = ({ o
           )}
         </div>
 
-        <form onSubmit={handleSendMessage} className="p-4 bg-slate-800 border-t border-slate-700 flex gap-2">
+        <form onSubmit={handleSendMessage} className="p-3 bg-slate-800 border-t border-slate-700 flex gap-2">
           <input
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Type a test message..."
-            className="flex-grow bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder="Type a message..."
+            className="flex-grow bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
           <button
             type="submit"
             disabled={!inputValue.trim()}
-            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white p-2 px-4 rounded-lg transition-colors flex items-center gap-2"
+            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white p-2 rounded-lg transition-colors flex items-center justify-center"
           >
-            <span>Send</span>
             <Send className="w-4 h-4" />
           </button>
         </form>
