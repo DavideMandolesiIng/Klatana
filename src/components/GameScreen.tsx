@@ -3,10 +3,12 @@ import { GameBoard } from './GameBoard';
 import { type MapTemplate } from '../game/mapTemplates';
 import { type PlayerData, PLAYER_COLORS } from '../game/Player';
 import { peerService } from '../network/PeerService';
-import { type GameState, createInitialGameState, rollDice, distributeResources } from '../game/GameState';
+import { type GameState, createInitialGameState, rollDice, distributeResources, validateSettlementPlacement, validateRoadPlacement, getStartingResources, advanceSetupTurn } from '../game/GameState';
+import { HexMath } from '../game/HexMath';
 
 export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData[] }> = ({ map, initialPlayers }) => {
     const [gameState, setGameState] = useState<GameState>(() => createInitialGameState(initialPlayers));
+    const [buildMode, setBuildMode] = useState<'NONE' | 'SETTLEMENT' | 'ROAD'>('NONE');
 
     useEffect(() => {
         peerService.onMessage((data, _peerId) => {
@@ -46,14 +48,80 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         const nextIndex = (gameState.currentTurnIndex + 1) % gameState.players.length;
         const nextPlayer = gameState.players[nextIndex];
         
-        const newState = {
+        const newState: GameState = {
             ...gameState,
             currentTurnIndex: nextIndex,
-            phase: 'ROLL' as const,
+            phase: 'ROLL',
             diceRoll: null,
             logs: [...gameState.logs, `${currentPlayer.username} ended their turn. It is now ${nextPlayer.username}'s turn.`]
         };
         
+        setBuildMode('NONE');
+        broadcastState(newState);
+    };
+
+    const isSetupPhase = gameState.gamePhase === 'SETUP_1' || gameState.gamePhase === 'SETUP_2';
+    const activeBuildMode = isSetupPhase ? (gameState.setupAction || 'NONE') : buildMode;
+
+    const handleNodeClick = (nodeId: string) => {
+        if (activeBuildMode !== 'SETTLEMENT') return;
+        
+        const validation = validateSettlementPlacement(gameState, nodeId, myPlayer!.peerId);
+        if (!validation.valid) {
+            alert(validation.reason);
+            return;
+        }
+
+        const newState: GameState = {
+            ...gameState,
+            settlements: {
+                ...gameState.settlements,
+                [nodeId]: { ownerId: myPlayer!.peerId, isCity: false, nodeId }
+            },
+            logs: [...gameState.logs, `${currentPlayer.username} placed a settlement.`]
+        };
+
+        if (isSetupPhase) {
+            newState.lastBuiltNodeId = nodeId;
+            newState.setupAction = 'ROAD';
+            if (gameState.gamePhase === 'SETUP_2') {
+                const gained = getStartingResources(newState, nodeId, map);
+                Object.entries(gained).forEach(([res, count]) => {
+                    newState.players[newState.currentTurnIndex].resources[res as any] += count;
+                });
+                newState.logs.push(`${currentPlayer.username} received starting resources.`);
+            }
+        } else {
+            setBuildMode('NONE');
+        }
+
+        broadcastState(newState);
+    };
+
+    const handleEdgeClick = (edgeId: string) => {
+        if (activeBuildMode !== 'ROAD') return;
+        
+        const validation = validateRoadPlacement(gameState, edgeId, myPlayer!.peerId);
+        if (!validation.valid) {
+            alert(validation.reason);
+            return;
+        }
+        
+        let newState: GameState = {
+            ...gameState,
+            roads: {
+                ...gameState.roads,
+                [edgeId]: { ownerId: myPlayer!.peerId, edgeId }
+            },
+            logs: [...gameState.logs, `${currentPlayer.username} built a road.`]
+        };
+
+        if (isSetupPhase) {
+            newState = advanceSetupTurn(newState);
+        } else {
+            setBuildMode('NONE');
+        }
+
         broadcastState(newState);
     };
 
@@ -101,7 +169,13 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
                 {/* Main Board Area */}
                 <main className="flex-grow flex flex-col items-center justify-center bg-slate-800 rounded-xl border border-slate-700 shadow-xl relative overflow-hidden min-w-0">
-                    <GameBoard template={map} />
+                    <GameBoard 
+                        template={map} 
+                        gameState={gameState} 
+                        buildMode={activeBuildMode} 
+                        onNodeClick={handleNodeClick} 
+                        onEdgeClick={handleEdgeClick} 
+                    />
                     
                     {/* Top-Left Floating Info: Turn and Phase */}
                     <div className="absolute top-4 left-4 flex flex-col gap-2 z-10 pointer-events-none">
@@ -111,29 +185,51 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         </div>
                         <div className="px-3 py-1.5 bg-slate-900/80 backdrop-blur rounded-lg text-xs font-bold shadow-lg border border-slate-700">
                             <span className="text-slate-400 uppercase tracking-wider mr-2">Phase:</span>
-                            <span className="text-emerald-400 uppercase">{gameState.phase}</span>
+                            <span className="text-emerald-400 uppercase">{isSetupPhase ? gameState.gamePhase : gameState.phase}</span>
                         </div>
+                        {activeBuildMode !== 'NONE' && (
+                            <div className="px-3 py-1.5 bg-indigo-900/80 backdrop-blur rounded-lg text-xs font-bold shadow-lg border border-indigo-500 animate-pulse text-indigo-200">
+                                BUILDING {activeBuildMode}...
+                            </div>
+                        )}
                     </div>
 
                     {/* Floating Controls (Roll/Build/End Turn) - Bottom Right inside Main Area */}
                     <div className="absolute bottom-6 right-6 flex gap-3 z-10">
                         {isMyTurn ? (
-                            <>
-                                {gameState.phase === 'ROLL' ? (
-                                    <button onClick={handleRollDice} className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold shadow-2xl transition-colors border border-indigo-400 text-sm uppercase tracking-wider">
-                                        Roll Dice
-                                    </button>
-                                ) : (
-                                    <>
-                                        <button className="px-6 py-3 bg-slate-700 hover:bg-slate-600 rounded-xl font-bold transition-colors opacity-50 cursor-not-allowed shadow-xl border border-slate-600 text-sm uppercase tracking-wider" title="Not implemented yet">
-                                            Build
+                            isSetupPhase ? (
+                                <div className="px-6 py-3 bg-indigo-900/90 backdrop-blur-sm rounded-xl text-sm font-bold text-indigo-200 shadow-xl border border-indigo-500 animate-pulse">
+                                    PLACE {gameState.setupAction}
+                                </div>
+                            ) : (
+                                <>
+                                    {gameState.phase === 'ROLL' ? (
+                                        <button onClick={handleRollDice} className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold shadow-2xl transition-colors border border-indigo-400 text-sm uppercase tracking-wider">
+                                            Roll Dice
                                         </button>
-                                        <button onClick={handleEndTurn} className="px-6 py-3 bg-red-600 hover:bg-red-500 rounded-xl font-bold shadow-2xl transition-colors border border-red-400 text-sm uppercase tracking-wider">
-                                            End Turn
-                                        </button>
-                                    </>
-                                )}
-                            </>
+                                    ) : (
+                                        <>
+                                            {buildMode !== 'NONE' ? (
+                                                <button onClick={() => setBuildMode('NONE')} className="px-6 py-3 bg-slate-700 hover:bg-slate-600 rounded-xl font-bold transition-colors shadow-xl border border-slate-600 text-sm uppercase tracking-wider">
+                                                    Cancel Build
+                                                </button>
+                                            ) : (
+                                                <>
+                                                    <button onClick={() => setBuildMode('SETTLEMENT')} className="px-6 py-3 bg-slate-700 hover:bg-slate-600 rounded-xl font-bold transition-colors shadow-xl border border-slate-600 text-sm uppercase tracking-wider">
+                                                        Settlement
+                                                    </button>
+                                                    <button onClick={() => setBuildMode('ROAD')} className="px-6 py-3 bg-slate-700 hover:bg-slate-600 rounded-xl font-bold transition-colors shadow-xl border border-slate-600 text-sm uppercase tracking-wider">
+                                                        Road
+                                                    </button>
+                                                </>
+                                            )}
+                                            <button onClick={handleEndTurn} className="px-6 py-3 bg-red-600 hover:bg-red-500 rounded-xl font-bold shadow-2xl transition-colors border border-red-400 text-sm uppercase tracking-wider">
+                                                End Turn
+                                            </button>
+                                        </>
+                                    )}
+                                </>
+                            )
                         ) : (
                             <div className="px-5 py-3 bg-slate-900/80 backdrop-blur-sm rounded-xl text-sm font-medium text-slate-400 shadow-xl border border-slate-700">
                                 Waiting for {currentPlayer?.username}...

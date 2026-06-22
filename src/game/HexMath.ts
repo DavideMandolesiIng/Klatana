@@ -92,4 +92,31 @@ export class HexMath {
     }
     return edges;
   }
+
+  // --- Topology Helpers for Validation ---
+
+  static areNodesAdjacent(nodeIdA: string, nodeIdB: string): boolean {
+    const hexesA = nodeIdA.split('|');
+    const hexesB = nodeIdB.split('|');
+    // Adjacent nodes share exactly 2 hexes (the edge between them)
+    const shared = hexesA.filter(h => hexesB.includes(h));
+    return shared.length === 2;
+  }
+
+  static isEdgeAdjacentToNode(edgeId: string, nodeId: string): boolean {
+    const edgeHexes = edgeId.split('|');
+    const nodeHexes = nodeId.split('|');
+    // An edge touches a node if the node's 3 hexes contain the edge's 2 hexes
+    return edgeHexes.every(h => nodeHexes.includes(h));
+  }
+
+  static areEdgesAdjacent(edgeIdA: string, edgeIdB: string): boolean {
+    // Edges are adjacent if they meet at a node.
+    // If they share exactly 1 hex, they could meet at a node.
+    const hexesA = edgeIdA.split('|');
+    const hexesB = edgeIdB.split('|');
+    const allHexes = new Set([...hexesA, ...hexesB]);
+    // If union is 3 hexes, they share 1 hex and are adjacent.
+    return allHexes.size === 3;
+  }
 }

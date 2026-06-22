@@ -1,9 +1,16 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { HexMath } from '../game/HexMath';
 import { type MapTemplate } from '../game/mapTemplates';
+import { type GameState } from '../game/GameState';
+import { PLAYER_COLORS } from '../game/Player';
+import { SettlementAsset, RoadAsset } from './Assets';
 
 interface GameBoardProps {
   template: MapTemplate;
+  gameState?: GameState;
+  buildMode?: 'NONE' | 'SETTLEMENT' | 'ROAD';
+  onNodeClick?: (nodeId: string) => void;
+  onEdgeClick?: (edgeId: string) => void;
 }
 
 // Default fallback colors if no custom assets are provided
@@ -17,9 +24,19 @@ const RESOURCE_COLORS: Record<string, string> = {
   DESERT: '#e0afa0'
 };
 
-export const GameBoard: React.FC<GameBoardProps> = ({ template }) => {
+export const GameBoard: React.FC<GameBoardProps> = ({ template, gameState, buildMode = 'NONE', onNodeClick, onEdgeClick }) => {
   const hexSize = 55;
   
+  const { uniqueNodes, uniqueEdges } = useMemo(() => {
+    const nodes = new Map<string, { id: string, x: number, y: number }>();
+    const edges = new Map<string, { id: string, x1: number, y1: number, x2: number, y2: number }>();
+    template.hexes.forEach(hex => {
+        HexMath.hexNodes(hex.coords, hexSize).forEach(n => nodes.set(n.id, n));
+        HexMath.hexEdges(hex.coords, hexSize).forEach(e => edges.set(e.id, e));
+    });
+    return { uniqueNodes: Array.from(nodes.values()), uniqueEdges: Array.from(edges.values()) };
+  }, [template]);
+
   return (
     <div className="w-full h-full flex items-center justify-center bg-blue-900/10 rounded-xl overflow-hidden border border-slate-700">
       <svg width="100%" height="100%" viewBox={`-400 -300 800 600`} className="max-w-4xl">
@@ -30,13 +47,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({ template }) => {
           const pointsString = corners.map(p => `${p.x},${p.y}`).join(' ');
           
           return (
-            <g key={`hex-${i}`} className="cursor-pointer hover:opacity-80 transition-opacity">
-              
-              {/* 
-                * FUTURE PROOFING FOR CUSTOM ASSETS *
-                To use images instead of a solid color polygon, you could do:
-                <image href={`/assets/hexes/${hex.resource}.png`} x={center.x - hexSize} y={center.y - hexSize} width={hexSize*2} height={hexSize*2} />
-              */}
+            <g key={`hex-${i}`}>
               <polygon 
                 points={pointsString} 
                 fill={RESOURCE_COLORS[hex.resource]} 
@@ -89,46 +100,61 @@ export const GameBoard: React.FC<GameBoardProps> = ({ template }) => {
            // Port colors
            const getPortColor = (type: string) => {
              switch(type) {
-                case 'WOOD': return '#14532d'; // Dark forest green
-                case 'CLAY': return '#7c2d12'; // Dark terracotta
-                case 'WOOL': return '#86efac'; // Light pastel green
-                case 'WHEAT': return '#fef08a'; // Bright yellow
-                case 'ORE': return '#94a3b8';  // Slate grey
-                default: return '#f8fafc';    // White for 3:1
+                case 'WOOD': return '#14532d';
+                case 'CLAY': return '#7c2d12';
+                case 'WOOL': return '#86efac';
+                case 'WHEAT': return '#fef08a';
+                case 'ORE': return '#94a3b8';
+                default: return '#f8fafc';
              }
            };
 
            return (
               <g key={`port-${i}`} transform={`translate(${portX}, ${portY})`}>
-                 {/* Outer dock rectangle / circle */}
                  <circle cx="0" cy="0" r="16" fill="#1e293b" stroke="#334155" strokeWidth="2" />
                  <circle cx="0" cy="0" r="12" fill={getPortColor(port.type)} />
-                 
-                 {/* Add label */}
-                 <text 
-                   x="0" 
-                   y="4" 
-                   textAnchor="middle" 
-                   fontSize={port.type === '3:1' ? '8px' : '5px'} 
-                   fontWeight="bold" 
-                   fill={['WOOD', 'CLAY'].includes(port.type) ? 'white' : '#0f172a'}
-                 >
+                 <text x="0" y="4" textAnchor="middle" fontSize={port.type === '3:1' ? '8px' : '5px'} fontWeight="bold" fill={['WOOD', 'CLAY'].includes(port.type) ? 'white' : '#0f172a'}>
                     {port.type}
                  </text>
-                 <text 
-                   x="0" 
-                   y="-6" 
-                   textAnchor="middle" 
-                   fontSize="4px" 
-                   fontWeight="bold" 
-                   fill="white"
-                   style={{ textShadow: '0px 1px 2px rgba(0,0,0,0.8)' }}
-                 >
+                 <text x="0" y="-6" textAnchor="middle" fontSize="4px" fontWeight="bold" fill="white" style={{ textShadow: '0px 1px 2px rgba(0,0,0,0.8)' }}>
                     {port.type === '3:1' ? '' : '2:1'}
                  </text>
               </g>
            );
         })}
+
+        {/* RENDER EDGES (ROADS) */}
+        {uniqueEdges.map(edge => {
+            const road = gameState?.roads[edge.id];
+            const isClickable = buildMode === 'ROAD' && !road;
+            return (
+                <g key={`edge-${edge.id}`} onClick={() => isClickable && onEdgeClick?.(edge.id)} style={{ cursor: isClickable ? 'pointer' : 'default' }}>
+                    <line x1={edge.x1} y1={edge.y1} x2={edge.x2} y2={edge.y2} stroke="transparent" strokeWidth="20" />
+                    {road ? (
+                        <RoadAsset x={edge.x1} y={edge.y1} x2={edge.x2} y2={edge.y2} playerColor={PLAYER_COLORS[gameState!.players.find(p => p.peerId === road.ownerId)?.color as any]?.hex || 'white'} />
+                    ) : (
+                        isClickable && <line x1={edge.x1} y1={edge.y1} x2={edge.x2} y2={edge.y2} stroke="white" strokeWidth="6" opacity="0.4" strokeDasharray="4 4" />
+                    )}
+                </g>
+            );
+        })}
+
+        {/* RENDER NODES (SETTLEMENTS/CITIES) */}
+        {uniqueNodes.map(node => {
+            const settlement = gameState?.settlements[node.id];
+            const isClickable = buildMode === 'SETTLEMENT' && !settlement;
+            return (
+                <g key={`node-${node.id}`} onClick={() => isClickable && onNodeClick?.(node.id)} style={{ cursor: isClickable ? 'pointer' : 'default' }}>
+                    <circle cx={node.x} cy={node.y} r="15" fill="transparent" />
+                    {settlement ? (
+                        <SettlementAsset x={node.x} y={node.y} playerColor={PLAYER_COLORS[gameState!.players.find(p => p.peerId === settlement.ownerId)?.color as any]?.hex || 'white'} />
+                    ) : (
+                        isClickable && <circle cx={node.x} cy={node.y} r="8" fill="white" opacity="0.6" />
+                    )}
+                </g>
+            );
+        })}
+
       </svg>
     </div>
   );
