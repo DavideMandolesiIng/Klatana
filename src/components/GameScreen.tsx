@@ -3,7 +3,7 @@ import { GameBoard } from './GameBoard';
 import { type MapTemplate } from '../game/mapTemplates';
 import { type PlayerData, PLAYER_COLORS } from '../game/Player';
 import { peerService } from '../network/PeerService';
-import { type GameState, createInitialGameState, rollDice, distributeResources, validateSettlementPlacement, validateRoadPlacement, getStartingResources, advanceSetupTurn, getValidRoadPlacements, getValidSettlementPlacements, BUILD_COSTS, canAfford } from '../game/GameState';
+import { type GameState, createInitialGameState, rollDice, distributeResources, validateSettlementPlacement, validateRoadPlacement, getStartingResources, advanceSetupTurn, getValidRoadPlacements, getValidSettlementPlacements, BUILD_COSTS, canAfford, calculateScores } from '../game/GameState';
 import { HexMath } from '../game/HexMath';
 
 export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData[] }> = ({ map, initialPlayers }) => {
@@ -21,8 +21,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     }, []);
 
     const broadcastState = (newState: GameState) => {
-        setGameState(newState);
-        peerService.broadcast({ type: 'GAME_STATE_UPDATE', state: newState });
+        const scoredState = calculateScores(newState);
+        setGameState(scoredState);
+        peerService.broadcast({ type: 'GAME_STATE_UPDATE', state: scoredState });
     };
 
     const isMyTurn = gameState.players[gameState.currentTurnIndex]?.peerId === peerService.peerId;
@@ -131,6 +132,19 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
         if (card.type === 'NINJA') {
             newState.gamePhase = 'NINJA_MOVE';
+            
+            // Largest Army tracking
+            const newPlayedCount = (newState.playedNinjaCards[myPlayer!.peerId] || 0) + 1;
+            newState.playedNinjaCards = { ...newState.playedNinjaCards, [myPlayer!.peerId]: newPlayedCount };
+            
+            if (newPlayedCount >= 3 && newPlayedCount > newState.largestArmySize) {
+                if (newState.largestArmyHolder !== myPlayer!.peerId) {
+                    newState.logs.push(`${myPlayer!.username} took the Largest Army award!`);
+                }
+                newState.largestArmyHolder = myPlayer!.peerId;
+                newState.largestArmySize = newPlayedCount;
+            }
+
             broadcastState(newState);
         } else if (card.type === 'RAPID_EXPANSION') {
             newState.gamePhase = 'FREE_ROAD_BUILDING';
@@ -429,6 +443,42 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                     </div>
                 )}
             </header>
+
+            {/* VICTORY SCREEN */}
+            {gameState.gamePhase === 'GAME_OVER' && (
+                <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center backdrop-blur-md">
+                    <div className="bg-slate-800 p-10 rounded-3xl border border-yellow-500/50 shadow-2xl max-w-lg w-full text-center flex flex-col items-center gap-4">
+                        <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-amber-600 mb-2 drop-shadow-lg">
+                            VICTORY!
+                        </h1>
+                        <div className="w-16 h-16 rounded-full mb-2" style={{ backgroundColor: PLAYER_COLORS[gameState.players.find(p => p.victoryPoints + p.actionCards.filter(c => c.type === 'MONUMENT').length >= gameState.winningScore)?.color as any || 'RED'].hex }}></div>
+                        <h2 className="text-2xl font-bold text-white uppercase tracking-widest">
+                            {gameState.players.find(p => p.victoryPoints + p.actionCards.filter(c => c.type === 'MONUMENT').length >= gameState.winningScore)?.username} Wins!
+                        </h2>
+                        <p className="text-slate-300">
+                            They reached {gameState.winningScore} Victory Points and conquered Hexagonal Realms.
+                        </p>
+                        
+                        <div className="w-full mt-6 bg-slate-900 rounded-xl p-4 border border-slate-700">
+                            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3 border-b border-slate-700 pb-2">Final Scores</h3>
+                            {gameState.players.sort((a,b) => (b.victoryPoints + b.actionCards.filter(c => c.type === 'MONUMENT').length) - (a.victoryPoints + a.actionCards.filter(c => c.type === 'MONUMENT').length)).map(p => {
+                                const hiddenVp = p.actionCards.filter(c => c.type === 'MONUMENT').length;
+                                return (
+                                    <div key={p.peerId} className="flex justify-between items-center py-2 border-b border-slate-800 last:border-0">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: PLAYER_COLORS[p.color as any].hex }}></div>
+                                            <span className="font-bold text-white">{p.username}</span>
+                                        </div>
+                                        <div className="text-sm font-bold text-yellow-500">
+                                            {p.victoryPoints + hiddenVp} VP <span className="text-slate-500 text-xs">({p.victoryPoints} Pub + {hiddenVp} Hid)</span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* NINJA DISCARD MODAL */}
             {gameState.gamePhase === 'NINJA_DISCARD' && myPlayer && gameState.playersNeedingToDiscard.includes(myPlayer.peerId) && (
@@ -746,9 +796,11 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                     <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: PLAYER_COLORS[p.color as any].hex }}></div>
                                     <span className="font-bold text-sm truncate">{p.username}</span>
                                 </div>
-                                <div className="flex items-center gap-3 text-xs text-slate-400 shrink-0">
-                                    <span title="Victory Points">VP: <span className="text-white font-bold">{p.victoryPoints}</span></span>
-                                    <span title="Cards">🃏 <span className="text-white font-bold">{Object.values(p.resources).reduce((a,b)=>a+b,0)}</span></span>
+                                <div className="flex items-center gap-1.5 text-xs text-slate-400 shrink-0">
+                                    {gameState.longestRoadHolder === p.peerId && <span title={`Longest Road (${gameState.longestRoadLength})`} className="text-amber-500 font-bold mr-1">🛣️</span>}
+                                    {gameState.largestArmyHolder === p.peerId && <span title={`Largest Army (${gameState.largestArmySize})`} className="text-red-500 font-bold mr-1">⚔️</span>}
+                                    <span title="Victory Points">VP: <span className="text-white font-bold">{p.victoryPoints}{p.peerId === myPlayer?.peerId ? `+${p.actionCards.filter(c => c.type === 'MONUMENT').length}` : ''}</span></span>
+                                    <span title="Cards" className="ml-1">🃏 <span className="text-white font-bold">{Object.values(p.resources).reduce((a,b)=>a+b,0)}</span></span>
                                 </div>
                             </div>
                         ))}

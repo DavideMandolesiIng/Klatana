@@ -3,7 +3,7 @@ import { type PlayerData } from './Player';
 import { HexMath } from './HexMath';
 
 export type TurnPhase = 'ROLL' | 'TRADE' | 'BUILD';
-export type GamePhase = 'SETUP_1' | 'SETUP_2' | 'MAIN_GAME' | 'NINJA_DISCARD' | 'NINJA_MOVE' | 'NINJA_STEAL' | 'FREE_ROAD_BUILDING';
+export type GamePhase = 'SETUP_1' | 'SETUP_2' | 'MAIN_GAME' | 'NINJA_DISCARD' | 'NINJA_MOVE' | 'NINJA_STEAL' | 'FREE_ROAD_BUILDING' | 'GAME_OVER';
 export type ActionCardType = 'NINJA' | 'MONUMENT' | 'MONOPOLY' | 'ABUNDANCE' | 'RAPID_EXPANSION';
 export type SetupAction = 'SETTLEMENT' | 'ROAD';
 
@@ -63,6 +63,12 @@ export interface GameState {
   playersNeedingToDiscard: string[];
   activeTurnPlayedCard: boolean;
   freeRoadsLeft: number;
+  largestArmyHolder: string | null;
+  largestArmySize: number;
+  longestRoadHolder: string | null;
+  longestRoadLength: number;
+  playedNinjaCards: Record<string, number>;
+  winningScore: number;
 }
 
 export const createInitialGameState = (lobbyPlayers: PlayerData[], map?: MapTemplate): GameState => {
@@ -107,7 +113,13 @@ export const createInitialGameState = (lobbyPlayers: PlayerData[], map?: MapTemp
     ninjaHexCoords: desertCoords,
     playersNeedingToDiscard: [],
     activeTurnPlayedCard: false,
-    freeRoadsLeft: 0
+    freeRoadsLeft: 0,
+    largestArmyHolder: null,
+    largestArmySize: 0,
+    longestRoadHolder: null,
+    longestRoadLength: 0,
+    playedNinjaCards: {},
+    winningScore: 10
   };
 };
 
@@ -320,3 +332,93 @@ export const distributeResources = (gameState: GameState, map: MapTemplate, roll
     logs: [...gameState.logs, ...logEntries]
   };
 };
+
+export const calculateScores = (gameState: GameState): GameState => {
+    if (gameState.gamePhase === 'SETUP_1' || gameState.gamePhase === 'SETUP_2') return gameState;
+
+    let newState = { ...gameState, players: JSON.parse(JSON.stringify(gameState.players)) };
+    
+    // 1. Get Longest Road using Node DFS
+    const getLongestRoadForPlayer = (peerId: string): number => {
+        const myRoads = Object.values(newState.roads).filter(r => r.ownerId === peerId);
+        if (myRoads.length === 0) return 0;
+
+        const nodeAdj: Record<string, { toNode: string, edgeId: string }[]> = {};
+        myRoads.forEach(r => {
+            const [n1, n2] = HexMath.getEdgeNodeIds(r.edgeId);
+            if (!nodeAdj[n1]) nodeAdj[n1] = [];
+            if (!nodeAdj[n2]) nodeAdj[n2] = [];
+            nodeAdj[n1].push({ toNode: n2, edgeId: r.edgeId });
+            nodeAdj[n2].push({ toNode: n1, edgeId: r.edgeId });
+        });
+
+        let maxNodePath = 0;
+        const dfsNodes = (currentNode: string, visitedEdges: Set<string>, currentLength: number) => {
+            if (currentLength > maxNodePath) maxNodePath = currentLength;
+            
+            const occupant = newState.settlements[currentNode];
+            if (occupant && occupant.ownerId !== peerId && currentLength > 0) return;
+
+            const neighbors = nodeAdj[currentNode] || [];
+            for (const neighbor of neighbors) {
+                if (!visitedEdges.has(neighbor.edgeId)) {
+                    visitedEdges.add(neighbor.edgeId);
+                    dfsNodes(neighbor.toNode, visitedEdges, currentLength + 1);
+                    visitedEdges.delete(neighbor.edgeId);
+                }
+            }
+        };
+
+        Object.keys(nodeAdj).forEach(startNode => {
+            dfsNodes(startNode, new Set<string>(), 0);
+        });
+
+        return maxNodePath;
+    };
+
+    // Calculate Longest Road and Base Points
+    const playerRoadLengths: Record<string, number> = {};
+    const playerBasePoints: Record<string, number> = {};
+
+    newState.players.forEach(p => {
+        playerRoadLengths[p.peerId] = getLongestRoadForPlayer(p.peerId);
+        playerBasePoints[p.peerId] = 0;
+    });
+
+    Object.values(newState.settlements).forEach(s => {
+        if (playerBasePoints[s.ownerId] !== undefined) {
+            playerBasePoints[s.ownerId] += s.isCity ? 2 : 1;
+        }
+    });
+
+    // Determine Longest Road Holder
+    newState.players.forEach(p => {
+        const roadLen = playerRoadLengths[p.peerId];
+        if (roadLen >= 5 && roadLen > newState.longestRoadLength) {
+            if (newState.longestRoadHolder !== p.peerId) {
+                newState.logs.push(`${p.username} took the Longest Road award!`);
+            }
+            newState.longestRoadHolder = p.peerId;
+            newState.longestRoadLength = roadLen;
+        }
+    });
+
+    // Update Scores and Check Win
+    newState.players.forEach(p => {
+        let publicVp = playerBasePoints[p.peerId];
+        if (newState.longestRoadHolder === p.peerId) publicVp += 2;
+        if (newState.largestArmyHolder === p.peerId) publicVp += 2;
+        
+        p.victoryPoints = publicVp;
+
+        const hiddenVp = p.actionCards.filter(c => c.type === 'MONUMENT').length;
+
+        if (publicVp + hiddenVp >= newState.winningScore && newState.gamePhase !== 'GAME_OVER') {
+            newState.gamePhase = 'GAME_OVER';
+            newState.logs.push(`🏆 ${p.username} HAS WON THE GAME!`);
+        }
+    });
+
+    return newState;
+};
+
