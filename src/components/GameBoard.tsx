@@ -162,7 +162,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     {/* Invisible wide hit-area */}
                     <line x1={edge.x1} y1={edge.y1} x2={edge.x2} y2={edge.y2} stroke="transparent" strokeWidth="20" />
                     {road ? (
-                        <RoadAsset x={edge.x1} y={edge.y1} x2={edge.x2} y2={edge.y2} playerColor={PLAYER_COLORS[gameState!.players.find(p => p.peerId === road.ownerId)?.color as any]?.hex || 'white'} />
+                        <RoadAsset x={edge.x1} y={edge.y1} x2={edge.x2} y2={edge.y2} playerColor={PLAYER_COLORS[gameState!.players.find(p => p.peerId === road.ownerId)?.color as keyof typeof PLAYER_COLORS]?.hex || 'white'} />
                     ) : (
                         isValidPlacement && <line x1={edge.x1} y1={edge.y1} x2={edge.x2} y2={edge.y2} stroke="white" strokeWidth="6" opacity="0.4" strokeDasharray="4 4" />
                     )}
@@ -180,7 +180,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
             let nodeAsset = null;
             if (settlement) {
-                const color = PLAYER_COLORS[gameState!.players.find(p => p.peerId === settlement.ownerId)?.color as any]?.hex || 'white';
+                const color = PLAYER_COLORS[gameState!.players.find(p => p.peerId === settlement.ownerId)?.color as keyof typeof PLAYER_COLORS]?.hex || 'white';
                 if (settlement.isCity) {
                     nodeAsset = <CityAsset x={node.x} y={node.y} playerColor={color} />;
                 } else {

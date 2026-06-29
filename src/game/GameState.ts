@@ -3,7 +3,7 @@ import { type PlayerData } from './Player';
 import { HexMath } from './HexMath';
 
 export type TurnPhase = 'ROLL' | 'TRADE' | 'BUILD';
-export type GamePhase = 'SETUP_1' | 'SETUP_2' | 'MAIN_GAME' | 'NINJA_DISCARD' | 'NINJA_MOVE' | 'NINJA_STEAL' | 'FREE_ROAD_BUILDING' | 'GAME_OVER';
+export type GamePhase = 'SETUP_1' | 'SETUP_2' | 'MAIN_GAME' | 'NINJA_DISCARD' | 'NINJA_MOVE' | 'NINJA_STEAL' | 'FREE_ROAD_BUILDING' | 'GAME_OVER' | 'P2P_TRADE_PENDING';
 export type ActionCardType = 'NINJA' | 'MONUMENT' | 'MONOPOLY' | 'ABUNDANCE' | 'RAPID_EXPANSION';
 export type SetupAction = 'SETTLEMENT' | 'ROAD';
 
@@ -19,7 +19,7 @@ export const BUILD_COSTS = {
 
 export const canAfford = (resources: ResourceCounts, cost: Partial<Record<string, number>>): boolean => {
     for (const [res, amount] of Object.entries(cost)) {
-        if ((resources[res as keyof ResourceCounts] || 0) < amount) {
+        if ((resources[res as keyof ResourceCounts] || 0) < (amount || 0)) {
             return false;
         }
     }
@@ -69,6 +69,12 @@ export interface GameState {
   longestRoadLength: number;
   playedNinjaCards: Record<string, number>;
   winningScore: number;
+  tradeProposal?: {
+    proposerId: string;
+    offer: Partial<ResourceCounts>;
+    request: Partial<ResourceCounts>;
+    acceptedBy: string[];
+  };
 }
 
 export const createInitialGameState = (lobbyPlayers: PlayerData[], map?: MapTemplate): GameState => {
@@ -336,7 +342,7 @@ export const distributeResources = (gameState: GameState, map: MapTemplate, roll
 export const calculateScores = (gameState: GameState): GameState => {
     if (gameState.gamePhase === 'SETUP_1' || gameState.gamePhase === 'SETUP_2') return gameState;
 
-    let newState = { ...gameState, players: JSON.parse(JSON.stringify(gameState.players)) };
+    let newState: GameState = { ...gameState, players: JSON.parse(JSON.stringify(gameState.players)) as PlayerState[] };
     
     // 1. Get Longest Road using Node DFS
     const getLongestRoadForPlayer = (peerId: string): number => {
@@ -420,5 +426,41 @@ export const calculateScores = (gameState: GameState): GameState => {
     });
 
     return newState;
+};
+
+export const getPlayerTradeRates = (gameState: GameState, map: MapTemplate, peerId: string): Record<Exclude<ResourceType, 'DESERT'>, number> => {
+    const rates: Record<Exclude<ResourceType, 'DESERT'>, number> = {
+        WOOD: 4, CLAY: 4, WHEAT: 4, WOOL: 4, ORE: 4, GOLD: 4
+    };
+
+    if (!map.ports) return rates;
+
+    const playerNodes = new Set<string>();
+    Object.values(gameState.settlements).forEach(s => {
+        if (s.ownerId === peerId) {
+            playerNodes.add(s.nodeId);
+        }
+    });
+
+    map.ports.forEach(port => {
+        const dirIdx = (port.edgeDirection + 1) % 6;
+        const neighbor = { q: port.coords.q + HexMath.directions[dirIdx].q, r: port.coords.r + HexMath.directions[dirIdx].r };
+        const edgeId = HexMath.getEdgeId(port.coords, neighbor);
+        const portNodes = HexMath.getEdgeNodeIds(edgeId);
+
+        if (portNodes.some(n => playerNodes.has(n))) {
+            if (port.type === '3:1') {
+                Object.keys(rates).forEach(res => {
+                    const r = res as Exclude<ResourceType, 'DESERT'>;
+                    if (rates[r] > 3) rates[r] = 3;
+                });
+            } else {
+                const r = port.type as Exclude<ResourceType, 'DESERT'>;
+                if (rates[r] > 2) rates[r] = 2;
+            }
+        }
+    });
+
+    return rates;
 };
 

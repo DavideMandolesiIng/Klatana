@@ -3,14 +3,16 @@ import { GameBoard } from './GameBoard';
 import { type MapTemplate } from '../game/mapTemplates';
 import { type PlayerData, PLAYER_COLORS } from '../game/Player';
 import { peerService } from '../network/PeerService';
-import { type GameState, createInitialGameState, rollDice, distributeResources, validateSettlementPlacement, validateRoadPlacement, getStartingResources, advanceSetupTurn, getValidRoadPlacements, getValidSettlementPlacements, BUILD_COSTS, canAfford, calculateScores } from '../game/GameState';
+import { type GameState, createInitialGameState, rollDice, distributeResources, validateSettlementPlacement, validateRoadPlacement, getStartingResources, advanceSetupTurn, getValidRoadPlacements, getValidSettlementPlacements, BUILD_COSTS, canAfford, calculateScores, type ResourceCounts } from '../game/GameState';
 import { HexMath } from '../game/HexMath';
+import { TradeModal } from './TradeModal';
 
 export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData[] }> = ({ map, initialPlayers }) => {
     const [gameState, setGameState] = useState<GameState>(() => createInitialGameState(initialPlayers, map));
     const [buildMode, setBuildMode] = useState<'NONE' | 'SETTLEMENT' | 'ROAD' | 'CITY'>('NONE');
     const [discardSelection, setDiscardSelection] = useState<Partial<Record<string, number>>>({});
     const [abundancePicks, setAbundancePicks] = useState<string[]>([]);
+    const [showTradeModal, setShowTradeModal] = useState(false);
 
     useEffect(() => {
         peerService.onMessage((data, _peerId) => {
@@ -156,6 +158,89 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         }
     };
 
+    const handleBankTrade = (giveRes: string, giveAmount: number, getRes: string) => {
+        const newPlayers = [...gameState.players];
+        const playerIndex = newPlayers.findIndex(p => p.peerId === myPlayer!.peerId);
+        const updatedPlayer = { ...newPlayers[playerIndex], resources: { ...newPlayers[playerIndex].resources } };
+        
+        updatedPlayer.resources[giveRes as keyof ResourceCounts] -= giveAmount;
+        updatedPlayer.resources[getRes as keyof ResourceCounts] += 1;
+        
+        newPlayers[playerIndex] = updatedPlayer;
+        broadcastState({
+            ...gameState,
+            players: newPlayers,
+            logs: [...gameState.logs, `${myPlayer!.username} traded ${giveAmount} ${giveRes} for 1 ${getRes} with the bank.`]
+        });
+    };
+
+    const handleProposeTrade = (offer: Partial<ResourceCounts>, request: Partial<ResourceCounts>) => {
+        broadcastState({
+            ...gameState,
+            gamePhase: 'P2P_TRADE_PENDING',
+            tradeProposal: {
+                proposerId: myPlayer!.peerId,
+                offer,
+                request,
+                acceptedBy: []
+            },
+            logs: [...gameState.logs, `${myPlayer!.username} proposed a trade.`]
+        });
+    };
+
+    const handleAcceptTrade = () => {
+        if (!gameState.tradeProposal) return;
+        broadcastState({
+            ...gameState,
+            tradeProposal: {
+                ...gameState.tradeProposal,
+                acceptedBy: [...gameState.tradeProposal.acceptedBy, myPlayer!.peerId]
+            }
+        });
+    };
+
+    const handleFinalizeTrade = (acceptedPeerId: string) => {
+        if (!gameState.tradeProposal) return;
+        const newPlayers = [...gameState.players];
+        
+        const myIndex = newPlayers.findIndex(p => p.peerId === myPlayer!.peerId);
+        const partnerIndex = newPlayers.findIndex(p => p.peerId === acceptedPeerId);
+        const updatedMe = { ...newPlayers[myIndex], resources: { ...newPlayers[myIndex].resources } };
+        const updatedPartner = { ...newPlayers[partnerIndex], resources: { ...newPlayers[partnerIndex].resources } };
+        
+        const { offer, request } = gameState.tradeProposal;
+
+        Object.entries(offer).forEach(([res, count]) => {
+            updatedMe.resources[res as keyof ResourceCounts] -= (count || 0);
+            updatedPartner.resources[res as keyof ResourceCounts] += (count || 0);
+        });
+
+        Object.entries(request).forEach(([res, count]) => {
+            updatedPartner.resources[res as keyof ResourceCounts] -= (count || 0);
+            updatedMe.resources[res as keyof ResourceCounts] += (count || 0);
+        });
+
+        newPlayers[myIndex] = updatedMe;
+        newPlayers[partnerIndex] = updatedPartner;
+
+        broadcastState({
+            ...gameState,
+            players: newPlayers,
+            gamePhase: 'MAIN_GAME',
+            tradeProposal: undefined,
+            logs: [...gameState.logs, `${myPlayer!.username} and ${newPlayers[partnerIndex].username} completed a trade.`]
+        });
+    };
+
+    const handleCancelTrade = () => {
+        broadcastState({
+            ...gameState,
+            gamePhase: 'MAIN_GAME',
+            tradeProposal: undefined,
+            logs: [...gameState.logs, `${myPlayer!.username} canceled their trade proposal.`]
+        });
+    };
+
     const isSetupPhase = gameState.gamePhase === 'SETUP_1' || gameState.gamePhase === 'SETUP_2';
     const activeBuildMode = isSetupPhase ? (gameState.setupAction || 'NONE') : buildMode;
 
@@ -279,7 +364,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             if (gameState.gamePhase === 'SETUP_2') {
                 const gained = getStartingResources(newState, nodeId, map);
                 Object.entries(gained).forEach(([res, count]) => {
-                    newState.players[newState.currentTurnIndex].resources[res as any] += count;
+                    newState.players[newState.currentTurnIndex].resources[res as keyof ResourceCounts] += (count || 0);
                 });
                 newState.logs.push(`${currentPlayer.username} received starting resources.`);
             }
@@ -451,7 +536,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-amber-600 mb-2 drop-shadow-lg">
                             VICTORY!
                         </h1>
-                        <div className="w-16 h-16 rounded-full mb-2" style={{ backgroundColor: PLAYER_COLORS[gameState.players.find(p => p.victoryPoints + p.actionCards.filter(c => c.type === 'MONUMENT').length >= gameState.winningScore)?.color as any || 'RED'].hex }}></div>
+                        <div className="w-16 h-16 rounded-full mb-2" style={{ backgroundColor: PLAYER_COLORS[gameState.players.find(p => p.victoryPoints + p.actionCards.filter(c => c.type === 'MONUMENT').length >= gameState.winningScore)?.color as keyof typeof PLAYER_COLORS || 'RED'].hex }}></div>
                         <h2 className="text-2xl font-bold text-white uppercase tracking-widest">
                             {gameState.players.find(p => p.victoryPoints + p.actionCards.filter(c => c.type === 'MONUMENT').length >= gameState.winningScore)?.username} Wins!
                         </h2>
@@ -466,7 +551,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                 return (
                                     <div key={p.peerId} className="flex justify-between items-center py-2 border-b border-slate-800 last:border-0">
                                         <div className="flex items-center gap-2">
-                                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: PLAYER_COLORS[p.color as any].hex }}></div>
+                                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: PLAYER_COLORS[p.color as keyof typeof PLAYER_COLORS].hex }}></div>
                                             <span className="font-bold text-white">{p.username}</span>
                                         </div>
                                         <div className="text-sm font-bold text-yellow-500">
@@ -641,6 +726,81 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                     </div>
                 </div>
             )}
+
+            {showTradeModal && myPlayer && (
+                <TradeModal 
+                    gameState={gameState}
+                    myPlayerId={myPlayer.peerId}
+                    map={map}
+                    onClose={() => setShowTradeModal(false)}
+                    onBankTrade={handleBankTrade}
+                    onProposeTrade={handleProposeTrade}
+                />
+            )}
+
+            {gameState.gamePhase === 'P2P_TRADE_PENDING' && gameState.tradeProposal && (
+                <div className="fixed inset-0 bg-black/60 z-[90] flex items-center justify-center backdrop-blur-sm">
+                    <div className="bg-slate-800 p-6 rounded-2xl border border-slate-600 shadow-2xl max-w-md w-full">
+                        <h2 className="text-xl font-bold text-white mb-4 text-center uppercase tracking-wider text-purple-400">Trade Proposal</h2>
+                        
+                        <div className="flex gap-4 justify-between items-center bg-slate-900 p-4 rounded-xl border border-slate-700 mb-6">
+                            <div className="flex flex-col gap-1 items-center">
+                                <span className="text-xs font-bold text-slate-400 uppercase">{gameState.players.find(p => p.peerId === gameState.tradeProposal!.proposerId)?.username} gives</span>
+                                {Object.entries(gameState.tradeProposal.offer).filter(([_, count]) => (count||0) > 0).map(([res, count]) => (
+                                    <span key={res} className="font-bold text-white text-sm">{count} {res}</span>
+                                ))}
+                            </div>
+                            <span className="text-2xl font-black text-slate-500">🔄</span>
+                            <div className="flex flex-col gap-1 items-center">
+                                <span className="text-xs font-bold text-slate-400 uppercase">Requests</span>
+                                {Object.entries(gameState.tradeProposal.request).filter(([_, count]) => (count||0) > 0).map(([res, count]) => (
+                                    <span key={res} className="font-bold text-white text-sm">{count} {res}</span>
+                                ))}
+                            </div>
+                        </div>
+
+                        {myPlayer?.peerId === gameState.tradeProposal.proposerId ? (
+                            <div className="space-y-4">
+                                <h3 className="text-sm font-bold text-slate-300 text-center uppercase tracking-wider">Accepted By</h3>
+                                {gameState.tradeProposal.acceptedBy.length === 0 ? (
+                                    <p className="text-slate-500 text-center text-sm italic">Waiting for responses...</p>
+                                ) : (
+                                    <div className="flex flex-col gap-2">
+                                        {gameState.tradeProposal.acceptedBy.map(pid => {
+                                            const p = gameState.players.find(x => x.peerId === pid);
+                                            return p ? (
+                                                <button key={pid} onClick={() => handleFinalizeTrade(pid)} className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 rounded font-bold transition-colors">
+                                                    Trade with {p.username}
+                                                </button>
+                                            ) : null;
+                                        })}
+                                    </div>
+                                )}
+                                <button onClick={handleCancelTrade} className="w-full py-2 bg-slate-700 hover:bg-slate-600 rounded font-bold mt-4 transition-colors">Cancel Offer</button>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {gameState.tradeProposal.acceptedBy.includes(myPlayer!.peerId) ? (
+                                    <p className="text-emerald-400 font-bold text-center">You accepted this offer. Waiting for proposer...</p>
+                                ) : (
+                                    <>
+                                        <button 
+                                            onClick={handleAcceptTrade} 
+                                            disabled={!canAfford(myPlayer!.resources, gameState.tradeProposal.request)}
+                                            className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 rounded font-bold uppercase tracking-wider transition-colors"
+                                        >
+                                            Accept Trade
+                                        </button>
+                                        {!canAfford(myPlayer!.resources, gameState.tradeProposal.request) && (
+                                            <p className="text-red-400 text-xs text-center font-bold">You do not have the requested resources.</p>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
             
             <div className="flex-grow flex gap-4 min-h-0 overflow-hidden">
                 {/* Left Sidebar */}
@@ -660,8 +820,12 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                 ))}
                             </div>
                         )}
-                        <button className="w-full py-2 text-sm bg-slate-700 hover:bg-slate-600 rounded-lg font-bold transition-colors opacity-50 cursor-not-allowed border border-slate-600" title="Not implemented yet">
-                            Trade
+                        <button 
+                            onClick={() => setShowTradeModal(true)}
+                            disabled={!isMyTurn || gameState.phase === 'ROLL' || isSetupPhase}
+                            className={`w-full py-2 text-sm rounded-lg font-bold transition-colors border ${(!isMyTurn || gameState.phase === 'ROLL' || isSetupPhase) ? 'bg-slate-700 border-slate-600 text-slate-500 opacity-50 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 border-blue-500 text-white shadow-lg'}`}
+                        >
+                            Trade Market
                         </button>
                     </div>
 
@@ -713,7 +877,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                     <div className="absolute top-4 left-4 flex flex-col gap-2 z-10 pointer-events-none">
                         <div className="px-3 py-1.5 bg-slate-900/80 backdrop-blur rounded-lg text-xs font-bold shadow-lg border border-slate-700">
                             <span className="text-slate-400 uppercase tracking-wider mr-2">Turn:</span>
-                            <span className="text-white" style={{color: currentPlayer ? PLAYER_COLORS[currentPlayer.color as any].hex : 'white'}}>{currentPlayer?.username}</span>
+                            <span className="text-white" style={{color: currentPlayer ? PLAYER_COLORS[currentPlayer.color as keyof typeof PLAYER_COLORS].hex : 'white'}}>{currentPlayer?.username}</span>
                         </div>
                         <div className="px-3 py-1.5 bg-slate-900/80 backdrop-blur rounded-lg text-xs font-bold shadow-lg border border-slate-700">
                             <span className="text-slate-400 uppercase tracking-wider mr-2">Phase:</span>
@@ -793,7 +957,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         {gameState.players.map(p => (
                             <div key={p.peerId} className={`p-2 rounded border transition-colors flex items-center justify-between gap-2 shrink-0 ${p.peerId === currentPlayer?.peerId ? 'border-emerald-500 bg-slate-900' : 'border-slate-700 bg-slate-900/50'}`}>
                                 <div className="flex items-center gap-2 truncate">
-                                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: PLAYER_COLORS[p.color as any].hex }}></div>
+                                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: PLAYER_COLORS[p.color as keyof typeof PLAYER_COLORS].hex }}></div>
                                     <span className="font-bold text-sm truncate">{p.username}</span>
                                 </div>
                                 <div className="flex items-center gap-1.5 text-xs text-slate-400 shrink-0">
