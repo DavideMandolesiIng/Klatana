@@ -31,6 +31,7 @@ export interface PlayerState {
   username: string;
   color: string;
   resources: ResourceCounts;
+  inventory: { availableRoads: number; availableSettlements: number; availableCities: number };
   victoryPoints: number;
   actionCards: { type: ActionCardType, boughtThisTurn: boolean }[];
 }
@@ -90,6 +91,7 @@ export const createInitialGameState = (lobbyPlayers: PlayerData[], map?: MapTemp
       username: p.username,
       color: p.color || 'RED',
       resources: { WOOD: 0, CLAY: 0, WHEAT: 0, WOOL: 0, ORE: 0, GOLD: 0 },
+      inventory: { availableRoads: 15, availableSettlements: 5, availableCities: 4 },
       victoryPoints: 0,
       actionCards: []
     })),
@@ -112,6 +114,11 @@ export const createInitialGameState = (lobbyPlayers: PlayerData[], map?: MapTemp
 export const validateSettlementPlacement = (gameState: GameState, nodeId: string, peerId: string): {valid: boolean, reason?: string} => {
     if (gameState.settlements[nodeId]) return {valid: false, reason: "Node is already occupied."};
     
+    const player = gameState.players.find(p => p.peerId === peerId);
+    if (player && player.inventory.availableSettlements <= 0) {
+        return {valid: false, reason: "No settlements left in inventory."};
+    }
+    
     const isTooClose = Object.keys(gameState.settlements).some(existingNode => HexMath.areNodesAdjacent(nodeId, existingNode));
     if (isTooClose) return {valid: false, reason: "Distance Rule: Too close to another settlement."};
 
@@ -129,6 +136,11 @@ export const validateSettlementPlacement = (gameState: GameState, nodeId: string
 
 export const validateRoadPlacement = (gameState: GameState, edgeId: string, peerId: string): {valid: boolean, reason?: string} => {
     if (gameState.roads[edgeId]) return {valid: false, reason: "Edge is already occupied."};
+
+    const player = gameState.players.find(p => p.peerId === peerId);
+    if (player && player.inventory.availableRoads <= 0) {
+        return {valid: false, reason: "No roads left in inventory."};
+    }
 
     if (gameState.gamePhase === 'SETUP_1' || gameState.gamePhase === 'SETUP_2') {
         if (!gameState.lastBuiltNodeId) return {valid: false, reason: "Must place a settlement first."};

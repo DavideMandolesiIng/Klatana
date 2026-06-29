@@ -7,7 +7,7 @@ import { type GameState, createInitialGameState, rollDice, distributeResources, 
 import { HexMath } from '../game/HexMath';
 
 export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData[] }> = ({ map, initialPlayers }) => {
-    const [gameState, setGameState] = useState<GameState>(() => createInitialGameState(initialPlayers));
+    const [gameState, setGameState] = useState<GameState>(() => createInitialGameState(initialPlayers, map));
     const [buildMode, setBuildMode] = useState<'NONE' | 'SETTLEMENT' | 'ROAD' | 'CITY'>('NONE');
     const [discardSelection, setDiscardSelection] = useState<Partial<Record<string, number>>>({});
     const [abundancePicks, setAbundancePicks] = useState<string[]>([]);
@@ -145,9 +145,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const isSetupPhase = gameState.gamePhase === 'SETUP_1' || gameState.gamePhase === 'SETUP_2';
     const activeBuildMode = isSetupPhase ? (gameState.setupAction || 'NONE') : buildMode;
 
-    const canAffordRoad = isSetupPhase || (myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.ROAD));
-    const canAffordSettlement = isSetupPhase || (myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.SETTLEMENT));
-    const canAffordCity = !isSetupPhase && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.CITY);
+    const canAffordRoad = isSetupPhase || (myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.ROAD) && myPlayer.inventory.availableRoads > 0);
+    const canAffordSettlement = isSetupPhase || (myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.SETTLEMENT) && myPlayer.inventory.availableSettlements > 0);
+    const canAffordCity = !isSetupPhase && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.CITY) && myPlayer.inventory.availableCities > 0;
     const canAffordCard = !isSetupPhase && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.ACTION_CARD);
 
     // Pre-compute valid placements for UI highlighting (derived from authoritative validation)
@@ -196,7 +196,12 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             const playerIndex = newPlayers.findIndex(p => p.peerId === myPlayer!.peerId);
             const updatedPlayer = { 
                 ...newPlayers[playerIndex], 
-                resources: { ...newPlayers[playerIndex].resources } 
+                resources: { ...newPlayers[playerIndex].resources },
+                inventory: { 
+                    ...newPlayers[playerIndex].inventory, 
+                    availableCities: newPlayers[playerIndex].inventory.availableCities - 1, 
+                    availableSettlements: newPlayers[playerIndex].inventory.availableSettlements + 1 
+                }
             };
 
             Object.entries(BUILD_COSTS.CITY).forEach(([res, count]) => {
@@ -230,7 +235,11 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         const playerIndex = newPlayers.findIndex(p => p.peerId === myPlayer!.peerId);
         const updatedPlayer = { 
             ...newPlayers[playerIndex], 
-            resources: { ...newPlayers[playerIndex].resources } 
+            resources: { ...newPlayers[playerIndex].resources },
+            inventory: { 
+                ...newPlayers[playerIndex].inventory, 
+                availableSettlements: newPlayers[playerIndex].inventory.availableSettlements - 1 
+            }
         };
 
         if (!isSetupPhase) {
@@ -280,7 +289,11 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         const playerIndex = newPlayers.findIndex(p => p.peerId === myPlayer!.peerId);
         const updatedPlayer = { 
             ...newPlayers[playerIndex], 
-            resources: { ...newPlayers[playerIndex].resources } 
+            resources: { ...newPlayers[playerIndex].resources },
+            inventory: { 
+                ...newPlayers[playerIndex].inventory, 
+                availableRoads: newPlayers[playerIndex].inventory.availableRoads - 1 
+            }
         };
 
         if (!isSetupPhase && gameState.gamePhase !== 'FREE_ROAD_BUILDING') {
@@ -609,13 +622,15 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                             {myPlayer?.actionCards.map((card, i) => (
                                 <div key={i} className="bg-slate-900 p-2 rounded border border-slate-700 flex justify-between items-center">
                                     <span className="text-[10px] font-bold text-slate-300 uppercase">{card.type}</span>
-                                    <button 
-                                        onClick={() => handlePlayCard(i)} 
-                                        disabled={!isMyTurn || gameState.phase === 'ROLL' || gameState.activeTurnPlayedCard || (card.boughtThisTurn && card.type !== 'MONUMENT') || card.type === 'MONUMENT'}
-                                        className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 rounded text-[10px] font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        Play
-                                    </button>
+                                    {card.type !== 'MONUMENT' && (
+                                        <button 
+                                            onClick={() => handlePlayCard(i)} 
+                                            disabled={!isMyTurn || gameState.phase === 'ROLL' || gameState.activeTurnPlayedCard || card.boughtThisTurn}
+                                            className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 rounded text-[10px] font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            Play
+                                        </button>
+                                    )}
                                 </div>
                             ))}
                         </div>
