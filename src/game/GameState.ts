@@ -226,7 +226,7 @@ export const getValidSettlementPlacements = (gameState: GameState, peerId: strin
     return valid;
 };
 
-export const getStartingResources = (gameState: GameState, nodeId: string, map: MapTemplate): Partial<Record<string, number>> => {
+export const getStartingResources = (_gameState: GameState, nodeId: string, map: MapTemplate): Partial<Record<string, number>> => {
     const nodeHexes = nodeId.split('|');
     const gained: Partial<Record<string, number>> = {};
     nodeHexes.forEach(hexCoordsStr => {
@@ -339,55 +339,54 @@ export const distributeResources = (gameState: GameState, map: MapTemplate, roll
   };
 };
 
+// 1. Get Longest Road using Node DFS
+export const getLongestRoadForPlayer = (gameState: GameState, peerId: string): number => {
+    const myRoads = Object.values(gameState.roads).filter(r => r.ownerId === peerId);
+    if (myRoads.length === 0) return 0;
+
+    const nodeAdj: Record<string, { toNode: string, edgeId: string }[]> = {};
+    myRoads.forEach(r => {
+        const [n1, n2] = HexMath.getEdgeNodeIds(r.edgeId);
+        if (!nodeAdj[n1]) nodeAdj[n1] = [];
+        if (!nodeAdj[n2]) nodeAdj[n2] = [];
+        nodeAdj[n1].push({ toNode: n2, edgeId: r.edgeId });
+        nodeAdj[n2].push({ toNode: n1, edgeId: r.edgeId });
+    });
+
+    let maxNodePath = 0;
+    const dfsNodes = (currentNode: string, visitedEdges: Set<string>, currentLength: number) => {
+        if (currentLength > maxNodePath) maxNodePath = currentLength;
+        const occupant = gameState.settlements[currentNode];
+        if (occupant && occupant.ownerId !== peerId && currentLength > 0) return;
+
+        const neighbors = nodeAdj[currentNode] || [];
+        for (const neighbor of neighbors) {
+            if (!visitedEdges.has(neighbor.edgeId)) {
+                visitedEdges.add(neighbor.edgeId);
+                dfsNodes(neighbor.toNode, visitedEdges, currentLength + 1);
+                visitedEdges.delete(neighbor.edgeId);
+            }
+        }
+    };
+    Object.keys(nodeAdj).forEach(startNode => {
+        dfsNodes(startNode, new Set<string>(), 0);
+    });
+
+    return maxNodePath;
+};
+
 export const calculateScores = (gameState: GameState): GameState => {
     if (gameState.gamePhase === 'SETUP_1' || gameState.gamePhase === 'SETUP_2') return gameState;
 
     let newState: GameState = { ...gameState, players: JSON.parse(JSON.stringify(gameState.players)) as PlayerState[] };
-    
-    // 1. Get Longest Road using Node DFS
-    const getLongestRoadForPlayer = (peerId: string): number => {
-        const myRoads = Object.values(newState.roads).filter(r => r.ownerId === peerId);
-        if (myRoads.length === 0) return 0;
 
-        const nodeAdj: Record<string, { toNode: string, edgeId: string }[]> = {};
-        myRoads.forEach(r => {
-            const [n1, n2] = HexMath.getEdgeNodeIds(r.edgeId);
-            if (!nodeAdj[n1]) nodeAdj[n1] = [];
-            if (!nodeAdj[n2]) nodeAdj[n2] = [];
-            nodeAdj[n1].push({ toNode: n2, edgeId: r.edgeId });
-            nodeAdj[n2].push({ toNode: n1, edgeId: r.edgeId });
-        });
-
-        let maxNodePath = 0;
-        const dfsNodes = (currentNode: string, visitedEdges: Set<string>, currentLength: number) => {
-            if (currentLength > maxNodePath) maxNodePath = currentLength;
-            
-            const occupant = newState.settlements[currentNode];
-            if (occupant && occupant.ownerId !== peerId && currentLength > 0) return;
-
-            const neighbors = nodeAdj[currentNode] || [];
-            for (const neighbor of neighbors) {
-                if (!visitedEdges.has(neighbor.edgeId)) {
-                    visitedEdges.add(neighbor.edgeId);
-                    dfsNodes(neighbor.toNode, visitedEdges, currentLength + 1);
-                    visitedEdges.delete(neighbor.edgeId);
-                }
-            }
-        };
-
-        Object.keys(nodeAdj).forEach(startNode => {
-            dfsNodes(startNode, new Set<string>(), 0);
-        });
-
-        return maxNodePath;
-    };
 
     // Calculate Longest Road and Base Points
     const playerRoadLengths: Record<string, number> = {};
     const playerBasePoints: Record<string, number> = {};
 
     newState.players.forEach(p => {
-        playerRoadLengths[p.peerId] = getLongestRoadForPlayer(p.peerId);
+        playerRoadLengths[p.peerId] = getLongestRoadForPlayer(newState, p.peerId);
         playerBasePoints[p.peerId] = 0;
     });
 

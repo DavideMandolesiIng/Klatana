@@ -5,11 +5,13 @@ import { generateStandardMap } from '../game/MapGenerator';
 import { type MapTemplate } from '../game/mapTemplates';
 import { type PlayerData, type PlayerColor, PLAYER_COLORS } from '../game/Player';
 
-export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerData[]) => void }> = ({ onStartGame }) => {
+export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerData[], settings: { hideBankResources: boolean }) => void }> = ({ onStartGame }) => {
   const [messages, setMessages] = useState<{ senderId: string; text: string }[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [balancedResources, setBalancedResources] = useState(false);
   const balancedResourcesRef = React.useRef(false);
+  const [hideBankResources, setHideBankResources] = useState(false);
+  const hideBankResourcesRef = React.useRef(false);
   const [players, setPlayers] = useState<PlayerData[]>([]);
 
   // Automatically executed when component mounts
@@ -56,7 +58,7 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerDa
       } 
       else if (data.type === 'startGame') {
         peerService.gameStatus = 'IN_PROGRESS';
-        onStartGame(data.map, data.players);
+        onStartGame(data.map, data.players, data.settings || { hideBankResources: false });
       }
       else if (data.type === 'LOBBY_STATE') {
         // Client receives master lobby state from Host
@@ -65,6 +67,8 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerDa
       else if (data.type === 'LOBBY_SETTINGS') {
         setBalancedResources(data.balancedResources);
         balancedResourcesRef.current = data.balancedResources;
+        setHideBankResources(data.hideBankResources || false);
+        hideBankResourcesRef.current = data.hideBankResources || false;
       }
       else if (peerService.role === 'host') {
         // HOST ONLY ACTIONS
@@ -81,7 +85,7 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerDa
              const next = [...prev, { peerId: incomingPeerId, username: data.username, color: assigned, isHost: false }];
              setTimeout(() => {
                peerService.broadcast({ type: 'LOBBY_STATE', players: next });
-               peerService.broadcast({ type: 'LOBBY_SETTINGS', balancedResources: balancedResourcesRef.current });
+               peerService.broadcast({ type: 'LOBBY_SETTINGS', balancedResources: balancedResourcesRef.current, hideBankResources: hideBankResourcesRef.current });
              }, 100);
              return next;
            });
@@ -115,7 +119,15 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerDa
     setBalancedResources(checked);
     balancedResourcesRef.current = checked;
     if (peerService.role === 'host') {
-      peerService.broadcast({ type: 'LOBBY_SETTINGS', balancedResources: checked });
+      peerService.broadcast({ type: 'LOBBY_SETTINGS', balancedResources: checked, hideBankResources: hideBankResourcesRef.current });
+    }
+  };
+
+  const handleHideBankResourcesChange = (checked: boolean) => {
+    setHideBankResources(checked);
+    hideBankResourcesRef.current = checked;
+    if (peerService.role === 'host') {
+      peerService.broadcast({ type: 'LOBBY_SETTINGS', balancedResources: balancedResourcesRef.current, hideBankResources: checked });
     }
   };
 
@@ -123,8 +135,8 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerDa
     if (peerService.role === 'host') {
       const newMap = generateStandardMap(balancedResources);
       await peerService.setGameStarted();
-      peerService.broadcast({ type: 'startGame', map: newMap, players });
-      onStartGame(newMap, players);
+      peerService.broadcast({ type: 'startGame', map: newMap, players, settings: { hideBankResources: hideBankResourcesRef.current } });
+      onStartGame(newMap, players, { hideBankResources: hideBankResourcesRef.current });
     }
   };
 
@@ -238,6 +250,21 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerDa
             <label htmlFor="balanced" className={peerService.role === 'host' ? 'select-none cursor-pointer' : 'select-none opacity-80'}>
               <span className="font-bold block text-slate-200 text-lg">Balanced Resources</span>
               <span className="text-sm text-slate-400">Prevent red numbers (6, 8) from being placed on adjacent hexes or same terrain types.</span>
+            </label>
+          </div>
+
+          <div className="flex items-center gap-4 bg-slate-900/50 p-4 rounded-xl border border-slate-700 hover:border-slate-600 transition-colors w-fit">
+            <input 
+              type="checkbox" 
+              id="hideBankRes" 
+              checked={hideBankResources}
+              onChange={(e) => peerService.role === 'host' && handleHideBankResourcesChange(e.target.checked)}
+              disabled={peerService.role !== 'host'}
+              className={`w-6 h-6 text-emerald-500 rounded border-slate-600 bg-slate-700 ${peerService.role === 'host' ? 'cursor-pointer focus:ring-emerald-500' : 'opacity-50 cursor-not-allowed'}`}
+            />
+            <label htmlFor="hideBankRes" className={peerService.role === 'host' ? 'select-none cursor-pointer' : 'select-none opacity-80'}>
+              <span className="font-bold block text-slate-200 text-lg">Hide Bank Resources</span>
+              <span className="text-sm text-slate-400">Hide the panel showing remaining resources in the bank.</span>
             </label>
           </div>
           
