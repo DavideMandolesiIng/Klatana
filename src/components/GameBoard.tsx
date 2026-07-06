@@ -8,18 +8,21 @@ import { SettlementAsset, RoadAsset, CityAsset } from './Assets';
 import desertTexture from '../assets/textures/desert-texture.jpeg';
 import wavesBackground from '../assets/textures/waves-background.jpeg';
 
+import lighthouseIcon from '../assets/icons/lighthouse_icon.png';
+
 import oreTexture from '../assets/textures/ore-texture.jpeg';
 import clayTexture from '../assets/textures/clay-texture.jpeg';
 import woodTexture from '../assets/textures/wood-texture-1.jpeg';
 import woolTexture from '../assets/textures/wool-texture.jpeg';
 import wheatTexture from '../assets/textures/wheat-texture-1.jpeg';
 
-import oakIcon from '../assets/resource_icons/oak_icon.png';
-import clayIcon from '../assets/resource_icons/clay_icon.png';
-import oreIcon from '../assets/resource_icons/ore_icon.png';
-import woolIcon from '../assets/resource_icons/wool_icon.png';
-import cerealIcon from '../assets/resource_icons/cereal_icon.png';
-import nuggetsIcon from '../assets/resource_icons/nuggets_icon.png';
+import oakIcon from '../assets/icons/resources/oak_icon.png';
+import clayIcon from '../assets/icons/resources/clay_icon.png';
+import oreIcon from '../assets/icons/resources/ore_icon.png';
+import woolIcon from '../assets/icons/resources/wool_icon.png';
+import cerealIcon from '../assets/icons/resources/cereal_icon.png';
+import nuggetsIcon from '../assets/icons/resources/nuggets_icon.png';
+import ninjaIcon from '../assets/icons/ninja_icon.png';
 
 interface GameBoardProps {
   template: MapTemplate;
@@ -77,6 +80,10 @@ const RESOURCE_TEXTURES: Record<string, { src: string, opacity: number }> = {
 };
 
 
+const PORT_OUTWARD_OFFSET = 25;
+const PORT_IMAGE_WIDTH = 50;
+const PORT_IMAGE_HEIGHT = 50;
+
 export const GameBoard: React.FC<GameBoardProps> = ({
   template,
   gameState,
@@ -124,6 +131,19 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             <pattern key={`pattern-${res}`} id={`pattern-${res}`} patternContentUnits="objectBoundingBox" width="1" height="1">
               <image href={src} x="0" y="0" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
             </pattern>
+          ))}
+          
+          {/* Player Tint Filters (Multiply) */}
+          {Object.values(PLAYER_COLORS).map(({ hex }) => (
+            <filter key={`tint-${hex}`} id={`tint-${hex.replace('#', '')}`} colorInterpolationFilters="sRGB">
+              <feFlood floodColor={hex} result="flood" />
+              <feBlend mode="multiply" in="flood" in2="SourceGraphic" result="blend" />
+              <feComposite in="blend" in2="SourceAlpha" operator="in" result="tinted" />
+              {/* White outline for contrast */}
+              <feDropShadow dx="0" dy="0" stdDeviation="1" floodColor="#fff" floodOpacity="0.7" />
+              {/* Stronger drop shadow for depth */}
+              <feDropShadow dx="0" dy="3" stdDeviation="2" floodColor="#000" floodOpacity="0.9" />
+            </filter>
           ))}
 
         </defs>
@@ -212,8 +232,14 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               {/* Draw Ninja Token */}
               {isCurrentNinjaHex && (
                 <g transform={`translate(${center.x}, ${center.y + 15})`}>
-                  <circle cx="0" cy="0" r="14" fill="#000" stroke="#fff" strokeWidth="1" />
-                  <text x="0" y="0" textAnchor="middle" dy=".35em" fontSize="14" fontWeight="bold" fill="#fff">🥷</text>
+                  <image
+                    href={ninjaIcon}
+                    x="-20"
+                    y="-20"
+                    width="40"
+                    height="40"
+                    style={{ filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.8))' }}
+                  />
                 </g>
               )}
             </g>
@@ -236,33 +262,76 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           // Calculate outward vector from hex center to midpoint
           const dx = midX - center.x;
           const dy = midY - center.y;
+          const outwardAngle = Math.atan2(dy, dx);
 
-          // Port visualization coordinate (slightly outside the hex edge)
-          const portX = midX + dx * 0.25;
-          const portY = midY + dy * 0.25;
+          // Port visualization coordinate (offset outward into the ocean)
+          const portX = midX + Math.cos(outwardAngle) * PORT_OUTWARD_OFFSET;
+          const portY = midY + Math.sin(outwardAngle) * PORT_OUTWARD_OFFSET;
 
-          // Port colors
-          const getPortColor = (type: string) => {
-            switch (type) {
-              case 'OAK': return '#065f46';
-              case 'CLAY': return '#b43807';
-              case 'WOOL': return '#84cc16';
-              case 'CEREALS': return '#f59e0b';
-              case 'ORE': return '#475569';
-              default: return '#f8fafc';
-            }
-          };
-
+          // Port colors/UI (deprecated the colors, replaced with badges)
           return (
-            <g key={`port-${i}`} transform={`translate(${portX}, ${portY})`}>
-              <circle cx="0" cy="0" r="16" fill="#1e293b" stroke="#334155" strokeWidth="2" />
-              <circle cx="0" cy="0" r="12" fill={getPortColor(port.type)} />
-              <text x="0" y="4" textAnchor="middle" fontSize={port.type === '3:1' ? '8px' : '5px'} fontWeight="bold" fill={['OAK', 'CLAY'].includes(port.type) ? 'white' : '#0f172a'}>
-                {port.type}
-              </text>
-              <text x="0" y="-6" textAnchor="middle" fontSize="4px" fontWeight="bold" fill="white" style={{ textShadow: '0px 1px 2px rgba(0,0,0,0.8)' }}>
-                {port.type === '3:1' ? '' : '2:1'}
-              </text>
+            <g key={`port-${i}`}>
+              {/* Highlight Port Edge */}
+              <line
+                x1={p1.x}
+                y1={p1.y}
+                x2={p2.x}
+                y2={p2.y}
+                stroke="#451a03"
+                strokeWidth="6"
+                strokeLinecap="square"
+                strokeDasharray="10, 10"
+                style={{ filter: 'drop-shadow(0px 0px 4px rgba(212, 175, 55, 0.5))' }}
+              />
+
+              <g transform={`translate(${portX}, ${portY})`}>
+                <g transform="translate(0, -7.5)">
+                  {/* Lighthouse Image */}
+                  <image
+                    href={lighthouseIcon}
+                    x={-(PORT_IMAGE_WIDTH / 2)}
+                    y={-(PORT_IMAGE_HEIGHT / 2)}
+                    width={PORT_IMAGE_WIDTH}
+                    height={PORT_IMAGE_HEIGHT}
+                    preserveAspectRatio="xMidYMid slice"
+                    style={{ clipPath: 'circle(50%)' }}
+                  />
+
+                  {/* Wooden Sign Overlay */}
+                  <g transform={`translate(0, ${PORT_IMAGE_HEIGHT / 2 + 5})`}>
+                    <rect
+                      x="-22"
+                      y="-10"
+                      width="44"
+                      height="20"
+                      rx="4"
+                      fill="#78350f"
+                      stroke="#451a03"
+                      strokeWidth="2"
+                      style={{ filter: 'drop-shadow(0px 2px 2px rgba(0,0,0,0.5))' }}
+                    />
+                    {port.type === '3:1' ? (
+                      <text x="0" y="4" textAnchor="middle" fontSize="12" fontWeight="bold" fill="#fef3c7" style={{ textShadow: '0px 1px 1px black' }}>
+                        3:1
+                      </text>
+                    ) : (
+                      <>
+                        <text x="-6" y="4" textAnchor="middle" fontSize="11" fontWeight="bold" fill="#fef3c7" style={{ textShadow: '0px 1px 1px black' }}>
+                          2:1
+                        </text>
+                        <image
+                          href={RESOURCE_ICONS[port.type]}
+                          x="4"
+                          y="-7"
+                          width="14"
+                          height="14"
+                          style={{ filter: 'drop-shadow(0px 0px 2px rgba(255,255,255,0.8))' }}
+                        />
+                      </>
+                    )}
+                  </g>
+                </g>
+              </g>
             </g>
           );
         })}

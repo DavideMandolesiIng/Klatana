@@ -1,4 +1,7 @@
-﻿import React from 'react';
+import React from 'react';
+import settlementIcon from '../assets/icons/builds/settlement_icon.png';
+import cityIcon from '../assets/icons/builds/city_icon.png';
+import roadIcon from '../assets/icons/builds/road_icon.png';
 
 export interface AssetProps {
   x: number;
@@ -15,8 +18,18 @@ export interface RoadAssetProps extends AssetProps {
 
 export const SettlementAsset: React.FC<AssetProps> = ({ x, y, playerColor, skinId = 'classic' }) => {
   if (skinId === 'classic') {
+    const filterId = `url(#tint-${playerColor.replace('#', '')})`;
+    const WIDTH = 44;
+    const HEIGHT = 44;
     return (
-      <rect x={x - 8} y={y - 8} width="16" height="16" rx="2" fill={playerColor} stroke="#000" strokeWidth="2" />
+      <image
+        href={settlementIcon}
+        x={x - WIDTH / 2}
+        y={y - HEIGHT / 2}
+        width={WIDTH}
+        height={HEIGHT}
+        filter={filterId}
+      />
     );
   }
   // Add more custom skins here later
@@ -25,8 +38,24 @@ export const SettlementAsset: React.FC<AssetProps> = ({ x, y, playerColor, skinI
 
 export const RoadAsset: React.FC<RoadAssetProps> = ({ x, y, x2, y2, playerColor, skinId = 'classic' }) => {
   if (skinId === 'classic') {
+    const filterId = `url(#tint-${playerColor.replace('#', '')})`;
+    const midX = (x + x2) / 2;
+    const midY = (y + y2) / 2;
+    const angle = Math.atan2(y2 - y, x2 - x) * (180 / Math.PI) - 90;
+    const edgeLength = Math.hypot(x2 - x, y2 - y);
+    const WIDTH = 22;
+    const HEIGHT = edgeLength;
     return (
-      <line x1={x} y1={y} x2={x2} y2={y2} stroke={playerColor} strokeWidth="8" strokeLinecap="round" />
+      <image
+        href={roadIcon}
+        x={midX - WIDTH / 2}
+        y={midY - HEIGHT / 2}
+        width={WIDTH}
+        height={HEIGHT}
+        filter={filterId}
+        transform={`rotate(${angle} ${midX} ${midY})`}
+        preserveAspectRatio="none"
+      />
     );
   }
   // Add more custom skins here later
@@ -35,11 +64,18 @@ export const RoadAsset: React.FC<RoadAssetProps> = ({ x, y, x2, y2, playerColor,
 
 export const CityAsset: React.FC<AssetProps> = ({ x, y, playerColor, skinId = 'classic' }) => {
   if (skinId === 'classic') {
+    const filterId = `url(#tint-${playerColor.replace('#', '')})`;
+    const WIDTH = 52;
+    const HEIGHT = 52;
     return (
-      <g transform={`translate(${x}, ${y})`}>
-        <rect x="-10" y="-10" width="20" height="20" rx="3" fill={playerColor} stroke="#000" strokeWidth="2" />
-        <path d="M -6 10 L -6 -6 L 0 -14 L 6 -6 L 6 10 Z" fill="#fff" opacity="0.3" />
-      </g>
+      <image
+        href={cityIcon}
+        x={x - WIDTH / 2}
+        y={y - HEIGHT / 2}
+        width={WIDTH}
+        height={HEIGHT}
+        filter={filterId}
+      />
     );
   }
   return null;
