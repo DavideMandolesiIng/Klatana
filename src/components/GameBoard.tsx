@@ -5,6 +5,16 @@ import { type GameState } from '../game/GameState';
 import { PLAYER_COLORS } from '../game/Player';
 import { SettlementAsset, RoadAsset, CityAsset } from './Assets';
 
+import desertTexture from '../assets/textures/desert-texture.jpeg';
+import wavesBackground from '../assets/textures/waves-background.jpeg';
+
+import oakIcon from '../assets/resource_icons/oak_icon.png';
+import clayIcon from '../assets/resource_icons/clay_icon.png';
+import oreIcon from '../assets/resource_icons/ore_icon.png';
+import woolIcon from '../assets/resource_icons/wool_icon.png';
+import cerealIcon from '../assets/resource_icons/cereal_icon.png';
+import nuggetsIcon from '../assets/resource_icons/nuggets_icon.png';
+
 interface GameBoardProps {
   template: MapTemplate;
   gameState?: GameState;
@@ -25,13 +35,31 @@ interface GameBoardProps {
 
 // Default fallback colors if no custom assets are provided
 const RESOURCE_COLORS: Record<string, string> = {
-  WOOD: '#065f46',
+  OAK: '#065f46',
   CLAY: '#b43807',
-  WHEAT: '#e9c46a',
+  CEREALS: '#e9c46a',
   WOOL: '#84cc16',
   ORE: '#475569',
-  GOLD: '#f59e0b',
+  NUGGETS: '#f59e0b',
   DESERT: '#e0afa0'
+};
+
+const RESOURCE_GRADIENTS: Record<string, { center: string, edge: string }> = {
+  OAK: { center: '#0a805f', edge: '#033b2b' },
+  CLAY: { center: '#d14a11', edge: '#7d2604' },
+  CEREALS: { center: '#f2d488', edge: '#c29f46' },
+  WOOL: { center: '#9ae823', edge: '#5c910d' },
+  ORE: { center: '#5f7087', edge: '#293442' },
+  NUGGETS: { center: '#fad05c', edge: '#ad6900' }
+};
+
+const RESOURCE_ICONS: Record<string, string> = {
+  OAK: oakIcon,
+  CLAY: clayIcon,
+  ORE: oreIcon,
+  WOOL: woolIcon,
+  CEREALS: cerealIcon,
+  NUGGETS: nuggetsIcon
 };
 
 export const GameBoard: React.FC<GameBoardProps> = ({
@@ -62,12 +90,47 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   }, [template]);
 
   return (
-    <div className="w-full h-full flex items-center justify-center bg-blue-900/10 rounded-xl overflow-hidden border border-slate-700">
+    <div
+      className="w-full h-full flex items-center justify-center rounded-xl overflow-hidden border border-slate-700 bg-cover bg-center"
+      style={{ backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.15), rgba(15, 23, 42, 0.15)), url(${wavesBackground})` }}
+    >
       <svg width="100%" height="100%" viewBox={`-400 -300 800 600`} className="max-w-4xl">
-        {/* Draw all hexes */}
+        <defs>
+          <pattern id="desert-pattern" patternContentUnits="objectBoundingBox" width="1" height="1">
+            <image href={desertTexture} x="0" y="0" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
+          </pattern>
+          {Object.entries(RESOURCE_GRADIENTS).map(([res, colors]) => (
+            <radialGradient key={`grad-${res}`} id={`grad-${res}`} cx="50%" cy="50%" r="65%">
+              <stop offset="0%" stopColor={colors.center} />
+              <stop offset="100%" stopColor={colors.edge} />
+            </radialGradient>
+          ))}
+        </defs>
+        {/* Draw Base Sand Platform (Full size hexes) */}
+        <g id="sand-platform">
+          {template.hexes.map((hex, i) => {
+            const center = HexMath.hexToPixel(hex.coords, hexSize);
+            // Draw a slightly larger base to ensure they stitch perfectly without rendering gaps, or just full size
+            const corners = HexMath.hexCorners(center, hexSize);
+            const pointsString = corners.map(p => `${p.x},${p.y}`).join(' ');
+            return (
+              <polygon
+                key={`platform-${i}`}
+                points={pointsString}
+                fill="#e6c280"
+                stroke="#cfa15f"
+                strokeWidth="2"
+              />
+            );
+          })}
+        </g>
+
+        {/* Draw all Resource Hexes (Scaled down) */}
         {template.hexes.map((hex, i) => {
           const center = HexMath.hexToPixel(hex.coords, hexSize);
-          const corners = HexMath.hexCorners(center, hexSize);
+          // Scale down the resource hex by 3 units to reveal the sand platform underneath and create gaps
+          const visualHexSize = hexSize - 3;
+          const corners = HexMath.hexCorners(center, visualHexSize);
           const pointsString = corners.map(p => `${p.x},${p.y}`).join(' ');
 
           const isCurrentNinjaHex = gameState?.ninjaHexCoords && hex.coords.q === gameState.ninjaHexCoords.q && hex.coords.r === gameState.ninjaHexCoords.r;
@@ -77,19 +140,31 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             <g key={`hex-${i}`} onClick={() => isHexClickable && onHexClick?.(hex.coords.q, hex.coords.r)} style={{ cursor: isHexClickable ? 'pointer' : 'default' }}>
               <polygon
                 points={pointsString}
-                fill={RESOURCE_COLORS[hex.resource]}
+                fill={hex.resource === 'DESERT' ? 'url(#desert-pattern)' : (RESOURCE_GRADIENTS[hex.resource] ? `url(#grad-${hex.resource})` : RESOURCE_COLORS[hex.resource])}
                 stroke={isHexClickable ? '#fbbf24' : '#0f172a'}
                 strokeWidth={isHexClickable ? '4' : '2'}
                 className={isHexClickable ? 'animate-pulse' : ''}
               />
 
+              {/* Draw Resource Icon (if not desert) */}
+              {hex.resource !== 'DESERT' && RESOURCE_ICONS[hex.resource] && (
+                <image
+                  href={RESOURCE_ICONS[hex.resource]}
+                  x={center.x - 20}
+                  y={center.y - 42}
+                  width="40"
+                  height="40"
+                  opacity="1"
+                />
+              )}
+
               {/* Draw the Number Token if it's not a desert */}
               {hex.number && (
                 <g>
-                  <circle cx={center.x} cy={center.y} r="16" fill="#f8fafc" stroke="#94a3b8" strokeWidth="1" />
+                  <circle cx={center.x} cy={center.y + 15} r="16" fill="#f8fafc" stroke="#94a3b8" strokeWidth="1" />
                   <text
                     x={center.x}
-                    y={center.y}
+                    y={center.y + 15}
                     textAnchor="middle"
                     dy=".35em"
                     fontSize="16"
@@ -136,10 +211,10 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           // Port colors
           const getPortColor = (type: string) => {
             switch (type) {
-              case 'WOOD': return '#065f46';
+              case 'OAK': return '#065f46';
               case 'CLAY': return '#b43807';
               case 'WOOL': return '#84cc16';
-              case 'WHEAT': return '#f59e0b';
+              case 'CEREALS': return '#f59e0b';
               case 'ORE': return '#475569';
               default: return '#f8fafc';
             }
@@ -149,7 +224,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             <g key={`port-${i}`} transform={`translate(${portX}, ${portY})`}>
               <circle cx="0" cy="0" r="16" fill="#1e293b" stroke="#334155" strokeWidth="2" />
               <circle cx="0" cy="0" r="12" fill={getPortColor(port.type)} />
-              <text x="0" y="4" textAnchor="middle" fontSize={port.type === '3:1' ? '8px' : '5px'} fontWeight="bold" fill={['WOOD', 'CLAY'].includes(port.type) ? 'white' : '#0f172a'}>
+              <text x="0" y="4" textAnchor="middle" fontSize={port.type === '3:1' ? '8px' : '5px'} fontWeight="bold" fill={['OAK', 'CLAY'].includes(port.type) ? 'white' : '#0f172a'}>
                 {port.type}
               </text>
               <text x="0" y="-6" textAnchor="middle" fontSize="4px" fontWeight="bold" fill="white" style={{ textShadow: '0px 1px 2px rgba(0,0,0,0.8)' }}>

@@ -11,7 +11,7 @@ interface TradeModalProps {
     onProposeTrade: (offer: Partial<ResourceCounts>, request: Partial<ResourceCounts>) => void;
 }
 
-const RESOURCES: Exclude<ResourceType, 'DESERT'>[] = ['WOOD', 'CLAY', 'WHEAT', 'WOOL', 'ORE'];
+const RESOURCES: Exclude<ResourceType, 'DESERT'>[] = ['OAK', 'CLAY', 'CEREALS', 'WOOL', 'ORE'];
 
 export const TradeModal: React.FC<TradeModalProps> = ({ gameState, myPlayerId, map, onClose, onBankTrade, onProposeTrade }) => {
     const [tab, setTab] = useState<'BANK' | 'PLAYER'>('BANK');
@@ -19,7 +19,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({ gameState, myPlayerId, m
     const rates = getPlayerTradeRates(gameState, map, myPlayerId);
 
     // Bank Trade State
-    const [bankGive, setBankGive] = useState<string>('WOOD');
+    const [bankGive, setBankGive] = useState<string>('OAK');
     const [bankGet, setBankGet] = useState<string>('CLAY');
 
     // Player Trade State

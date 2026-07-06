@@ -1,4 +1,4 @@
-export interface Axial {
+﻿export interface Axial {
   q: number;
   r: number;
 }
@@ -98,7 +98,7 @@ export class HexMath {
     for (let i = 0; i < 6; i++) {
       const p1 = corners[i];
       const p2 = corners[(i + 1) % 6];
-      // Edge i (corner i → corner i+1) is shared with neighbor at directions[(i+1)%6], NOT directions[i].
+      // Edge i (corner i â†’ corner i+1) is shared with neighbor at directions[(i+1)%6], NOT directions[i].
       // directions[i] would be the neighbor sharing the PREVIOUS edge (edge i-1), creating an off-by-one.
       const dirIdx = (i + 1) % 6;
       const neighbor = { q: axial.q + this.directions[dirIdx].q, r: axial.r + this.directions[dirIdx].r };
@@ -119,9 +119,9 @@ export class HexMath {
    *
    * Why this works: getEdgeId(hexA, hexB) encodes the pair (hexA, hexB). A node
    * at the junction of hexA, hexB, and hexC has all three in its ID. So:
-   *   - For the endpoint that contains hexA AND hexB → both present → TRUE  ✓
-   *   - For the other endpoint (contains hexA and hexC but NOT hexB) → FALSE ✓
-   *   - For any unrelated node → at most one of hexA/hexB matches → FALSE ✓
+   *   - For the endpoint that contains hexA AND hexB â†’ both present â†’ TRUE  âœ“
+   *   - For the other endpoint (contains hexA and hexC but NOT hexB) â†’ FALSE âœ“
+   *   - For any unrelated node â†’ at most one of hexA/hexB matches â†’ FALSE âœ“
    *
    * This elegantly finds the correct endpoint without any coordinate math.
    */
@@ -145,7 +145,7 @@ export class HexMath {
   /**
    * Two edges are adjacent (share a common vertex node) iff:
    *   1. The union of their hex pairs has exactly 3 distinct hexes (they share one hex).
-   *   2. Those 3 hexes are all mutually adjacent — i.e., they form a valid node triple.
+   *   2. Those 3 hexes are all mutually adjacent â€” i.e., they form a valid node triple.
    *
    * Condition 2 is necessary to avoid false positives: without it, any two edges
    * of the same hex would pass condition 1 (they always share that hex), even if

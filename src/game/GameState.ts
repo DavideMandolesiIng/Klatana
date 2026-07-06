@@ -11,10 +11,10 @@ export type SetupAction = 'SETTLEMENT' | 'ROAD';
 export type ResourceCounts = Record<Exclude<ResourceType, 'DESERT'>, number>;
 
 export const BUILD_COSTS = {
-  ROAD: { WOOD: 1, CLAY: 1 },
-  SETTLEMENT: { WOOD: 1, CLAY: 1, WHEAT: 1, WOOL: 1 },
-  CITY: { ORE: 3, WHEAT: 2 },
-  ACTION_CARD: { ORE: 1, WHEAT: 1, WOOL: 1 }
+  ROAD: { OAK: 1, CLAY: 1 },
+  SETTLEMENT: { OAK: 1, CLAY: 1, CEREALS: 1, WOOL: 1 },
+  CITY: { ORE: 3, CEREALS: 2 },
+  ACTION_CARD: { ORE: 1, CEREALS: 1, WOOL: 1 }
 };
 
 export const canAfford = (resources: ResourceCounts, cost: Partial<Record<string, number>>): boolean => {
@@ -102,7 +102,7 @@ export const createInitialGameState = (lobbyPlayers: PlayerData[], map?: MapTemp
       peerId: p.peerId,
       username: p.username,
       color: p.color || 'RED',
-      resources: { WOOD: 0, CLAY: 0, WHEAT: 0, WOOL: 0, ORE: 0, GOLD: 0 },
+      resources: { OAK: 0, CLAY: 0, CEREALS: 0, WOOL: 0, ORE: 0, NUGGETS: 0 },
       inventory: { availableRoads: 15, availableSettlements: 5, availableCities: 4 },
       victoryPoints: 0,
       actionCards: []
@@ -429,7 +429,7 @@ export const calculateScores = (gameState: GameState): GameState => {
 
 export const getPlayerTradeRates = (gameState: GameState, map: MapTemplate, peerId: string): Record<Exclude<ResourceType, 'DESERT'>, number> => {
     const rates: Record<Exclude<ResourceType, 'DESERT'>, number> = {
-        WOOD: 4, CLAY: 4, WHEAT: 4, WOOL: 4, ORE: 4, GOLD: 4
+        OAK: 4, CLAY: 4, CEREALS: 4, WOOL: 4, ORE: 4, NUGGETS: 4
     };
 
     if (!map.ports) return rates;

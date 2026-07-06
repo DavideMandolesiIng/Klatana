@@ -1,10 +1,10 @@
-import { type Axial, HexMath } from './HexMath';
+﻿import { type Axial, HexMath } from './HexMath';
 import { type ResourceType, type HexData, type MapTemplate, type PortType, type PortData, StandardMap } from './mapTemplates';
 
 const STANDARD_TERRAINS: ResourceType[] = [
-    'WOOD', 'WOOD', 'WOOD', 'WOOD',
+    'OAK', 'OAK', 'OAK', 'OAK',
     'WOOL', 'WOOL', 'WOOL', 'WOOL',
-    'WHEAT', 'WHEAT', 'WHEAT', 'WHEAT',
+    'CEREALS', 'CEREALS', 'CEREALS', 'CEREALS',
     'CLAY', 'CLAY', 'CLAY',
     'ORE', 'ORE', 'ORE',
     'DESERT'
@@ -12,7 +12,7 @@ const STANDARD_TERRAINS: ResourceType[] = [
 
 const STANDARD_PORTS: PortType[] = [
     '3:1', '3:1', '3:1', '3:1',
-    'WOOD', 'CLAY', 'WHEAT', 'WOOL', 'ORE'
+    'OAK', 'CLAY', 'CEREALS', 'WOOL', 'ORE'
 ];
 
 const STANDARD_NUMBERS: number[] = [

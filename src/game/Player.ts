@@ -1,4 +1,4 @@
-export type PlayerColor = 'RED' | 'BLUE' | 'WHITE' | 'ORANGE' | 'GREEN' | 'PURPLE';
+﻿export type PlayerColor = 'RED' | 'BLUE' | 'WHITE' | 'ORANGE' | 'GREEN' | 'PURPLE';
 
 export const PLAYER_COLORS: Record<PlayerColor, { name: string, hex: string }> = {
     RED: { name: 'Red', hex: '#dc2626' },

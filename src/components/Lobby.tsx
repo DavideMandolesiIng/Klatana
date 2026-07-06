@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { peerService } from '../network/PeerService';
 import { Send, Users, Wifi } from 'lucide-react';
 import { generateStandardMap } from '../game/MapGenerator';

@@ -7,6 +7,15 @@ import { type GameState, createInitialGameState, rollDice, distributeResources, 
 import { HexMath } from '../game/HexMath';
 import { TradeModal } from './TradeModal';
 
+const RESOURCE_GRADIENTS: Record<string, { center: string, edge: string }> = {
+  OAK: { center: '#0a805f', edge: '#033b2b' },
+  CLAY: { center: '#d14a11', edge: '#7d2604' },
+  CEREALS: { center: '#f2d488', edge: '#c29f46' },
+  WOOL: { center: '#9ae823', edge: '#5c910d' },
+  ORE: { center: '#5f7087', edge: '#293442' },
+  NUGGETS: { center: '#fad05c', edge: '#ad6900' }
+};
+
 export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData[], settings: { hideBankResources: boolean } }> = ({ map, initialPlayers, settings }) => {
     const [gameState, setGameState] = useState<GameState>(() => createInitialGameState(initialPlayers, map));
     const [buildMode, setBuildMode] = useState<'NONE' | 'SETTLEMENT' | 'ROAD' | 'CITY'>('NONE');
@@ -786,7 +795,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         <h2 className="text-xl font-bold text-white mb-2 text-center uppercase tracking-wider text-indigo-400">Monopoly</h2>
                         <p className="text-slate-300 text-sm mb-6 text-center">Choose a resource to steal from all players.</p>
                         <div className="grid grid-cols-2 gap-3">
-                            {['WOOD', 'CLAY', 'WHEAT', 'WOOL', 'ORE'].map(res => (
+                            {['OAK', 'CLAY', 'CEREALS', 'WOOL', 'ORE'].map(res => (
                                 <button
                                     key={res}
                                     onClick={() => {
@@ -829,7 +838,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         <h2 className="text-xl font-bold text-white mb-2 text-center uppercase tracking-wider text-indigo-400">Abundance</h2>
                         <p className="text-slate-300 text-sm mb-6 text-center">Pick {2 - abundancePicks.length} resource(s) from the bank.</p>
                         <div className="grid grid-cols-2 gap-3">
-                            {['WOOD', 'CLAY', 'WHEAT', 'WOOL', 'ORE'].map(res => (
+                            {['OAK', 'CLAY', 'CEREALS', 'WOOL', 'ORE'].map(res => (
                                 <button
                                     key={res}
                                     onClick={() => {
@@ -935,23 +944,28 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                             {myPlayer && (
                                 <div className="grid grid-cols-2 gap-1.5 mb-2">
                                     {Object.entries(myPlayer.resources)
-                                        .filter(([res]) => res !== 'GOLD' || map.hexes.some(h => h.resource === 'GOLD'))
+                                        .filter(([res]) => res !== 'NUGGETS' || map.hexes.some(h => h.resource === 'NUGGETS'))
                                         .map(([res, count]) => {
-                                            let bgClass = "bg-slate-900";
-                                            let textClass = "text-slate-400";
-                                            let numBgClass = "bg-slate-800";
+                                            const grad = RESOURCE_GRADIENTS[res] || { center: '#334155', edge: '#0f172a' };
+                                            let textClass = "text-white drop-shadow-sm";
+                                            let numBgClass = "bg-black/40";
                                             let numTextClass = "text-white";
-                                            if (res === 'WOOD') { bgClass = "bg-emerald-800"; textClass = "text-emerald-100"; numBgClass = "bg-emerald-950"; }
-                                            else if (res === 'CLAY') { bgClass = "bg-[#b43807]"; textClass = "text-orange-100"; numBgClass = "bg-orange-950"; }
-                                            else if (res === 'WHEAT') { bgClass = "bg-[#e9c46a]"; textClass = "text-amber-950"; numBgClass = "bg-amber-600"; numTextClass = "text-amber-100"; }
-                                            else if (res === 'WOOL') { bgClass = "bg-lime-500"; textClass = "text-lime-950"; numBgClass = "bg-lime-600"; numTextClass = "text-lime-100"; }
-                                            else if (res === 'ORE') { bgClass = "bg-slate-600"; textClass = "text-slate-200"; numBgClass = "bg-slate-800"; }
-                                            else if (res === 'GOLD') { bgClass = "bg-yellow-400"; textClass = "text-yellow-900"; numBgClass = "bg-yellow-500"; numTextClass = "text-yellow-950"; }
+                                            
+                                            // Make text darker on bright resources for legibility
+                                            if (res === 'CEREALS' || res === 'NUGGETS' || res === 'WOOL') {
+                                                textClass = "text-[#2a1c0d] drop-shadow-none";
+                                                numBgClass = "bg-[#2a1c0d]/20";
+                                                numTextClass = "text-[#2a1c0d]";
+                                            }
 
                                             return (
-                                                <div key={res} className={`${bgClass} p-1.5 rounded border border-black/20 flex justify-between items-center shadow-sm`}>
-                                                    <span className={`text-[10px] font-semibold ${textClass} truncate mr-1`}>{res}</span>
-                                                    <span className={`font-bold ${numTextClass} ${numBgClass} px-1.5 rounded text-xs`}>{count}</span>
+                                                <div 
+                                                    key={res} 
+                                                    className="p-1.5 rounded border border-black/30 flex justify-between items-center shadow-md"
+                                                    style={{ background: `radial-gradient(circle at center, ${grad.center}, ${grad.edge})` }}
+                                                >
+                                                    <span className={`text-[10px] font-bold ${textClass} truncate mr-1`}>{res}</span>
+                                                    <span className={`font-black ${numTextClass} ${numBgClass} px-1.5 rounded text-xs`}>{count}</span>
                                                 </div>
                                             );
                                         })}
@@ -989,7 +1003,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                 </button>
                                 <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none" style={{ zIndex: 9999 }}>
                                     <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
-                                    {Object.entries({ WHEAT: 1, WOOL: 1, ORE: 1 }).map(([res, cost]) => {
+                                    {Object.entries({ CEREALS: 1, WOOL: 1, ORE: 1 }).map(([res, cost]) => {
                                         const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
                                         return <div key={res} className="flex justify-between text-[10px] font-bold"><span className="text-slate-400">{res}</span><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
                                     })}
@@ -1140,7 +1154,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                             </button>
                                                             <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
                                                                 <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
-                                                                {Object.entries({ WOOD: 1, CLAY: 1, WHEAT: 1, WOOL: 1 }).map(([res, cost]) => {
+                                                                {Object.entries({ OAK: 1, CLAY: 1, CEREALS: 1, WOOL: 1 }).map(([res, cost]) => {
                                                                     const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
                                                                     return <div key={res} className="flex justify-between text-[10px] font-bold"><span className="text-slate-400">{res}</span><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
                                                                 })}
@@ -1152,7 +1166,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                             </button>
                                                             <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
                                                                 <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
-                                                                {Object.entries({ WHEAT: 2, ORE: 3 }).map(([res, cost]) => {
+                                                                {Object.entries({ CEREALS: 2, ORE: 3 }).map(([res, cost]) => {
                                                                     const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
                                                                     return <div key={res} className="flex justify-between text-[10px] font-bold"><span className="text-slate-400">{res}</span><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
                                                                 })}
@@ -1164,7 +1178,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                             </button>
                                                             <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
                                                                 <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
-                                                                {Object.entries({ WOOD: 1, CLAY: 1 }).map(([res, cost]) => {
+                                                                {Object.entries({ OAK: 1, CLAY: 1 }).map(([res, cost]) => {
                                                                     const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
                                                                     return <div key={res} className="flex justify-between text-[10px] font-bold"><span className="text-slate-400">{res}</span><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
                                                                 })}
@@ -1202,20 +1216,28 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                             </button>
                             {showBankPanel && (
                                 <div className="p-3 grid grid-cols-2 gap-2">
-                                    {['WOOD', 'CLAY', 'WHEAT', 'WOOL', 'ORE'].map(res => {
+                                    {['OAK', 'CLAY', 'CEREALS', 'WOOL', 'ORE'].map(res => {
                                         const totalInPlay = gameState.players.reduce((sum, p) => sum + (p.resources[res as keyof typeof p.resources] || 0), 0);
                                         const remaining = Math.max(0, 19 - totalInPlay);
-                                        let bgClass = "bg-slate-900"; let textClass = "text-slate-400";
-                                        if (res === 'WOOD') { bgClass = "bg-emerald-800"; textClass = "text-emerald-100"; }
-                                        else if (res === 'CLAY') { bgClass = "bg-[#b43807]"; textClass = "text-orange-100"; }
-                                        else if (res === 'WHEAT') { bgClass = "bg-amber-500"; textClass = "text-amber-950"; }
-                                        else if (res === 'WOOL') { bgClass = "bg-lime-500"; textClass = "text-lime-950"; }
-                                        else if (res === 'ORE') { bgClass = "bg-slate-600"; textClass = "text-slate-200"; }
+                                        const grad = RESOURCE_GRADIENTS[res] || { center: '#334155', edge: '#0f172a' };
+                                        let textClass = "text-white drop-shadow-sm";
+                                        let numBgClass = "bg-black/40";
+                                        let numTextClass = "text-white";
+                                        
+                                        if (res === 'CEREALS' || res === 'NUGGETS' || res === 'WOOL') {
+                                            textClass = "text-[#2a1c0d] drop-shadow-none";
+                                            numBgClass = "bg-[#2a1c0d]/20";
+                                            numTextClass = "text-[#2a1c0d]";
+                                        }
 
                                         return (
-                                            <div key={res} className={`${bgClass} p-1.5 rounded border border-black/20 flex justify-between items-center shadow-sm`}>
-                                                <span className={`text-[10px] font-semibold ${textClass} mr-1`}>{res}</span>
-                                                <span className="font-bold text-white bg-slate-900/50 px-1.5 rounded text-xs">{remaining}</span>
+                                            <div 
+                                                key={res} 
+                                                className="p-1.5 rounded border border-black/30 flex justify-between items-center shadow-md"
+                                                style={{ background: `radial-gradient(circle at center, ${grad.center}, ${grad.edge})` }}
+                                            >
+                                                <span className={`text-[10px] font-bold ${textClass} mr-1`}>{res}</span>
+                                                <span className={`font-black ${numTextClass} ${numBgClass} px-1.5 rounded text-xs`}>{remaining}</span>
                                             </div>
                                         );
                                     })}

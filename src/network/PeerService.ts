@@ -1,4 +1,4 @@
-import Peer, { type DataConnection } from 'peerjs';
+﻿import Peer, { type DataConnection } from 'peerjs';
 import { registerRoomCode, getRoomInfo, setRoomStatus } from './firebase';
 
 export type NetworkRole = 'host' | 'client' | 'none';
