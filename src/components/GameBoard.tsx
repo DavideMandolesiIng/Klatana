@@ -8,6 +8,12 @@ import { SettlementAsset, RoadAsset, CityAsset } from './Assets';
 import desertTexture from '../assets/textures/desert-texture.jpeg';
 import wavesBackground from '../assets/textures/waves-background.jpeg';
 
+import oreTexture from '../assets/textures/ore-texture.jpeg';
+import clayTexture from '../assets/textures/clay-texture.jpeg';
+import woodTexture from '../assets/textures/wood-texture-1.jpeg';
+import woolTexture from '../assets/textures/wool-texture.jpeg';
+import wheatTexture from '../assets/textures/wheat-texture-1.jpeg';
+
 import oakIcon from '../assets/resource_icons/oak_icon.png';
 import clayIcon from '../assets/resource_icons/clay_icon.png';
 import oreIcon from '../assets/resource_icons/ore_icon.png';
@@ -62,6 +68,15 @@ const RESOURCE_ICONS: Record<string, string> = {
   NUGGETS: nuggetsIcon
 };
 
+const RESOURCE_TEXTURES: Record<string, { src: string, opacity: number }> = {
+  OAK: { src: woodTexture, opacity: 0.5 },
+  CLAY: { src: clayTexture, opacity: 0.5 },
+  CEREALS: { src: wheatTexture, opacity: 0.5 },
+  WOOL: { src: woolTexture, opacity: 0.5 },
+  ORE: { src: oreTexture, opacity: 0.5 },
+};
+
+
 export const GameBoard: React.FC<GameBoardProps> = ({
   template,
   gameState,
@@ -105,6 +120,12 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               <stop offset="100%" stopColor={colors.edge} />
             </radialGradient>
           ))}
+          {Object.entries(RESOURCE_TEXTURES).map(([res, { src }]) => (
+            <pattern key={`pattern-${res}`} id={`pattern-${res}`} patternContentUnits="objectBoundingBox" width="1" height="1">
+              <image href={src} x="0" y="0" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
+            </pattern>
+          ))}
+
         </defs>
         {/* Draw Base Sand Platform (Full size hexes) */}
         <g id="sand-platform">
@@ -146,6 +167,17 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 className={isHexClickable ? 'animate-pulse' : ''}
               />
 
+              {/* Draw Texture Overlay (if not desert) */}
+              {hex.resource !== 'DESERT' && RESOURCE_TEXTURES[hex.resource] && (
+                <polygon
+                  points={pointsString}
+                  fill={`url(#pattern-${hex.resource})`}
+                  opacity={RESOURCE_TEXTURES[hex.resource].opacity}
+                  style={{ pointerEvents: 'none' }}
+                />
+              )}
+
+
               {/* Draw Resource Icon (if not desert) */}
               {hex.resource !== 'DESERT' && RESOURCE_ICONS[hex.resource] && (
                 <image
@@ -155,6 +187,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                   width="40"
                   height="40"
                   opacity="1"
+                  style={{ filter: 'drop-shadow(0px 0px 6px rgba(255, 255, 255, 1))' }}
                 />
               )}
 

@@ -7,6 +7,20 @@ import { type GameState, createInitialGameState, rollDice, distributeResources, 
 import { HexMath } from '../game/HexMath';
 import { TradeModal } from './TradeModal';
 
+import oreTexture from '../assets/textures/ore-texture.jpeg';
+import clayTexture from '../assets/textures/clay-texture.jpeg';
+import woodTexture from '../assets/textures/wood-texture-1.jpeg';
+import woolTexture from '../assets/textures/wool-texture.jpeg';
+import wheatTexture from '../assets/textures/wheat-texture-1.jpeg';
+
+const RESOURCE_TEXTURES: Record<string, string> = {
+  OAK: woodTexture,
+  CLAY: clayTexture,
+  CEREALS: wheatTexture,
+  WOOL: woolTexture,
+  ORE: oreTexture,
+};
+
 const RESOURCE_GRADIENTS: Record<string, { center: string, edge: string }> = {
   OAK: { center: '#0a805f', edge: '#033b2b' },
   CLAY: { center: '#d14a11', edge: '#7d2604' },
@@ -961,11 +975,17 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                             return (
                                                 <div 
                                                     key={res} 
-                                                    className="p-1.5 rounded border border-black/30 flex justify-between items-center shadow-md"
+                                                    className="relative p-1.5 rounded border border-black/30 flex justify-between items-center shadow-md overflow-hidden"
                                                     style={{ background: `radial-gradient(circle at center, ${grad.center}, ${grad.edge})` }}
                                                 >
-                                                    <span className={`text-[10px] font-bold ${textClass} truncate mr-1`}>{res}</span>
-                                                    <span className={`font-black ${numTextClass} ${numBgClass} px-1.5 rounded text-xs`}>{count}</span>
+                                                    {RESOURCE_TEXTURES[res] && (
+                                                        <div 
+                                                            className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-50 mix-blend-overlay"
+                                                            style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }}
+                                                        />
+                                                    )}
+                                                    <span className={`relative z-10 text-[10px] font-bold ${textClass} truncate mr-1`}>{res}</span>
+                                                    <span className={`relative z-10 font-black ${numTextClass} ${numBgClass} px-1.5 rounded text-xs`}>{count}</span>
                                                 </div>
                                             );
                                         })}
@@ -1233,11 +1253,17 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                         return (
                                             <div 
                                                 key={res} 
-                                                className="p-1.5 rounded border border-black/30 flex justify-between items-center shadow-md"
+                                                className="relative p-1.5 rounded border border-black/30 flex justify-between items-center shadow-md overflow-hidden"
                                                 style={{ background: `radial-gradient(circle at center, ${grad.center}, ${grad.edge})` }}
                                             >
-                                                <span className={`text-[10px] font-bold ${textClass} mr-1`}>{res}</span>
-                                                <span className={`font-black ${numTextClass} ${numBgClass} px-1.5 rounded text-xs`}>{remaining}</span>
+                                                {RESOURCE_TEXTURES[res] && (
+                                                    <div 
+                                                        className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-50 mix-blend-overlay"
+                                                        style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }}
+                                                    />
+                                                )}
+                                                <span className={`relative z-10 text-[10px] font-bold ${textClass} mr-1`}>{res}</span>
+                                                <span className={`relative z-10 font-black ${numTextClass} ${numBgClass} px-1.5 rounded text-xs`}>{remaining}</span>
                                             </div>
                                         );
                                     })}
