@@ -1,3 +1,10 @@
 @import "tailwindcss";
 
+@keyframes floatUpFade {
+    0% { transform: translateY(0); opacity: 1; }
+    100% { transform: translateY(-25px); opacity: 0; }
+}
 
+.animate-float-up {
+    animation: floatUpFade 1.5s ease-out forwards;
+}

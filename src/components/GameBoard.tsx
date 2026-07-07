@@ -1,4 +1,4 @@
-﻿import React, { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { HexMath } from '../game/HexMath';
 import { type MapTemplate } from '../game/mapTemplates';
 import { type GameState } from '../game/GameState';
@@ -175,16 +175,36 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           const pointsString = corners.map(p => `${p.x},${p.y}`).join(' ');
 
           const isCurrentNinjaHex = gameState?.ninjaHexCoords && hex.coords.q === gameState.ninjaHexCoords.q && hex.coords.r === gameState.ninjaHexCoords.r;
+          const isRolled7 = gameState?.diceRoll?.total === 7;
+          const isRolledThisHex = gameState?.diceRoll && gameState.diceRoll.total === hex.number;
           const isHexClickable = gameState?.gamePhase === 'NINJA_MOVE' && !isCurrentNinjaHex;
+          
+          let highlightStroke = isHexClickable ? '#fbbf24' : '#0f172a';
+          let highlightWidth = isHexClickable ? '4' : '2';
+          let pulseClass = isHexClickable ? 'animate-pulse' : '';
+          let hexStyle = {};
+
+          if (isCurrentNinjaHex && isRolled7) {
+              highlightStroke = '#ef4444';
+              highlightWidth = '4';
+              pulseClass = 'animate-pulse';
+              hexStyle = { filter: 'drop-shadow(0px 0px 12px rgba(239, 68, 68, 0.8))' };
+          } else if (isRolledThisHex) {
+              highlightStroke = '#00ffff';
+              highlightWidth = '6';
+              pulseClass = 'animate-pulse';
+              hexStyle = { filter: 'drop-shadow(0px 0px 16px rgba(0, 255, 255, 1))' };
+          }
 
           return (
             <g key={`hex-${i}`} onClick={() => isHexClickable && onHexClick?.(hex.coords.q, hex.coords.r)} style={{ cursor: isHexClickable ? 'pointer' : 'default' }}>
               <polygon
                 points={pointsString}
                 fill={hex.resource === 'DESERT' ? 'url(#desert-pattern)' : (RESOURCE_GRADIENTS[hex.resource] ? `url(#grad-${hex.resource})` : RESOURCE_COLORS[hex.resource])}
-                stroke={isHexClickable ? '#fbbf24' : '#0f172a'}
-                strokeWidth={isHexClickable ? '4' : '2'}
-                className={isHexClickable ? 'animate-pulse' : ''}
+                stroke={highlightStroke}
+                strokeWidth={highlightWidth}
+                className={pulseClass}
+                style={hexStyle}
               />
 
               {/* Draw Texture Overlay (if not desert) */}
@@ -392,10 +412,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 nodeAsset = (
                   <g>
                     {nodeAsset}
-                    <g transform={`translate(${node.x}, ${node.y - 25})`} className="animate-bounce">
-                      <circle cx="0" cy="0" r="10" fill="#2563eb" stroke="white" strokeWidth="2" />
-                      <path d="M-4,2 L0,-4 L4,2" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </g>
+                    <circle cx={node.x} cy={node.y} r="22" fill="none" stroke="#60a5fa" strokeWidth="3" className="animate-pulse" />
                   </g>
                 );
               }

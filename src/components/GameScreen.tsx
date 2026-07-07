@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { GameBoard } from './GameBoard';
 import { type MapTemplate } from '../game/mapTemplates';
 import { type PlayerData, PLAYER_COLORS } from '../game/Player';
@@ -21,6 +21,22 @@ export const RESOURCE_TEXTURES: Record<string, string> = {
     ORE: oreTexture,
 };
 
+import oakIcon from '../assets/icons/resources/oak_icon.png';
+import clayIcon from '../assets/icons/resources/clay_icon.png';
+import oreIcon from '../assets/icons/resources/ore_icon.png';
+import woolIcon from '../assets/icons/resources/wool_icon.png';
+import cerealIcon from '../assets/icons/resources/cereal_icon.png';
+import nuggetsIcon from '../assets/icons/resources/nuggets_icon.png';
+
+const RESOURCE_ICONS: Record<string, string> = {
+  OAK: oakIcon,
+  CLAY: clayIcon,
+  ORE: oreIcon,
+  WOOL: woolIcon,
+  CEREALS: cerealIcon,
+  NUGGETS: nuggetsIcon
+};
+
 export const RESOURCE_GRADIENTS: Record<string, { center: string, edge: string }> = {
     OAK: { center: '#0a805f', edge: '#033b2b' },
     CLAY: { center: '#d14a11', edge: '#7d2604' },
@@ -30,7 +46,10 @@ export const RESOURCE_GRADIENTS: Record<string, { center: string, edge: string }
     NUGGETS: { center: '#fad05c', edge: '#ad6900' }
 };
 
-export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData[], settings: GameSettings }> = ({ map, initialPlayers, settings }) => {
+export type AnimationEvent = 'TRADE' | 'BUILD' | 'YIELD';
+export type ResourceDiff = { res: string; diff: number };
+
+export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData[], settings: GameSettings, onReturnToLobby?: () => void }> = ({ map, initialPlayers, settings, onReturnToLobby }) => {
     const [gameState, setGameState] = useState<GameState>(() => createInitialGameState(initialPlayers, map, settings));
     const [buildMode, setBuildMode] = useState<'NONE' | 'SETTLEMENT' | 'ROAD' | 'CITY'>('NONE');
     const [discardSelection, setDiscardSelection] = useState<Partial<Record<string, number>>>({});
@@ -38,6 +57,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const [showTradeModal, setShowTradeModal] = useState(false);
     const [showBankPanel, setShowBankPanel] = useState(false);
     const [pendingBuild, setPendingBuild] = useState<{ type: 'SETTLEMENT' | 'ROAD' | 'CITY', id: string, costText: string } | null>(null);
+
+    const [recentAnimations, setRecentAnimations] = useState<{ id: string; event: AnimationEvent; diffs: ResourceDiff[] }[]>([]);
+    const prevResources = useRef<ResourceCounts | null>(null);
 
     useEffect(() => {
         peerService.onMessage((data, _peerId) => {
@@ -56,6 +78,32 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const isMyTurn = gameState.players[gameState.currentTurnIndex]?.peerId === peerService.peerId;
     const currentPlayer = gameState.players[gameState.currentTurnIndex];
     const myPlayer = gameState.players.find(p => p.peerId === peerService.peerId);
+
+    useEffect(() => {
+        if (!myPlayer) return;
+        if (prevResources.current) {
+            const changes: ResourceDiff[] = [];
+            Object.keys(myPlayer.resources).forEach(res => {
+                const diff = myPlayer.resources[res as keyof ResourceCounts] - prevResources.current![res as keyof ResourceCounts];
+                if (diff !== 0) changes.push({ res, diff });
+            });
+            if (changes.length > 0) {
+                 const hasPositive = changes.some(c => c.diff > 0);
+                 const hasNegative = changes.some(c => c.diff < 0);
+                 let eventType: AnimationEvent = 'YIELD';
+                 if (hasPositive && hasNegative) eventType = 'TRADE';
+                 else if (hasNegative && !hasPositive) eventType = 'BUILD';
+                 else if (hasPositive && !hasNegative) eventType = 'YIELD';
+
+                 const id = Math.random().toString(36).substring(2,9);
+                 setRecentAnimations(prev => [...prev, { id, event: eventType, diffs: changes }]);
+                 setTimeout(() => {
+                      setRecentAnimations(prev => prev.filter(anim => anim.id !== id));
+                 }, 2000);
+            }
+        }
+        prevResources.current = { ...myPlayer.resources };
+    }, [myPlayer?.resources]);
 
     const handleRollDice = () => {
         if (!isMyTurn || gameState.phase !== 'ROLL') return;
@@ -730,21 +778,50 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
                         <div className="w-full mt-6 bg-slate-900 rounded-xl p-4 border border-slate-700">
                             <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3 border-b border-slate-700 pb-2">Final Scores</h3>
-                            {gameState.players.sort((a, b) => (b.victoryPoints + b.actionCards.filter(c => c.type === 'MONUMENT').length) - (a.victoryPoints + a.actionCards.filter(c => c.type === 'MONUMENT').length)).map(p => {
-                                const hiddenVp = p.actionCards.filter(c => c.type === 'MONUMENT').length;
-                                return (
-                                    <div key={p.peerId} className="flex justify-between items-center py-2 border-b border-slate-800 last:border-0">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: PLAYER_COLORS[p.color as keyof typeof PLAYER_COLORS].hex }}></div>
-                                            <span className="font-bold text-white">{p.username}</span>
-                                        </div>
-                                        <div className="text-sm font-bold text-yellow-500">
-                                            {p.victoryPoints + hiddenVp} VP <span className="text-slate-500 text-xs">({p.victoryPoints} Pub + {hiddenVp} Hid)</span>
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-sm text-slate-300">
+                                    <thead className="bg-slate-800 text-xs text-slate-400 font-bold uppercase">
+                                        <tr>
+                                            <th className="px-3 py-2">Rank</th>
+                                            <th className="px-3 py-2">Player</th>
+                                            <th className="px-3 py-2">Total VPs</th>
+                                            <th className="px-3 py-2">Cards Found</th>
+                                            <th className="px-3 py-2">Army Size</th>
+                                            <th className="px-3 py-2">Longest Road</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-700/50">
+                                        {gameState.players
+                                            .sort((a, b) => (b.victoryPoints + b.actionCards.filter(c => c.type === 'MONUMENT').length) - (a.victoryPoints + a.actionCards.filter(c => c.type === 'MONUMENT').length))
+                                            .map((p, idx) => {
+                                                const hiddenVp = p.actionCards.filter(c => c.type === 'MONUMENT').length;
+                                                const totalVp = p.victoryPoints + hiddenVp;
+                                                return (
+                                                    <tr key={p.peerId} className="hover:bg-slate-800/50">
+                                                        <td className="px-3 py-2 font-black text-slate-400">#{idx + 1}</td>
+                                                        <td className="px-3 py-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: PLAYER_COLORS[p.color as keyof typeof PLAYER_COLORS].hex }}></div>
+                                                                <span className="font-bold text-white">{p.username}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-3 py-2 font-bold text-yellow-500">{totalVp}</td>
+                                                        <td className="px-3 py-2 font-medium">{p.actionCards.length}</td>
+                                                        <td className="px-3 py-2 font-medium">{gameState.largestArmyHolder === p.peerId ? gameState.largestArmySize : (gameState.playedNinjaCards[p.peerId] || 0)}</td>
+                                                        <td className="px-3 py-2 font-medium">{gameState.longestRoadHolder === p.peerId ? gameState.longestRoadLength : getLongestRoadForPlayer(gameState, p.peerId)}</td>
+                                                    </tr>
+                                                );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
+
+                        {onReturnToLobby && (
+                            <button onClick={onReturnToLobby} className="mt-4 px-8 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold uppercase tracking-widest shadow-lg transition-colors border border-slate-500">
+                                Return to Lobby
+                            </button>
+                        )}
                     </div>
                 </div>
             )}
@@ -1167,19 +1244,37 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                             <div className="text-slate-400 border-b border-slate-700 pb-1 mb-0.5 text-center">Build Costs</div>
                             <div className="flex items-center justify-between gap-4 text-slate-300">
                                 <span>Road</span>
-                                <div className="flex gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-700"></span><span className="w-2.5 h-2.5 rounded-full bg-[#b43807]"></span></div>
+                                <div className="flex gap-1 drop-shadow-sm">
+                                    <img src={RESOURCE_ICONS.OAK} className="w-3 h-3" />
+                                    <img src={RESOURCE_ICONS.CLAY} className="w-3 h-3" />
+                                </div>
                             </div>
                             <div className="flex items-center justify-between gap-4 text-slate-300">
                                 <span>Settlement</span>
-                                <div className="flex gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-700"></span><span className="w-2.5 h-2.5 rounded-full bg-[#b43807]"></span><span className="w-2.5 h-2.5 rounded-full bg-[#e9c46a]"></span><span className="w-2.5 h-2.5 rounded-full bg-lime-500"></span></div>
+                                <div className="flex gap-1 drop-shadow-sm">
+                                    <img src={RESOURCE_ICONS.OAK} className="w-3 h-3" />
+                                    <img src={RESOURCE_ICONS.CLAY} className="w-3 h-3" />
+                                    <img src={RESOURCE_ICONS.CEREALS} className="w-3 h-3" />
+                                    <img src={RESOURCE_ICONS.WOOL} className="w-3 h-3" />
+                                </div>
                             </div>
                             <div className="flex items-center justify-between gap-4 text-slate-300">
                                 <span>City</span>
-                                <div className="flex gap-1"><span className="w-2.5 h-2.5 rounded-full bg-slate-500"></span><span className="w-2.5 h-2.5 rounded-full bg-slate-500"></span><span className="w-2.5 h-2.5 rounded-full bg-slate-500"></span><span className="w-2.5 h-2.5 rounded-full bg-[#e9c46a]"></span><span className="w-2.5 h-2.5 rounded-full bg-[#e9c46a]"></span></div>
+                                <div className="flex gap-1 drop-shadow-sm">
+                                    <img src={RESOURCE_ICONS.ORE} className="w-3 h-3" />
+                                    <img src={RESOURCE_ICONS.ORE} className="w-3 h-3" />
+                                    <img src={RESOURCE_ICONS.ORE} className="w-3 h-3" />
+                                    <img src={RESOURCE_ICONS.CEREALS} className="w-3 h-3" />
+                                    <img src={RESOURCE_ICONS.CEREALS} className="w-3 h-3" />
+                                </div>
                             </div>
                             <div className="flex items-center justify-between gap-4 text-slate-300">
                                 <span>Card</span>
-                                <div className="flex gap-1"><span className="w-2.5 h-2.5 rounded-full bg-slate-500"></span><span className="w-2.5 h-2.5 rounded-full bg-[#e9c46a]"></span><span className="w-2.5 h-2.5 rounded-full bg-lime-500"></span></div>
+                                <div className="flex gap-1 drop-shadow-sm">
+                                    <img src={RESOURCE_ICONS.ORE} className="w-3 h-3" />
+                                    <img src={RESOURCE_ICONS.CEREALS} className="w-3 h-3" />
+                                    <img src={RESOURCE_ICONS.WOOL} className="w-3 h-3" />
+                                </div>
                             </div>
                         </div>
 
@@ -1369,7 +1464,32 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                     </div>
                 </div>{/* end Right Sidebar */}
             </div>{/* end flex-grow flex gap-4 */}
-            {/* end h-screen */}
+
+            {/* FLOATING_ANIMATIONS_ROOT */}
+            {recentAnimations.map(anim => {
+                let positionClass = '';
+                if (anim.event === 'TRADE') {
+                    // bottom-left, slightly above absolute bottom so it floats over the modal
+                    positionClass = 'bottom-32 left-12';
+                } else if (anim.event === 'BUILD') {
+                    // bottom-right, directly from the specific Build action buttons
+                    positionClass = 'bottom-20 right-80'; 
+                } else if (anim.event === 'YIELD') {
+                    // Top-Left area of the central game board (or right next to local player avatar)
+                    positionClass = 'top-20 left-[280px]'; 
+                }
+
+                return (
+                    <div key={anim.id} className={`fixed z-[200] ${positionClass} animate-float-up pointer-events-none flex flex-wrap gap-4 drop-shadow-2xl font-black bg-slate-900/60 backdrop-blur-md px-6 py-3 rounded-2xl border border-slate-600/50 block w-max`}>
+                        {anim.diffs.map((d, i) => (
+                            <div key={i} className={`flex items-center gap-2 text-2xl ${d.diff > 0 ? 'text-emerald-400' : 'text-red-500'}`} style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+                                {d.diff > 0 ? '+' : ''}{d.diff}
+                                {RESOURCE_ICONS[d.res] && <img src={RESOURCE_ICONS[d.res]} className="w-8 h-8 drop-shadow-sm filter-none" alt={d.res} />}
+                            </div>
+                        ))}
+                    </div>
+                );
+            })}
         </div>
     );
 };
