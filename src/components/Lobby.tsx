@@ -1,17 +1,26 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { peerService } from '../network/PeerService';
 import { Send, Users, Wifi } from 'lucide-react';
 import { generateStandardMap } from '../game/MapGenerator';
 import { type MapTemplate } from '../game/mapTemplates';
 import { type PlayerData, type PlayerColor, PLAYER_COLORS } from '../game/Player';
+import { type GameSettings } from '../game/GameState';
 
-export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerData[], settings: { hideBankResources: boolean }) => void }> = ({ onStartGame }) => {
+export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerData[], settings: GameSettings) => void }> = ({ onStartGame }) => {
   const [messages, setMessages] = useState<{ senderId: string; text: string }[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [balancedResources, setBalancedResources] = useState(false);
   const balancedResourcesRef = React.useRef(false);
-  const [hideBankResources, setHideBankResources] = useState(false);
-  const hideBankResourcesRef = React.useRef(false);
+  const [settings, setSettings] = useState<GameSettings>({
+      hideBankResources: false,
+      winPoints: 10,
+      turnTimer: null,
+      discardLimit: 7,
+      trueRoll: false,
+      mapShape: 'standard',
+      mapSize: 'medium'
+  });
+  const settingsRef = React.useRef<GameSettings>(settings);
   const [players, setPlayers] = useState<PlayerData[]>([]);
 
   // Automatically executed when component mounts
@@ -58,7 +67,7 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerDa
       } 
       else if (data.type === 'startGame') {
         peerService.gameStatus = 'IN_PROGRESS';
-        onStartGame(data.map, data.players, data.settings || { hideBankResources: false });
+        onStartGame(data.map, data.players, data.settings);
       }
       else if (data.type === 'LOBBY_STATE') {
         // Client receives master lobby state from Host
@@ -67,8 +76,10 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerDa
       else if (data.type === 'LOBBY_SETTINGS') {
         setBalancedResources(data.balancedResources);
         balancedResourcesRef.current = data.balancedResources;
-        setHideBankResources(data.hideBankResources || false);
-        hideBankResourcesRef.current = data.hideBankResources || false;
+        if (data.settings) {
+            setSettings(data.settings);
+            settingsRef.current = data.settings;
+        }
       }
       else if (peerService.role === 'host') {
         // HOST ONLY ACTIONS
@@ -85,7 +96,7 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerDa
              const next = [...prev, { peerId: incomingPeerId, username: data.username, color: assigned, isHost: false }];
              setTimeout(() => {
                peerService.broadcast({ type: 'LOBBY_STATE', players: next });
-               peerService.broadcast({ type: 'LOBBY_SETTINGS', balancedResources: balancedResourcesRef.current, hideBankResources: hideBankResourcesRef.current });
+               peerService.broadcast({ type: 'LOBBY_SETTINGS', balancedResources: balancedResourcesRef.current, settings: settingsRef.current });
              }, 100);
              return next;
            });
@@ -119,24 +130,24 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerDa
     setBalancedResources(checked);
     balancedResourcesRef.current = checked;
     if (peerService.role === 'host') {
-      peerService.broadcast({ type: 'LOBBY_SETTINGS', balancedResources: checked, hideBankResources: hideBankResourcesRef.current });
+      peerService.broadcast({ type: 'LOBBY_SETTINGS', balancedResources: checked, settings: settingsRef.current });
     }
   };
 
-  const handleHideBankResourcesChange = (checked: boolean) => {
-    setHideBankResources(checked);
-    hideBankResourcesRef.current = checked;
-    if (peerService.role === 'host') {
-      peerService.broadcast({ type: 'LOBBY_SETTINGS', balancedResources: balancedResourcesRef.current, hideBankResources: checked });
-    }
+  const updateSettings = (updates: Partial<GameSettings>) => {
+    if (peerService.role !== 'host') return;
+    const newSettings = { ...settings, ...updates };
+    setSettings(newSettings);
+    settingsRef.current = newSettings;
+    peerService.broadcast({ type: 'LOBBY_SETTINGS', balancedResources: balancedResourcesRef.current, settings: newSettings });
   };
 
   const handleStartGameClick = async () => {
     if (peerService.role === 'host') {
       const newMap = generateStandardMap(balancedResources);
       await peerService.setGameStarted();
-      peerService.broadcast({ type: 'startGame', map: newMap, players, settings: { hideBankResources: hideBankResourcesRef.current } });
-      onStartGame(newMap, players, { hideBankResources: hideBankResourcesRef.current });
+      peerService.broadcast({ type: 'startGame', map: newMap, players, settings: settingsRef.current });
+      onStartGame(newMap, players, settingsRef.current);
     }
   };
 
@@ -234,46 +245,139 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerDa
 
       {/* Central Area: Game Settings */}
       <div className="flex-grow bg-slate-800 rounded-xl p-8 border border-slate-700 shadow-xl flex flex-col">
-        <h2 className="text-2xl font-bold mb-8 border-b border-slate-700 pb-4 text-emerald-400">Game Settings</h2>
-        
-        <div className="space-y-6">
-          {/* Balanced Resources Toggle */}
-          <div className="flex items-center gap-4 bg-slate-900/50 p-4 rounded-xl border border-slate-700 hover:border-slate-600 transition-colors w-fit">
-            <input 
-              type="checkbox" 
-              id="balanced" 
-              checked={balancedResources}
+        <h2 className="text-2xl font-bold mb-6 border-b border-slate-700 pb-4 text-emerald-400">Game Settings</h2>
+        {peerService.role !== 'host' && (
+          <div className="mb-4 text-xs text-amber-400 bg-amber-400/10 border border-amber-700/50 rounded-lg px-3 py-2 text-center">
+            Only the host can change settings
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-4">
+
+          {/* ── Map Generation ── */}
+          <div className="col-span-2">
+            <h3 className="text-xs uppercase tracking-widest text-slate-500 font-bold mb-3">Map Generation</h3>
+          </div>
+          <div className="flex items-start gap-3 bg-slate-900/50 p-4 rounded-xl border border-slate-700">
+            <input type="checkbox" id="balanced" checked={balancedResources}
               onChange={(e) => peerService.role === 'host' && handleBalancedResourcesChange(e.target.checked)}
               disabled={peerService.role !== 'host'}
-              className={`w-6 h-6 text-emerald-500 rounded border-slate-600 bg-slate-700 ${peerService.role === 'host' ? 'cursor-pointer focus:ring-emerald-500' : 'opacity-50 cursor-not-allowed'}`}
-            />
-            <label htmlFor="balanced" className={peerService.role === 'host' ? 'select-none cursor-pointer' : 'select-none opacity-80'}>
-              <span className="font-bold block text-slate-200 text-lg">Balanced Resources</span>
-              <span className="text-sm text-slate-400">Prevent red numbers (6, 8) from being placed on adjacent hexes or same terrain types.</span>
+              className={`mt-1 w-5 h-5 rounded border-slate-600 bg-slate-700 accent-emerald-500 ${peerService.role === 'host' ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`} />
+            <label htmlFor="balanced" className={`flex-1 ${peerService.role === 'host' ? 'cursor-pointer' : 'opacity-80'} select-none`}>
+              <span className="font-semibold block text-slate-100">Balanced Resources</span>
+              <span className="text-xs text-slate-400">No red numbers (6, 8) on adjacent hexes.</span>
             </label>
+          </div>
+          <div className="flex items-start gap-3 bg-slate-900/50 p-4 rounded-xl border border-slate-700 opacity-50">
+            <div className="flex flex-col flex-1 gap-1">
+              <span className="text-xs uppercase tracking-widest text-slate-500 font-bold">Map Shape <span className="text-slate-600">(soon)</span></span>
+              <select disabled className="bg-slate-800 border border-slate-700 text-slate-400 text-sm rounded-lg px-2 py-1.5 cursor-not-allowed">
+                <option>Standard Hexagon</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex items-start gap-3 bg-slate-900/50 p-4 rounded-xl border border-slate-700 opacity-50">
+            <div className="flex flex-col flex-1 gap-1">
+              <span className="text-xs uppercase tracking-widest text-slate-500 font-bold">Map Size <span className="text-slate-600">(soon)</span></span>
+              <select disabled className="bg-slate-800 border border-slate-700 text-slate-400 text-sm rounded-lg px-2 py-1.5 cursor-not-allowed">
+                <option>Medium (5 rings)</option>
+              </select>
+            </div>
           </div>
 
-          <div className="flex items-center gap-4 bg-slate-900/50 p-4 rounded-xl border border-slate-700 hover:border-slate-600 transition-colors w-fit">
-            <input 
-              type="checkbox" 
-              id="hideBankRes" 
-              checked={hideBankResources}
-              onChange={(e) => peerService.role === 'host' && handleHideBankResourcesChange(e.target.checked)}
+          {/* ── Victory ── */}
+          <div className="col-span-2 mt-2">
+            <h3 className="text-xs uppercase tracking-widest text-slate-500 font-bold mb-3">Victory &amp; Limits</h3>
+          </div>
+          <div className="flex flex-col gap-3 bg-slate-900/50 p-4 rounded-xl border border-slate-700">
+            <div className="flex items-center justify-between">
+              <label htmlFor="winPoints" className="text-sm font-semibold text-slate-200">
+                Victory Points
+              </label>
+              <span className="text-lg font-bold text-emerald-400 bg-slate-800 px-3 py-0.5 rounded-lg border border-slate-600 min-w-[3rem] text-center tabular-nums">
+                {settings.winPoints}
+              </span>
+            </div>
+            <input
+              id="winPoints"
+              type="range"
+              min={3} max={20} step={1}
+              value={settings.winPoints}
+              onChange={(e) => updateSettings({ winPoints: Number(e.target.value) })}
               disabled={peerService.role !== 'host'}
-              className={`w-6 h-6 text-emerald-500 rounded border-slate-600 bg-slate-700 ${peerService.role === 'host' ? 'cursor-pointer focus:ring-emerald-500' : 'opacity-50 cursor-not-allowed'}`}
+              className={`w-full h-2 rounded-full appearance-none bg-slate-700 accent-emerald-500 ${peerService.role !== 'host' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             />
-            <label htmlFor="hideBankRes" className={peerService.role === 'host' ? 'select-none cursor-pointer' : 'select-none opacity-80'}>
-              <span className="font-bold block text-slate-200 text-lg">Hide Bank Resources</span>
-              <span className="text-sm text-slate-400">Hide the panel showing remaining resources in the bank.</span>
+            <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+              <span>3</span><span>10</span><span>20</span>
+            </div>
+            <span className="text-xs text-slate-400">First player to reach this score wins.</span>
+          </div>
+          <div className="flex flex-col gap-3 bg-slate-900/50 p-4 rounded-xl border border-slate-700">
+            <div className="flex items-center justify-between">
+              <label htmlFor="discardLimit" className="text-sm font-semibold text-slate-200">
+                Safe Hand Limit <span className="text-slate-400 font-normal text-xs">(Ninja)</span>
+              </label>
+              <span className="text-lg font-bold text-amber-400 bg-slate-800 px-3 py-0.5 rounded-lg border border-slate-600 min-w-[3rem] text-center tabular-nums">
+                {settings.discardLimit}
+              </span>
+            </div>
+            <input
+              id="discardLimit"
+              type="range"
+              min={1} max={20} step={1}
+              value={settings.discardLimit}
+              onChange={(e) => updateSettings({ discardLimit: Number(e.target.value) })}
+              disabled={peerService.role !== 'host'}
+              className={`w-full h-2 rounded-full appearance-none bg-slate-700 accent-amber-500 ${peerService.role !== 'host' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            />
+            <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+              <span>1</span><span>7</span><span>20</span>
+            </div>
+            <span className="text-xs text-slate-400">Cards over this limit must be discarded on a 7.</span>
+          </div>
+
+          {/* ── Dice & Turns ── */}
+          <div className="col-span-2 mt-2">
+            <h3 className="text-xs uppercase tracking-widest text-slate-500 font-bold mb-3">Dice &amp; Turns</h3>
+          </div>
+          <div className="flex items-start gap-3 bg-slate-900/50 p-4 rounded-xl border border-slate-700">
+            <input type="checkbox" id="trueRoll"
+              checked={settings.trueRoll}
+              onChange={(e) => updateSettings({ trueRoll: e.target.checked })}
+              disabled={peerService.role !== 'host'}
+              className={`mt-1 w-5 h-5 rounded border-slate-600 bg-slate-700 accent-emerald-500 ${peerService.role === 'host' ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`} />
+            <label htmlFor="trueRoll" className={`flex-1 ${peerService.role === 'host' ? 'cursor-pointer' : 'opacity-80'} select-none`}>
+              <span className="font-semibold block text-slate-100">True Random Dice</span>
+              <span className="text-xs text-slate-400">Default: "Dice Deck" system guarantees statistically fair distribution. Enable for pure RNG.</span>
             </label>
           </div>
-          
-          {/* Future settings can go here */}
-          <div className="p-8 border-2 border-dashed border-slate-700 rounded-xl flex items-center justify-center text-slate-500 mt-8">
-            {peerService.role === 'host' ? 'More settings coming soon...' : 'Waiting for host to launch the game...'}
+          <div className="flex items-start gap-3 bg-slate-900/50 p-4 rounded-xl border border-slate-700">
+            <input type="checkbox" id="hideBankRes"
+              checked={settings.hideBankResources}
+              onChange={(e) => updateSettings({ hideBankResources: e.target.checked })}
+              disabled={peerService.role !== 'host'}
+              className={`mt-1 w-5 h-5 rounded border-slate-600 bg-slate-700 accent-emerald-500 ${peerService.role === 'host' ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`} />
+            <label htmlFor="hideBankRes" className={`flex-1 ${peerService.role === 'host' ? 'cursor-pointer' : 'opacity-80'} select-none`}>
+              <span className="font-semibold block text-slate-100">Hide Bank Resources</span>
+              <span className="text-xs text-slate-400">Hides remaining bank stock from all players.</span>
+            </label>
           </div>
-        </div>
-      </div>
+          <div className="flex flex-col gap-2 bg-slate-900/50 p-4 rounded-xl border border-slate-700">
+            <label htmlFor="turnTimer" className="text-sm font-semibold text-slate-200">Turn Timer</label>
+            <select id="turnTimer"
+              value={settings.turnTimer ?? 'off'}
+              onChange={(e) => updateSettings({ turnTimer: e.target.value === 'off' ? null : Number(e.target.value) })}
+              disabled={peerService.role !== 'host'}
+              className={`bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm ${peerService.role !== 'host' ? 'opacity-50 cursor-not-allowed' : 'focus:outline-none focus:ring-2 focus:ring-emerald-500'}`}>
+              <option value="off">Disabled</option>
+              <option value="30">30 seconds</option>
+              <option value="60">60 seconds</option>
+              <option value="90">90 seconds</option>
+              <option value="120">120 seconds</option>
+            </select>
+            <span className="text-xs text-slate-400">Auto-end turn when time runs out.</span>
+          </div>
+        </div>{/* end grid */}
+      </div>{/* end settings card */}
 
       {/* Right Sidebar: Chat Area */}
       <div className="w-80 bg-slate-800 rounded-xl border border-slate-700 shadow-xl flex flex-col overflow-hidden flex-shrink-0">

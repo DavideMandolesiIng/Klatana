@@ -3,7 +3,7 @@ import { GameBoard } from './GameBoard';
 import { type MapTemplate } from '../game/mapTemplates';
 import { type PlayerData, PLAYER_COLORS } from '../game/Player';
 import { peerService } from '../network/PeerService';
-import { type GameState, createInitialGameState, rollDice, distributeResources, validateSettlementPlacement, validateRoadPlacement, getStartingResources, advanceSetupTurn, getValidRoadPlacements, getValidSettlementPlacements, BUILD_COSTS, canAfford, calculateScores, type ResourceCounts, getLongestRoadForPlayer } from '../game/GameState';
+import { type GameState, createInitialGameState, rollDice, distributeResources, validateSettlementPlacement, validateRoadPlacement, getStartingResources, advanceSetupTurn, getValidRoadPlacements, getValidSettlementPlacements, BUILD_COSTS, canAfford, calculateScores, type ResourceCounts, getLongestRoadForPlayer, type GameSettings, createDiceDeck } from '../game/GameState';
 import { HexMath } from '../game/HexMath';
 import { TradeModal } from './TradeModal';
 
@@ -30,8 +30,8 @@ export const RESOURCE_GRADIENTS: Record<string, { center: string, edge: string }
     NUGGETS: { center: '#fad05c', edge: '#ad6900' }
 };
 
-export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData[], settings: { hideBankResources: boolean } }> = ({ map, initialPlayers, settings }) => {
-    const [gameState, setGameState] = useState<GameState>(() => createInitialGameState(initialPlayers, map));
+export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData[], settings: GameSettings }> = ({ map, initialPlayers, settings }) => {
+    const [gameState, setGameState] = useState<GameState>(() => createInitialGameState(initialPlayers, map, settings));
     const [buildMode, setBuildMode] = useState<'NONE' | 'SETTLEMENT' | 'ROAD' | 'CITY'>('NONE');
     const [discardSelection, setDiscardSelection] = useState<Partial<Record<string, number>>>({});
     const [abundancePicks, setAbundancePicks] = useState<string[]>([]);
@@ -60,10 +60,20 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const handleRollDice = () => {
         if (!isMyTurn || gameState.phase !== 'ROLL') return;
 
-        const roll = rollDice();
+        let roll;
+        let newDeck = [...gameState.diceDeck];
+        if (gameState.settings.trueRoll) {
+             roll = rollDice();
+        } else {
+             if (newDeck.length === 0) newDeck = createDiceDeck();
+             const p = newDeck.pop()!;
+             roll = { die1: p.die1, die2: p.die2, total: p.die1 + p.die2 };
+        }
+
         let newState: GameState = {
             ...gameState,
             diceRoll: roll,
+            diceDeck: newDeck,
             phase: 'TRADE',
             logs: [...gameState.logs, `${currentPlayer.username} rolled a ${roll.total} (${roll.die1} + ${roll.die2}).`]
         };
@@ -270,10 +280,12 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const isSetupPhase = gameState.gamePhase === 'SETUP_1' || gameState.gamePhase === 'SETUP_2';
     const activeBuildMode = isSetupPhase ? (gameState.setupAction || 'NONE') : buildMode;
 
-    const canAffordRoad = isSetupPhase || (myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.ROAD) && myPlayer.inventory.availableRoads > 0);
-    const canAffordSettlement = isSetupPhase || (myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.SETTLEMENT) && myPlayer.inventory.availableSettlements > 0);
-    const canAffordCity = !isSetupPhase && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.CITY) && myPlayer.inventory.availableCities > 0;
-    const canAffordCard = !isSetupPhase && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.ACTION_CARD);
+    const canAffordRoad = isSetupPhase || 
+        (gameState.gamePhase === 'FREE_ROAD_BUILDING' && myPlayer && myPlayer.inventory.availableRoads > 0) ||
+        (gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.ROAD) && myPlayer.inventory.availableRoads > 0);
+    const canAffordSettlement = isSetupPhase || (gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.SETTLEMENT) && myPlayer.inventory.availableSettlements > 0);
+    const canAffordCity = gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.CITY) && myPlayer.inventory.availableCities > 0;
+    const canAffordCard = gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.ACTION_CARD);
 
     // Pre-compute valid placements for UI highlighting (derived from authoritative validation)
     const { allEdgeIds, allNodeIds } = useMemo(() => {
@@ -288,6 +300,21 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             allNodeIds: Array.from(nodeSet.keys())
         };
     }, [map]);
+
+    const hasValidSettlementSpots = useMemo(() => {
+        if (!myPlayer || !isMyTurn) return false;
+        return getValidSettlementPlacements(gameState, myPlayer.peerId, allNodeIds).size > 0;
+    }, [gameState, myPlayer, allNodeIds, isMyTurn]);
+
+    const hasValidRoadSpots = useMemo(() => {
+        if (!myPlayer || !isMyTurn) return false;
+        return getValidRoadPlacements(gameState, myPlayer.peerId, allEdgeIds).size > 0;
+    }, [gameState, myPlayer, allEdgeIds, isMyTurn]);
+
+    const hasValidCitySpots = useMemo(() => {
+        if (!myPlayer || !isMyTurn) return false;
+        return Object.values(gameState.settlements).some(s => s.ownerId === myPlayer.peerId && !s.isCity);
+    }, [gameState, myPlayer, isMyTurn]);
 
     const validRoadEdges = useMemo(() => {
         if (!myPlayer || activeBuildMode !== 'ROAD' || !isMyTurn) return new Set<string>();
@@ -727,7 +754,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm">
                     <div className="bg-slate-800 p-6 rounded-2xl border border-slate-600 shadow-2xl max-w-md w-full">
                         <h2 className="text-xl font-bold text-white mb-2 text-center uppercase tracking-wider text-red-400">Ninja Attack!</h2>
-                        <p className="text-slate-300 text-sm mb-4 text-center">You have more than 7 cards. You must discard half (rounded down).</p>
+                        <p className="text-slate-300 text-sm mb-4 text-center">You have more than {gameState.settings?.discardLimit ?? 7} cards. You must discard half (rounded down).</p>
 
                         <div className="space-y-2 mb-6">
                             {Object.entries(myPlayer.resources).map(([res, count]) => {
@@ -957,23 +984,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                     </div>
                                 ))}
                             </div>
-                            <div className="group relative w-full mt-2" style={{ zIndex: 9999 }}>
-                                <button
-                                    onClick={handleBuyCard}
-                                    disabled={!canAffordCard || gameState.actionCardDeck.length === 0 || !isMyTurn || gameState.phase === 'ROLL'}
-                                    className="w-full py-2 text-sm bg-slate-700 hover:bg-slate-600 rounded-lg font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-slate-600 flex justify-between px-2"
-                                >
-                                    <span>Buy Card</span>
-                                    <span className="text-xs text-slate-400 font-normal">({gameState.actionCardDeck.length} left)</span>
-                                </button>
-                                <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none" style={{ zIndex: 9999 }}>
-                                    <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
-                                    {Object.entries({ CEREALS: 1, WOOL: 1, ORE: 1 }).map(([res, cost]) => {
-                                        const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
-                                        return <div key={res} className="flex justify-between text-[10px] font-bold"><span className="text-slate-400">{res}</span><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
-                                    })}
-                                </div>
-                            </div>
+                            {/* Buy Card button moved to main button area */}
                         </div>{/* end Action Cards box */}
                     </div>{/* end flex-grow inner left sidebar */}
                 </div>{/* end w-56 Left Sidebar */}
@@ -1194,7 +1205,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                 ) : (
                                                     <>
                                                         <div className="relative group flex items-stretch">
-                                                            <button onClick={() => setBuildMode('SETTLEMENT')} disabled={!canAffordSettlement} className={`px-6 py-3 rounded-xl font-bold transition-colors shadow-xl border text-sm uppercase tracking-wider ${canAffordSettlement ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed'}`}>
+                                                            <button onClick={() => setBuildMode('SETTLEMENT')} disabled={!canAffordSettlement || !hasValidSettlementSpots} title={canAffordSettlement && !hasValidSettlementSpots ? "No valid spots available on board" : undefined} className={`px-6 py-3 rounded-xl font-bold transition-colors shadow-xl border text-sm uppercase tracking-wider ${canAffordSettlement && hasValidSettlementSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : (canAffordSettlement && !hasValidSettlementSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed')}`}>
                                                                 Settlement
                                                             </button>
                                                             <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
@@ -1206,7 +1217,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                             </div>
                                                         </div>
                                                         <div className="relative group flex items-stretch">
-                                                            <button onClick={() => setBuildMode('CITY')} disabled={!canAffordCity} className={`px-6 py-3 rounded-xl font-bold transition-colors shadow-xl border text-sm uppercase tracking-wider ${canAffordCity ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed'}`}>
+                                                            <button onClick={() => setBuildMode('CITY')} disabled={!canAffordCity || !hasValidCitySpots} title={canAffordCity && !hasValidCitySpots ? "No valid spots available on board" : undefined} className={`px-6 py-3 rounded-xl font-bold transition-colors shadow-xl border text-sm uppercase tracking-wider ${canAffordCity && hasValidCitySpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : (canAffordCity && !hasValidCitySpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed')}`}>
                                                                 City
                                                             </button>
                                                             <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
@@ -1218,7 +1229,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                             </div>
                                                         </div>
                                                         <div className="relative group flex items-stretch">
-                                                            <button onClick={() => setBuildMode('ROAD')} disabled={!canAffordRoad} className={`px-6 py-3 rounded-xl font-bold transition-colors shadow-xl border text-sm uppercase tracking-wider ${canAffordRoad ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed'}`}>
+                                                            <button onClick={() => setBuildMode('ROAD')} disabled={!canAffordRoad || !hasValidRoadSpots} title={canAffordRoad && !hasValidRoadSpots ? "No valid spots available on board" : undefined} className={`px-6 py-3 rounded-xl font-bold transition-colors shadow-xl border text-sm uppercase tracking-wider ${canAffordRoad && hasValidRoadSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : (canAffordRoad && !hasValidRoadSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed')}`}>
                                                                 Road
                                                             </button>
                                                             <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
@@ -1229,11 +1240,32 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                                 })}
                                                             </div>
                                                         </div>
+                                                        <div className="relative group flex items-stretch">
+                                                            <button onClick={handleBuyCard} disabled={!canAffordCard || gameState.actionCardDeck.length === 0} className={`px-6 py-3 rounded-xl font-bold transition-colors shadow-xl border-2 text-sm uppercase tracking-wider ${canAffordCard && gameState.actionCardDeck.length > 0 ? 'bg-slate-700 hover:bg-slate-600 border-purple-500 text-purple-200' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed'}`}>
+                                                                Buy Card <span className="text-[10px] text-slate-400 font-normal">({gameState.actionCardDeck.length})</span>
+                                                            </button>
+                                                            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
+                                                                <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
+                                                                {Object.entries({ CEREALS: 1, WOOL: 1, ORE: 1 }).map(([res, cost]) => {
+                                                                    const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
+                                                                    return <div key={res} className="flex justify-between text-[10px] font-bold"><span className="text-slate-400">{res}</span><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
+                                                                })}
+                                                            </div>
+                                                        </div>
                                                     </>
                                                 )}
-                                                <button onClick={handleEndTurn} disabled={gameState.gamePhase !== 'MAIN_GAME'} className={`px-6 py-3 rounded-xl font-bold shadow-2xl transition-colors border text-sm uppercase tracking-wider ${gameState.gamePhase === 'MAIN_GAME' ? 'bg-red-600 hover:bg-red-500 border-red-400' : 'bg-red-800 border-red-700 opacity-50 cursor-not-allowed'}`}>
-                                                    End Turn
-                                                </button>
+                                                {gameState.gamePhase === 'FREE_ROAD_BUILDING' ? (
+                                                    <button onClick={() => {
+                                                        broadcastState({ ...gameState, gamePhase: 'MAIN_GAME', freeRoadsLeft: 0 });
+                                                        setBuildMode('NONE');
+                                                    }} className="px-6 py-3 rounded-xl font-bold shadow-2xl transition-colors border border-amber-500 bg-amber-600 hover:bg-amber-500 text-sm uppercase tracking-wider">
+                                                        End Free Road
+                                                    </button>
+                                                ) : (
+                                                    <button onClick={handleEndTurn} disabled={gameState.gamePhase !== 'MAIN_GAME'} className={`px-6 py-3 rounded-xl font-bold shadow-2xl transition-colors border text-sm uppercase tracking-wider ${gameState.gamePhase === 'MAIN_GAME' ? 'bg-red-600 hover:bg-red-500 border-red-400' : 'bg-red-800 border-red-700 opacity-50 cursor-not-allowed'}`}>
+                                                        End Turn
+                                                    </button>
+                                                )}
                                             </>
                                         )}
                                     </>

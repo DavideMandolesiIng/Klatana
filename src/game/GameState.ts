@@ -7,6 +7,16 @@ export type GamePhase = 'SETUP_1' | 'SETUP_2' | 'MAIN_GAME' | 'NINJA_DISCARD' | 
 export type ActionCardType = 'NINJA' | 'MONUMENT' | 'MONOPOLY' | 'ABUNDANCE' | 'RAPID_EXPANSION';
 export type SetupAction = 'SETTLEMENT' | 'ROAD';
 
+export interface GameSettings {
+  hideBankResources: boolean;
+  winPoints: number;
+  turnTimer: number | null;
+  discardLimit: number;
+  trueRoll: boolean;
+  mapShape: string;
+  mapSize: string;
+}
+
 // We map generic resource types. DESERT produces nothing.
 export type ResourceCounts = Record<Exclude<ResourceType, 'DESERT'>, number>;
 
@@ -69,6 +79,8 @@ export interface GameState {
   longestRoadLength: number;
   playedNinjaCards: Record<string, number>;
   winningScore: number;
+  diceDeck: { die1: number, die2: number }[];
+  settings: GameSettings;
   tradeProposal?: {
     proposerId: string;
     offer: Partial<ResourceCounts>;
@@ -77,7 +89,22 @@ export interface GameState {
   };
 }
 
-export const createInitialGameState = (lobbyPlayers: PlayerData[], map?: MapTemplate): GameState => {
+export const createDiceDeck = (): { die1: number, die2: number }[] => {
+    const deck: { die1: number, die2: number }[] = [];
+    for (let i = 1; i <= 6; i++) {
+        for (let j = 1; j <= 6; j++) {
+            deck.push({ die1: i, die2: j });
+        }
+    }
+    // Fisher-Yates shuffle
+    for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    return deck;
+};
+
+export const createInitialGameState = (lobbyPlayers: PlayerData[], map: MapTemplate | undefined, settings: GameSettings): GameState => {
   const deck: ActionCardType[] = [
       ...Array(14).fill('NINJA'),
       ...Array(5).fill('MONUMENT'),
@@ -125,7 +152,9 @@ export const createInitialGameState = (lobbyPlayers: PlayerData[], map?: MapTemp
     longestRoadHolder: null,
     longestRoadLength: 0,
     playedNinjaCards: {},
-    winningScore: 10
+    winningScore: settings.winPoints,
+    diceDeck: settings.trueRoll ? [] : createDiceDeck(),
+    settings
   };
 };
 
@@ -139,6 +168,10 @@ export const validateSettlementPlacement = (gameState: GameState, nodeId: string
     
     const isTooClose = Object.keys(gameState.settlements).some(existingNode => HexMath.areNodesAdjacent(nodeId, existingNode));
     if (isTooClose) return {valid: false, reason: "Distance Rule: Too close to another settlement."};
+
+    if (gameState.gamePhase !== 'MAIN_GAME' && gameState.gamePhase !== 'SETUP_1' && gameState.gamePhase !== 'SETUP_2') {
+        return {valid: false, reason: "Cannot build a settlement during this phase."};
+    }
 
     if (gameState.gamePhase === 'MAIN_GAME') {
         const player = gameState.players.find(p => p.peerId === peerId);
@@ -165,9 +198,9 @@ export const validateRoadPlacement = (gameState: GameState, edgeId: string, peer
         if (!HexMath.isEdgeAdjacentToNode(edgeId, gameState.lastBuiltNodeId)) {
             return {valid: false, reason: "Road must connect to your newly placed settlement."};
         }
-    } else {
+    } else if (gameState.gamePhase === 'MAIN_GAME' || gameState.gamePhase === 'FREE_ROAD_BUILDING') {
         const player = gameState.players.find(p => p.peerId === peerId);
-        if (player && !canAfford(player.resources, BUILD_COSTS.ROAD)) {
+        if (gameState.gamePhase === 'MAIN_GAME' && player && !canAfford(player.resources, BUILD_COSTS.ROAD)) {
             return {valid: false, reason: "Not enough resources."};
         }
 
@@ -194,6 +227,8 @@ export const validateRoadPlacement = (gameState: GameState, edgeId: string, peer
         if (!connectsToOwnSettlement && !connectsToOwnRoadUnblocked) {
             return {valid: false, reason: "Road must connect to your own settlement, city, or an unblocked road."};
         }
+    } else {
+        return {valid: false, reason: "Cannot build a road during this phase."};
     }
     return {valid: true};
 };
@@ -285,8 +320,9 @@ export const rollDice = () => {
 // Real node-checking logic will come in Phase 4 when nodes/settlements exist.
 export const distributeResources = (gameState: GameState, map: MapTemplate, roll: number): GameState => {
   if (roll === 7) {
+    const limit = gameState.settings?.discardLimit ?? 7;
     const playersNeedingToDiscard = gameState.players
-      .filter(p => Object.values(p.resources).reduce((sum, count) => sum + count, 0) > 7)
+      .filter(p => Object.values(p.resources).reduce((sum, count) => sum + count, 0) > limit)
       .map(p => p.peerId);
 
     return {
