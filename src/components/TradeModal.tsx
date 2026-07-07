@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { type GameState, getPlayerTradeRates, type ResourceCounts } from '../game/GameState';
 import { type MapTemplate, type ResourceType } from '../game/mapTemplates';
+import { RESOURCE_GRADIENTS, RESOURCE_TEXTURES } from './GameScreen';
 
 interface TradeModalProps {
     gameState: GameState;
@@ -80,12 +81,18 @@ export const TradeModal: React.FC<TradeModalProps> = ({ gameState, myPlayerId, m
                 <div className="space-y-2">
                     {/* Rates */}
                     <div className="grid grid-cols-5 gap-1 bg-slate-900/60 p-2 rounded-lg border border-slate-700">
-                        {RESOURCES.map(res => (
-                            <div key={res} className="text-center flex flex-col items-center">
-                                <span className="text-[8px] font-bold text-slate-400">{res}</span>
-                                <span className="text-[10px] font-black text-white">{rates[res]}:1</span>
-                            </div>
-                        ))}
+                        {RESOURCES.map(res => {
+                            const grad = RESOURCE_GRADIENTS[res] || { center: '#334155', edge: '#0f172a' };
+                            return (
+                                <div key={res} className="relative text-center flex flex-col items-center justify-center p-1 rounded-md border border-black/30 overflow-hidden shadow-sm" style={{ background: `radial-gradient(circle at center, ${grad.center}, ${grad.edge})` }}>
+                                    {RESOURCE_TEXTURES[res] && (
+                                        <div className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-50 mix-blend-overlay" style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }} />
+                                    )}
+                                    <span className="relative z-10 text-[8px] font-bold text-white drop-shadow-sm">{res}</span>
+                                    <span className="relative z-10 text-[10px] font-black text-white drop-shadow-md">{rates[res]}:1</span>
+                                </div>
+                            );
+                        })}
                     </div>
 
                     {/* Give / Get */}
@@ -133,31 +140,43 @@ export const TradeModal: React.FC<TradeModalProps> = ({ gameState, myPlayerId, m
                         <div className="bg-slate-900/60 p-2 rounded-lg border border-red-900/50">
                             <h3 className="text-[9px] font-bold text-red-400 uppercase tracking-wider mb-2 text-center">Give</h3>
                             <div className="space-y-1">
-                                {RESOURCES.map(res => (
-                                    <div key={res} className="flex justify-between items-center bg-slate-800/80 px-1 py-0.5 rounded">
-                                        <span className="text-[9px] font-bold w-10">{res}</span>
-                                        <div className="flex gap-1 items-center">
-                                            <button onClick={() => updateOffer(res, -1)} className="w-5 h-5 bg-slate-700 hover:bg-slate-600 rounded font-bold text-[10px]">-</button>
-                                            <span className="w-4 text-center text-[10px] font-bold">{offer[res as keyof typeof offer] || 0}</span>
-                                            <button onClick={() => updateOffer(res, 1)} className="w-5 h-5 bg-slate-700 hover:bg-slate-600 rounded font-bold text-[10px]">+</button>
+                                {RESOURCES.map(res => {
+                                    const grad = RESOURCE_GRADIENTS[res] || { center: '#334155', edge: '#0f172a' };
+                                    return (
+                                        <div key={res} className="relative flex justify-between items-center px-2 py-1 rounded border border-black/30 shadow-sm overflow-hidden" style={{ background: `radial-gradient(circle at center, ${grad.center}, ${grad.edge})` }}>
+                                            {RESOURCE_TEXTURES[res] && (
+                                                <div className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-50 mix-blend-overlay" style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }} />
+                                            )}
+                                            <span className="relative z-10 text-[9px] font-bold w-14 text-white drop-shadow-sm">{res}</span>
+                                            <div className="relative z-10 flex gap-1 items-center bg-black/40 rounded px-1 py-0.5">
+                                                <button onClick={() => updateOffer(res, -1)} className="w-5 h-5 bg-white/20 hover:bg-white/40 rounded font-bold text-[10px] text-white transition-colors">-</button>
+                                                <span className="w-4 text-center text-[10px] font-bold text-white">{offer[res as keyof typeof offer] || 0}</span>
+                                                <button onClick={() => updateOffer(res, 1)} className="w-5 h-5 bg-white/20 hover:bg-white/40 rounded font-bold text-[10px] text-white transition-colors">+</button>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
                         <div className="bg-slate-900/60 p-2 rounded-lg border border-emerald-900/50">
                             <h3 className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider mb-2 text-center">Get</h3>
                             <div className="space-y-1">
-                                {RESOURCES.map(res => (
-                                    <div key={res} className="flex justify-between items-center bg-slate-800/80 px-1 py-0.5 rounded">
-                                        <span className="text-[9px] font-bold w-10">{res}</span>
-                                        <div className="flex gap-1 items-center">
-                                            <button onClick={() => updateRequest(res, -1)} className="w-5 h-5 bg-slate-700 hover:bg-slate-600 rounded font-bold text-[10px]">-</button>
-                                            <span className="w-4 text-center text-[10px] font-bold">{request[res as keyof typeof request] || 0}</span>
-                                            <button onClick={() => updateRequest(res, 1)} className="w-5 h-5 bg-slate-700 hover:bg-slate-600 rounded font-bold text-[10px]">+</button>
+                                {RESOURCES.map(res => {
+                                    const grad = RESOURCE_GRADIENTS[res] || { center: '#334155', edge: '#0f172a' };
+                                    return (
+                                        <div key={res} className="relative flex justify-between items-center px-2 py-1 rounded border border-black/30 shadow-sm overflow-hidden" style={{ background: `radial-gradient(circle at center, ${grad.center}, ${grad.edge})` }}>
+                                            {RESOURCE_TEXTURES[res] && (
+                                                <div className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-50 mix-blend-overlay" style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }} />
+                                            )}
+                                            <span className="relative z-10 text-[9px] font-bold w-14 text-white drop-shadow-sm">{res}</span>
+                                            <div className="relative z-10 flex gap-1 items-center bg-black/40 rounded px-1 py-0.5">
+                                                <button onClick={() => updateRequest(res, -1)} className="w-5 h-5 bg-white/20 hover:bg-white/40 rounded font-bold text-[10px] text-white transition-colors">-</button>
+                                                <span className="w-4 text-center text-[10px] font-bold text-white">{request[res as keyof typeof request] || 0}</span>
+                                                <button onClick={() => updateRequest(res, 1)} className="w-5 h-5 bg-white/20 hover:bg-white/40 rounded font-bold text-[10px] text-white transition-colors">+</button>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     </div>

@@ -42,7 +42,7 @@ export const RoadAsset: React.FC<RoadAssetProps> = ({ x, y, x2, y2, playerColor,
     const midX = (x + x2) / 2;
     const midY = (y + y2) / 2;
     const angle = Math.atan2(y2 - y, x2 - x) * (180 / Math.PI) - 90;
-    const edgeLength = Math.hypot(x2 - x, y2 - y);
+    const edgeLength = Math.hypot(x2 - x, y2 - y) + 10; //constant 10 added to make roads overlap over each other 
     const WIDTH = 22;
     const HEIGHT = edgeLength;
     return (

@@ -13,21 +13,21 @@ import woodTexture from '../assets/textures/wood-texture-1.jpeg';
 import woolTexture from '../assets/textures/wool-texture.jpeg';
 import wheatTexture from '../assets/textures/wheat-texture-1.jpeg';
 
-const RESOURCE_TEXTURES: Record<string, string> = {
-  OAK: woodTexture,
-  CLAY: clayTexture,
-  CEREALS: wheatTexture,
-  WOOL: woolTexture,
-  ORE: oreTexture,
+export const RESOURCE_TEXTURES: Record<string, string> = {
+    OAK: woodTexture,
+    CLAY: clayTexture,
+    CEREALS: wheatTexture,
+    WOOL: woolTexture,
+    ORE: oreTexture,
 };
 
-const RESOURCE_GRADIENTS: Record<string, { center: string, edge: string }> = {
-  OAK: { center: '#0a805f', edge: '#033b2b' },
-  CLAY: { center: '#d14a11', edge: '#7d2604' },
-  CEREALS: { center: '#f2d488', edge: '#c29f46' },
-  WOOL: { center: '#9ae823', edge: '#5c910d' },
-  ORE: { center: '#5f7087', edge: '#293442' },
-  NUGGETS: { center: '#fad05c', edge: '#ad6900' }
+export const RESOURCE_GRADIENTS: Record<string, { center: string, edge: string }> = {
+    OAK: { center: '#0a805f', edge: '#033b2b' },
+    CLAY: { center: '#d14a11', edge: '#7d2604' },
+    CEREALS: { center: '#f2d488', edge: '#c29f46' },
+    WOOL: { center: '#9ae823', edge: '#5c910d' },
+    ORE: { center: '#5f7087', edge: '#293442' },
+    NUGGETS: { center: '#fad05c', edge: '#ad6900' }
 };
 
 export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData[], settings: { hideBankResources: boolean } }> = ({ map, initialPlayers, settings }) => {
@@ -874,9 +874,16 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                             setAbundancePicks(newPicks);
                                         }
                                     }}
-                                    className="py-3 px-4 rounded-xl font-bold border transition-colors bg-slate-700 hover:bg-slate-600 border-slate-500 text-white"
+                                    className="py-3 px-4 rounded-xl font-bold border transition-colors shadow-md overflow-hidden relative border-black/30 text-white"
+                                    style={{ background: `radial-gradient(circle at center, ${RESOURCE_GRADIENTS[res]?.center || '#334155'}, ${RESOURCE_GRADIENTS[res]?.edge || '#0f172a'})` }}
                                 >
-                                    {res}
+                                    {RESOURCE_TEXTURES[res] && (
+                                        <div
+                                            className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-50 mix-blend-overlay"
+                                            style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }}
+                                        />
+                                    )}
+                                    <span className="relative z-10 drop-shadow-sm">{res}</span>
                                 </button>
                             ))}
                         </div>
@@ -884,69 +891,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                 </div>
             )}
 
-            {gameState.gamePhase === 'P2P_TRADE_PENDING' && gameState.tradeProposal && (
-                <div className="fixed inset-0 bg-black/60 z-[90] flex items-center justify-center backdrop-blur-sm">
-                    <div className="bg-slate-800 p-6 rounded-2xl border border-slate-600 shadow-2xl max-w-md w-full">
-                        <h2 className="text-xl font-bold text-white mb-4 text-center uppercase tracking-wider text-purple-400">Trade Proposal</h2>
 
-                        <div className="flex gap-4 justify-between items-center bg-slate-900 p-4 rounded-xl border border-slate-700 mb-6">
-                            <div className="flex flex-col gap-1 items-center">
-                                <span className="text-xs font-bold text-slate-400 uppercase">{gameState.players.find(p => p.peerId === gameState.tradeProposal!.proposerId)?.username} gives</span>
-                                {Object.entries(gameState.tradeProposal.offer).filter(([_, count]) => (count || 0) > 0).map(([res, count]) => (
-                                    <span key={res} className="font-bold text-white text-sm">{count} {res}</span>
-                                ))}
-                            </div>
-                            <span className="text-2xl font-black text-slate-500">🔄</span>
-                            <div className="flex flex-col gap-1 items-center">
-                                <span className="text-xs font-bold text-slate-400 uppercase">Requests</span>
-                                {Object.entries(gameState.tradeProposal.request).filter(([_, count]) => (count || 0) > 0).map(([res, count]) => (
-                                    <span key={res} className="font-bold text-white text-sm">{count} {res}</span>
-                                ))}
-                            </div>
-                        </div>
-
-                        {myPlayer?.peerId === gameState.tradeProposal.proposerId ? (
-                            <div className="space-y-4">
-                                <h3 className="text-sm font-bold text-slate-300 text-center uppercase tracking-wider">Accepted By</h3>
-                                {gameState.tradeProposal.acceptedBy.length === 0 ? (
-                                    <p className="text-slate-500 text-center text-sm italic">Waiting for responses...</p>
-                                ) : (
-                                    <div className="flex flex-col gap-2">
-                                        {gameState.tradeProposal.acceptedBy.map(pid => {
-                                            const p = gameState.players.find(x => x.peerId === pid);
-                                            return p ? (
-                                                <button key={pid} onClick={() => handleFinalizeTrade(pid)} className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 rounded font-bold transition-colors">
-                                                    Trade with {p.username}
-                                                </button>
-                                            ) : null;
-                                        })}
-                                    </div>
-                                )}
-                                <button onClick={handleCancelTrade} className="w-full py-2 bg-slate-700 hover:bg-slate-600 rounded font-bold mt-4 transition-colors">Cancel Offer</button>
-                            </div>
-                        ) : (
-                            <div className="space-y-4">
-                                {gameState.tradeProposal.acceptedBy.includes(myPlayer!.peerId) ? (
-                                    <p className="text-emerald-400 font-bold text-center">You accepted this offer. Waiting for proposer...</p>
-                                ) : (
-                                    <>
-                                        <button
-                                            onClick={handleAcceptTrade}
-                                            disabled={!canAfford(myPlayer!.resources, gameState.tradeProposal.request)}
-                                            className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 rounded font-bold uppercase tracking-wider transition-colors"
-                                        >
-                                            Accept Trade
-                                        </button>
-                                        {!canAfford(myPlayer!.resources, gameState.tradeProposal.request) && (
-                                            <p className="text-red-400 text-xs text-center font-bold">You do not have the requested resources.</p>
-                                        )}
-                                    </>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
 
             <div className="flex-grow flex gap-4 min-h-0 overflow-hidden">
                 {/* Left Sidebar */}
@@ -964,7 +909,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                             let textClass = "text-white drop-shadow-sm";
                                             let numBgClass = "bg-black/40";
                                             let numTextClass = "text-white";
-                                            
+
                                             // Make text darker on bright resources for legibility
                                             if (res === 'CEREALS' || res === 'NUGGETS' || res === 'WOOL') {
                                                 textClass = "text-[#2a1c0d] drop-shadow-none";
@@ -973,13 +918,13 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                             }
 
                                             return (
-                                                <div 
-                                                    key={res} 
+                                                <div
+                                                    key={res}
                                                     className="relative p-1.5 rounded border border-black/30 flex justify-between items-center shadow-md overflow-hidden"
                                                     style={{ background: `radial-gradient(circle at center, ${grad.center}, ${grad.edge})` }}
                                                 >
                                                     {RESOURCE_TEXTURES[res] && (
-                                                        <div 
+                                                        <div
                                                             className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-50 mix-blend-overlay"
                                                             style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }}
                                                         />
@@ -1090,18 +1035,97 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         )}
                     </div>
 
-                    {/* Bottom-Left Floating Panel: Trade Market (collapsible) */}
+                    {/* Bottom-Left Floating Panels: Trade Proposal & Trade Market */}
                     {myPlayer && (
-                        <div className="absolute bottom-0 left-0 z-20 w-72">
-                            {/* Toggle Tab */}
+                        <div className="absolute bottom-0 left-0 z-20 w-90 flex flex-col justify-end gap-2">
+                            {/* P2P Trade Proposal */}
+                            {gameState.gamePhase === 'P2P_TRADE_PENDING' && gameState.tradeProposal && (
+                                <div className="bg-slate-800/95 backdrop-blur-md rounded-tr-xl border-t border-r border-slate-600 shadow-2xl p-3 flex flex-col">
+                                    <h2 className="text-xs font-bold text-white mb-2 text-center uppercase tracking-wider text-purple-400">Trade Proposal</h2>
+
+                                    <div className="flex flex-col gap-2 justify-between bg-slate-900/60 p-2 rounded-lg border border-slate-700 mb-2">
+                                        <div className="flex flex-col gap-1 items-center">
+                                            <span className="text-[9px] font-bold text-slate-400 uppercase">{gameState.players.find(p => p.peerId === gameState.tradeProposal!.proposerId)?.username} gives</span>
+                                            <div className="flex gap-1 flex-wrap justify-center">
+                                                {Object.entries(gameState.tradeProposal.offer).filter(([_, count]) => (count || 0) > 0).map(([res, count]) => (
+                                                    <div key={res} className="relative p-1 px-2 rounded overflow-hidden border border-black/30 flex justify-center items-center" style={{ background: `radial-gradient(circle at center, ${RESOURCE_GRADIENTS[res]?.center || '#334155'}, ${RESOURCE_GRADIENTS[res]?.edge || '#0f172a'})` }}>
+                                                        {RESOURCE_TEXTURES[res] && (
+                                                            <div className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-50 mix-blend-overlay" style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }} />
+                                                        )}
+                                                        <span className="relative z-10 font-bold text-white text-[10px] drop-shadow-sm">{count} {res}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-center text-sm font-black text-slate-500 leading-none">🔄</div>
+                                        <div className="flex flex-col gap-1 items-center">
+                                            <span className="text-[9px] font-bold text-slate-400 uppercase">Requests</span>
+                                            <div className="flex gap-1 flex-wrap justify-center">
+                                                {Object.entries(gameState.tradeProposal.request).filter(([_, count]) => (count || 0) > 0).map(([res, count]) => (
+                                                    <div key={res} className="relative p-1 px-2 rounded overflow-hidden border border-black/30 flex justify-center items-center" style={{ background: `radial-gradient(circle at center, ${RESOURCE_GRADIENTS[res]?.center || '#334155'}, ${RESOURCE_GRADIENTS[res]?.edge || '#0f172a'})` }}>
+                                                        {RESOURCE_TEXTURES[res] && (
+                                                            <div className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-50 mix-blend-overlay" style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }} />
+                                                        )}
+                                                        <span className="relative z-10 font-bold text-white text-[10px] drop-shadow-sm">{count} {res}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {myPlayer.peerId === gameState.tradeProposal.proposerId ? (
+                                        <div className="space-y-2">
+                                            <h3 className="text-[9px] font-bold text-slate-300 text-center uppercase tracking-wider">Accepted By</h3>
+                                            {gameState.tradeProposal.acceptedBy.length === 0 ? (
+                                                <p className="text-slate-500 text-center text-[10px] italic">Waiting for responses...</p>
+                                            ) : (
+                                                <div className="flex flex-col gap-1">
+                                                    {gameState.tradeProposal.acceptedBy.map(pid => {
+                                                        const p = gameState.players.find(x => x.peerId === pid);
+                                                        return p ? (
+                                                            <button key={pid} onClick={() => handleFinalizeTrade(pid)} className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-500 text-[10px] rounded font-bold transition-colors shadow">
+                                                                Trade with {p.username}
+                                                            </button>
+                                                        ) : null;
+                                                    })}
+                                                </div>
+                                            )}
+                                            <button onClick={handleCancelTrade} className="w-full py-1.5 bg-slate-700 hover:bg-slate-600 text-[10px] rounded font-bold transition-colors shadow">Cancel Offer</button>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {gameState.tradeProposal.acceptedBy.includes(myPlayer.peerId) ? (
+                                                <p className="text-emerald-400 font-bold text-center text-[9px]">You accepted this offer. Waiting for proposer...</p>
+                                            ) : (
+                                                <>
+                                                    <button
+                                                        onClick={handleAcceptTrade}
+                                                        disabled={!canAfford(myPlayer.resources, gameState.tradeProposal.request)}
+                                                        className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-[10px] rounded font-bold uppercase tracking-wider transition-colors shadow"
+                                                    >
+                                                        Accept Trade
+                                                    </button>
+                                                    {!canAfford(myPlayer.resources, gameState.tradeProposal.request) && (
+                                                        <p className="text-red-400 text-[9px] text-center font-bold">You do not have the requested resources.</p>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Trade Market (collapsible) */}
+                            <div className="relative">
+                                {/* Toggle Tab */}
                             <button
                                 onClick={() => setShowTradeModal(prev => !prev)}
                                 disabled={!isMyTurn || gameState.phase === 'ROLL' || isSetupPhase}
                                 className={`w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-tr-xl border-r border-t border-slate-600 shadow-xl transition-colors ${(!isMyTurn || gameState.phase === 'ROLL' || isSetupPhase)
-                                        ? 'bg-slate-800/80 text-slate-600 cursor-not-allowed'
-                                        : showTradeModal
-                                            ? 'bg-slate-800/95 text-blue-400 border-blue-700'
-                                            : 'bg-slate-800/80 text-slate-400 hover:text-blue-400 hover:border-blue-700'
+                                    ? 'bg-slate-800/80 text-slate-600 cursor-not-allowed'
+                                    : showTradeModal
+                                        ? 'bg-slate-800/95 text-blue-400 border-blue-700'
+                                        : 'bg-slate-800/80 text-slate-400 hover:text-blue-400 hover:border-blue-700'
                                     }`}
                             >
                                 <span>⚖ Trade Market</span>
@@ -1121,6 +1145,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                     />
                                 </div>
                             )}
+                            </div>
                         </div>
                     )}
 
@@ -1243,7 +1268,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                         let textClass = "text-white drop-shadow-sm";
                                         let numBgClass = "bg-black/40";
                                         let numTextClass = "text-white";
-                                        
+
                                         if (res === 'CEREALS' || res === 'NUGGETS' || res === 'WOOL') {
                                             textClass = "text-[#2a1c0d] drop-shadow-none";
                                             numBgClass = "bg-[#2a1c0d]/20";
@@ -1251,13 +1276,13 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                         }
 
                                         return (
-                                            <div 
-                                                key={res} 
+                                            <div
+                                                key={res}
                                                 className="relative p-1.5 rounded border border-black/30 flex justify-between items-center shadow-md overflow-hidden"
                                                 style={{ background: `radial-gradient(circle at center, ${grad.center}, ${grad.edge})` }}
                                             >
                                                 {RESOURCE_TEXTURES[res] && (
-                                                    <div 
+                                                    <div
                                                         className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-50 mix-blend-overlay"
                                                         style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }}
                                                     />

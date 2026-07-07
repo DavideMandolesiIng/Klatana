@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+﻿import React, { useMemo } from 'react';
 import { HexMath } from '../game/HexMath';
 import { type MapTemplate } from '../game/mapTemplates';
 import { type GameState } from '../game/GameState';
@@ -132,7 +132,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               <image href={src} x="0" y="0" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
             </pattern>
           ))}
-          
+
           {/* Player Tint Filters (Multiply) */}
           {Object.values(PLAYER_COLORS).map(({ hex }) => (
             <filter key={`tint-${hex}`} id={`tint-${hex.replace('#', '')}`} colorInterpolationFilters="sRGB">
@@ -268,7 +268,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           const portX = midX + Math.cos(outwardAngle) * PORT_OUTWARD_OFFSET;
           const portY = midY + Math.sin(outwardAngle) * PORT_OUTWARD_OFFSET;
 
-          // Port colors/UI (deprecated the colors, replaced with badges)
+          // Port UI
           return (
             <g key={`port-${i}`}>
               {/* Highlight Port Edge */}
@@ -278,9 +278,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 x2={p2.x}
                 y2={p2.y}
                 stroke="#451a03"
-                strokeWidth="6"
-                strokeLinecap="square"
-                strokeDasharray="10, 10"
+                strokeWidth="8"
+                strokeLinecap="round"
+                strokeDasharray="8,16"
                 style={{ filter: 'drop-shadow(0px 0px 4px rgba(212, 175, 55, 0.5))' }}
               />
 
