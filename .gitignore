@@ -26,6 +26,9 @@ dist-ssr
 *.sln
 *.sw?
 
+# Firebase
+.firebase/
+
 #notes
 notes.md
 GENERATION_CONTEXT.md

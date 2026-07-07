@@ -1,5 +1,5 @@
-﻿import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, set, get, remove, onDisconnect } from 'firebase/database';
+import { initializeApp } from 'firebase/app';
+import { getDatabase, ref, set, get, onDisconnect } from 'firebase/database';
 
 // TODO: Replace with your actual Firebase config
 const firebaseConfig = {

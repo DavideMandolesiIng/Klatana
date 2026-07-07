@@ -1,4 +1,4 @@
-﻿import Peer, { type DataConnection } from 'peerjs';
+import Peer, { type DataConnection } from 'peerjs';
 import { registerRoomCode, getRoomInfo, setRoomStatus } from './firebase';
 
 export type NetworkRole = 'host' | 'client' | 'none';
@@ -49,7 +49,7 @@ export class PeerService {
     if (this.role === 'host') {
       this.gameStatus = 'IN_PROGRESS';
       // Snapshot all currently connected peers as valid players
-      this.connections.forEach((v, k) => this.knownPlayers.add(k));
+      this.connections.forEach((_v, k) => this.knownPlayers.add(k));
       await setRoomStatus(this.roomCode, 'IN_PROGRESS');
     }
   }
