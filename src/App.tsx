@@ -18,7 +18,8 @@ function App() {
       discardLimit: 7,
       trueRoll: false,
       mapShape: 'standard',
-      mapSize: 'medium'
+      mapSize: 'medium',
+      balancedResources: true
   });
 
   useEffect(() => {
@@ -32,7 +33,15 @@ function App() {
   return (
     <div className="App">
       {gameState === 'menu' && <MainMenu onJoinLobby={() => setGameState('lobby')} />}
-      {gameState === 'lobby' && <Lobby onStartGame={(map: MapTemplate, players: PlayerData[], settings: GameSettings) => { setGameMap(map); setGamePlayers(players); setGameSettings(settings); setGameState('playing'); }} />}
+      {gameState === 'lobby' && <Lobby 
+          initialSettings={gameSettings} 
+          onStartGame={(map: MapTemplate, players: PlayerData[], settings: GameSettings) => { 
+              setGameMap(map); 
+              setGamePlayers(players); 
+              setGameSettings(settings); 
+              setGameState('playing'); 
+          }} 
+      />}
       {gameState === 'playing' && gameMap && <GameScreen map={gameMap} initialPlayers={gamePlayers} settings={gameSettings!} onReturnToLobby={() => setGameState('lobby')} />}
     </div>
   );

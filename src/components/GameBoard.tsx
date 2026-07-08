@@ -40,6 +40,7 @@ interface GameBoardProps {
   onNodeClick?: (nodeId: string) => void;
   onEdgeClick?: (edgeId: string) => void;
   onHexClick?: (q: number, r: number) => void;
+  isMyTurn?: boolean;
 }
 
 // Default fallback colors if no custom assets are provided
@@ -93,6 +94,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   validCityNodes,
   pendingBuild,
   currentPlayerColor = 'white',
+  isMyTurn = false,
   onConfirmBuild,
   onCancelBuild,
   onNodeClick,
@@ -177,7 +179,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           const isCurrentNinjaHex = gameState?.ninjaHexCoords && hex.coords.q === gameState.ninjaHexCoords.q && hex.coords.r === gameState.ninjaHexCoords.r;
           const isRolled7 = gameState?.diceRoll?.total === 7;
           const isRolledThisHex = gameState?.diceRoll && gameState.diceRoll.total === hex.number;
-          const isHexClickable = gameState?.gamePhase === 'NINJA_MOVE' && !isCurrentNinjaHex;
+          const isHexClickable = gameState?.gamePhase === 'NINJA_MOVE' && !isCurrentNinjaHex && isMyTurn;
           
           let highlightStroke = isHexClickable ? '#fbbf24' : '#0f172a';
           let highlightWidth = isHexClickable ? '4' : '2';
@@ -185,10 +187,17 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           let hexStyle = {};
 
           if (isCurrentNinjaHex && isRolled7) {
-              highlightStroke = '#ef4444';
-              highlightWidth = '4';
-              pulseClass = 'animate-pulse';
-              hexStyle = { filter: 'drop-shadow(0px 0px 12px rgba(239, 68, 68, 0.8))' };
+              if (isMyTurn) {
+                  highlightStroke = '#ef4444';
+                  highlightWidth = '4';
+                  pulseClass = 'animate-pulse';
+                  hexStyle = { filter: 'drop-shadow(0px 0px 12px rgba(239, 68, 68, 0.8))' };
+              } else {
+                  highlightStroke = '#ef4444';
+                  highlightWidth = '3';
+                  pulseClass = ''; 
+                  hexStyle = { filter: 'drop-shadow(0px 0px 4px rgba(239, 68, 68, 0.4))' };
+              }
           } else if (isRolledThisHex) {
               highlightStroke = '#00ffff';
               highlightWidth = '6';

@@ -6,19 +6,20 @@ import { type MapTemplate } from '../game/mapTemplates';
 import { type PlayerData, type PlayerColor, PLAYER_COLORS } from '../game/Player';
 import { type GameSettings } from '../game/GameState';
 
-export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerData[], settings: GameSettings) => void }> = ({ onStartGame }) => {
+export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map: MapTemplate, players: PlayerData[], settings: GameSettings) => void }> = ({ initialSettings, onStartGame }) => {
   const [messages, setMessages] = useState<{ senderId: string; text: string }[]>([]);
   const [inputValue, setInputValue] = useState('');
-  const [balancedResources, setBalancedResources] = useState(false);
-  const balancedResourcesRef = React.useRef(false);
-  const [settings, setSettings] = useState<GameSettings>({
-      hideBankResources: false,
-      winPoints: 10,
-      turnTimer: null,
-      discardLimit: 7,
-      trueRoll: false,
-      mapShape: 'standard',
-      mapSize: 'medium'
+  const [isChatOpen, setIsChatOpen] = useState(true);
+
+  const [settings, setSettings] = useState<GameSettings>(initialSettings || {
+    hideBankResources: false,
+    winPoints: 10,
+    turnTimer: null,
+    discardLimit: 7,
+    trueRoll: false,
+    mapShape: 'standard',
+    mapSize: 'medium',
+    balancedResources: true
   });
   const settingsRef = React.useRef<GameSettings>(settings);
   const [players, setPlayers] = useState<PlayerData[]>([]);
@@ -26,7 +27,7 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerDa
   // Automatically executed when component mounts
   useEffect(() => {
     const myUsername = localStorage.getItem('klatana_username') || 'Unknown';
-    
+
     if (peerService.role === 'host') {
       // Host immediately registers themselves as Red
       setPlayers([{
@@ -35,6 +36,10 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerDa
         color: 'RED',
         isHost: true
       }]);
+      // The host just mounted the lobby. Elicit JOIN_LOBBY from clients who might have already returned to the lobby.
+      setTimeout(() => {
+        peerService.broadcast({ type: 'PING_LOBBY' });
+      }, 500);
     } else {
       // Client sends JOIN intent to Host as soon as they render the lobby
       const connectedPeers = peerService.getConnectedPeers();
@@ -64,7 +69,7 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerDa
     peerService.onMessage((data: any, incomingPeerId: string) => {
       if (data.type === 'chat') {
         setMessages((prev) => [...prev, { senderId: incomingPeerId, text: data.message }]);
-      } 
+      }
       else if (data.type === 'startGame') {
         peerService.gameStatus = 'IN_PROGRESS';
         onStartGame(data.map, data.players, data.settings);
@@ -74,43 +79,47 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerDa
         setPlayers(data.players);
       }
       else if (data.type === 'LOBBY_SETTINGS') {
-        setBalancedResources(data.balancedResources);
-        balancedResourcesRef.current = data.balancedResources;
         if (data.settings) {
-            setSettings(data.settings);
-            settingsRef.current = data.settings;
+          setSettings(data.settings);
+          settingsRef.current = data.settings;
+        }
+      }
+      else if (data.type === 'PING_LOBBY' && peerService.role !== 'host') {
+        const connectedPeers = peerService.getConnectedPeers();
+        if (connectedPeers.length > 0) {
+          peerService.sendTo(connectedPeers[0], { type: 'JOIN_LOBBY', username: localStorage.getItem('klatana_username') || 'Unknown' });
         }
       }
       else if (peerService.role === 'host') {
         // HOST ONLY ACTIONS
         if (data.type === 'JOIN_LOBBY') {
-           setPlayers(prev => {
-             // Prevent duplicates (e.g. from React strict mode executing UI effects twice)
-             if (prev.some(p => p.peerId === incomingPeerId)) return prev;
+          setPlayers(prev => {
+            // Prevent duplicates (e.g. from React strict mode executing UI effects twice)
+            if (prev.some(p => p.peerId === incomingPeerId)) return prev;
 
-             // Assign them a generic grey/null color or the first available
-             const usedColors = prev.map(p => p.color).filter(c => c !== null);
-             const available = (Object.keys(PLAYER_COLORS) as PlayerColor[]).filter(c => !usedColors.includes(c));
-             const assigned = available.length > 0 ? available[0] : null;
+            // Assign them a generic grey/null color or the first available
+            const usedColors = prev.map(p => p.color).filter(c => c !== null);
+            const available = (Object.keys(PLAYER_COLORS) as PlayerColor[]).filter(c => !usedColors.includes(c));
+            const assigned = available.length > 0 ? available[0] : null;
 
-             const next = [...prev, { peerId: incomingPeerId, username: data.username, color: assigned, isHost: false }];
-             setTimeout(() => {
-               peerService.broadcast({ type: 'LOBBY_STATE', players: next });
-               peerService.broadcast({ type: 'LOBBY_SETTINGS', balancedResources: balancedResourcesRef.current, settings: settingsRef.current });
-             }, 100);
-             return next;
-           });
+            const next = [...prev, { peerId: incomingPeerId, username: data.username, color: assigned, isHost: false }];
+            setTimeout(() => {
+              peerService.broadcast({ type: 'LOBBY_STATE', players: next });
+              peerService.broadcast({ type: 'LOBBY_SETTINGS', settings: settingsRef.current });
+            }, 100);
+            return next;
+          });
         }
         else if (data.type === 'SELECT_COLOR') {
-           setPlayers(prev => {
-             // Check if color is taken
-             const isTaken = prev.some(p => p.color === data.color);
-             if (isTaken) return prev; // don't change
-             
-             const next = prev.map(p => p.peerId === incomingPeerId ? { ...p, color: data.color } : p);
-             setTimeout(() => peerService.broadcast({ type: 'LOBBY_STATE', players: next }), 10);
-             return next;
-           });
+          setPlayers(prev => {
+            // Check if color is taken
+            const isTaken = prev.some(p => p.color === data.color);
+            if (isTaken) return prev; // don't change
+
+            const next = prev.map(p => p.peerId === incomingPeerId ? { ...p, color: data.color } : p);
+            setTimeout(() => peerService.broadcast({ type: 'LOBBY_STATE', players: next }), 10);
+            return next;
+          });
         }
       }
     });
@@ -126,25 +135,17 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerDa
     setInputValue('');
   };
 
-  const handleBalancedResourcesChange = (checked: boolean) => {
-    setBalancedResources(checked);
-    balancedResourcesRef.current = checked;
-    if (peerService.role === 'host') {
-      peerService.broadcast({ type: 'LOBBY_SETTINGS', balancedResources: checked, settings: settingsRef.current });
-    }
-  };
-
   const updateSettings = (updates: Partial<GameSettings>) => {
     if (peerService.role !== 'host') return;
     const newSettings = { ...settings, ...updates };
     setSettings(newSettings);
     settingsRef.current = newSettings;
-    peerService.broadcast({ type: 'LOBBY_SETTINGS', balancedResources: balancedResourcesRef.current, settings: newSettings });
+    peerService.broadcast({ type: 'LOBBY_SETTINGS', settings: newSettings });
   };
 
   const handleStartGameClick = async () => {
     if (peerService.role === 'host') {
-      const newMap = generateStandardMap(balancedResources);
+      const newMap = generateStandardMap(settingsRef.current.balancedResources);
       await peerService.setGameStarted();
       peerService.broadcast({ type: 'startGame', map: newMap, players, settings: settingsRef.current });
       onStartGame(newMap, players, settingsRef.current);
@@ -154,14 +155,14 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerDa
   const handleColorSelect = (color: PlayerColor) => {
     if (players.some(p => p.color === color)) return; // Color taken
     if (peerService.role === 'host') {
-       setPlayers(prev => {
-         const next = prev.map(p => p.peerId === peerService.peerId ? { ...p, color } : p);
-         peerService.broadcast({ type: 'LOBBY_STATE', players: next });
-         return next;
-       });
+      setPlayers(prev => {
+        const next = prev.map(p => p.peerId === peerService.peerId ? { ...p, color } : p);
+        peerService.broadcast({ type: 'LOBBY_STATE', players: next });
+        return next;
+      });
     } else {
-       const hostId = peerService.getConnectedPeers()[0];
-       peerService.sendTo(hostId, { type: 'SELECT_COLOR', color });
+      const hostId = peerService.getConnectedPeers()[0];
+      peerService.sendTo(hostId, { type: 'SELECT_COLOR', color });
     }
   };
 
@@ -197,8 +198,8 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerDa
             {players.map((p, i) => (
               <li key={i} className="flex items-center justify-between gap-3 bg-slate-900/50 p-2 rounded-lg border border-slate-700/50">
                 <div className="flex items-center gap-3">
-                  <div 
-                    className="w-4 h-4 rounded-full shadow-sm" 
+                  <div
+                    className="w-4 h-4 rounded-full shadow-sm"
                     style={{ backgroundColor: p.color ? PLAYER_COLORS[p.color].hex : '#94a3b8' }}
                   ></div>
                   <span className="font-medium text-slate-200">
@@ -209,36 +210,46 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerDa
               </li>
             ))}
           </ul>
-          
+
           {/* Color Selector */}
           <div className="mt-4 border-t border-slate-700 pt-4">
-             <h3 className="text-xs text-slate-400 uppercase font-semibold mb-3">Choose your color</h3>
-             <div className="flex gap-2 flex-wrap justify-start">
-                {(Object.keys(PLAYER_COLORS) as PlayerColor[]).map((c) => {
-                  const isTaken = players.some(p => p.color === c && p.peerId !== peerService.peerId);
-                  const isMine = getMyPlayer()?.color === c;
-                  return (
-                    <button
-                      key={c}
-                      onClick={() => handleColorSelect(c)}
-                      disabled={isTaken}
-                      className={`w-8 h-8 rounded-full shadow border-2 transition-all ${isTaken ? 'opacity-20 cursor-not-allowed' : 'hover:scale-110 cursor-pointer'} ${isMine ? 'ring-2 ring-offset-2 ring-offset-slate-800 ring-emerald-400 border-white' : 'border-transparent'}`}
-                      style={{ backgroundColor: PLAYER_COLORS[c].hex }}
-                      title={isTaken ? 'Color taken' : `Select ${PLAYER_COLORS[c].name}`}
-                    />
-                  )
-                })}
-             </div>
+            <h3 className="text-xs text-slate-400 uppercase font-semibold mb-3">Choose your color</h3>
+            <div className="flex gap-2 flex-wrap justify-start">
+              {(Object.keys(PLAYER_COLORS) as PlayerColor[]).map((c) => {
+                const isTaken = players.some(p => p.color === c && p.peerId !== peerService.peerId);
+                const isMine = getMyPlayer()?.color === c;
+                return (
+                  <button
+                    key={c}
+                    onClick={() => handleColorSelect(c)}
+                    disabled={isTaken}
+                    className={`w-8 h-8 rounded-full shadow border-2 transition-all ${isTaken ? 'opacity-20 cursor-not-allowed' : 'hover:scale-110 cursor-pointer'} ${isMine ? 'ring-2 ring-offset-2 ring-offset-slate-800 ring-emerald-400 border-white' : 'border-transparent'}`}
+                    style={{ backgroundColor: PLAYER_COLORS[c].hex }}
+                    title={isTaken ? 'Color taken' : `Select ${PLAYER_COLORS[c].name}`}
+                  />
+                )
+              })}
+            </div>
           </div>
 
           <div className="mt-6 pt-4 border-t border-slate-700">
-            <button 
-              onClick={handleStartGameClick}
-              disabled={peerService.role !== 'host'}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
-            >
-              {peerService.role === 'host' ? 'Launch Game' : 'Waiting for Host...'}
-            </button>
+            {(() => {
+              const connectedCount = peerService.getConnectedPeers().length;
+              // Host is 1 player. So total expected players in lobby UI = connectedCount + 1
+              const allPlayersReady = peerService.role === 'host' ? players.length === connectedCount + 1 : true;
+              return (
+                <button
+                  onClick={handleStartGameClick}
+                  disabled={peerService.role !== 'host' || !allPlayersReady}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-colors"
+                >
+                  <span>{peerService.role === 'host' ? 'Launch Game' : 'Waiting for Host...'}</span>
+                  {peerService.role === 'host' && !allPlayersReady && (
+                    <span className="text-[10px] font-normal uppercase tracking-wider text-emerald-200">Waiting for players to return...</span>
+                  )}
+                </button>
+              );
+            })()}
           </div>
         </div>
       </div>
@@ -258,8 +269,8 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerDa
             <h3 className="text-xs uppercase tracking-widest text-slate-500 font-bold mb-3">Map Generation</h3>
           </div>
           <div className="flex items-start gap-3 bg-slate-900/50 p-4 rounded-xl border border-slate-700">
-            <input type="checkbox" id="balanced" checked={balancedResources}
-              onChange={(e) => peerService.role === 'host' && handleBalancedResourcesChange(e.target.checked)}
+            <input type="checkbox" id="balanced" checked={settings.balancedResources}
+              onChange={(e) => peerService.role === 'host' && updateSettings({ balancedResources: e.target.checked })}
               disabled={peerService.role !== 'host'}
               className={`mt-1 w-5 h-5 rounded border-slate-600 bg-slate-700 accent-emerald-500 ${peerService.role === 'host' ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`} />
             <label htmlFor="balanced" className={`flex-1 ${peerService.role === 'host' ? 'cursor-pointer' : 'opacity-80'} select-none`}>
@@ -380,76 +391,83 @@ export const Lobby: React.FC<{ onStartGame: (map: MapTemplate, players: PlayerDa
       </div>{/* end settings card */}
 
       {/* Right Sidebar: Chat Area */}
-      <div className="w-80 bg-slate-800 rounded-xl border border-slate-700 shadow-xl flex flex-col overflow-hidden flex-shrink-0">
-        <div className="bg-slate-800/80 backdrop-blur border-b border-slate-700 p-4">
+      <div className={`w-80 bg-slate-800 rounded-xl border border-slate-700 shadow-xl flex flex-col overflow-hidden flex-shrink-0 transition-all duration-200 ${isChatOpen ? 'h-full' : 'h-[60px] self-start'}`}>
+        <div
+          onClick={() => setIsChatOpen(!isChatOpen)}
+          className="bg-slate-800/80 backdrop-blur border-b border-slate-700 p-4 flex justify-between items-center cursor-pointer hover:bg-slate-700 transition h-[60px] shrink-0"
+        >
           <h2 className="font-semibold text-lg flex items-center gap-2">
-            Network Test Chat
+            Room Chat
           </h2>
-        </div>
-        
-        <div className="flex-grow p-4 overflow-y-auto space-y-4">
-          {messages.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-slate-500 italic text-sm text-center">
-              No messages yet. Send one to test the WebRTC connection.
-            </div>
-          ) : (
-            messages.map((m, i) => {
-              let dispName = m.senderId;
-              let dispColor = 'text-indigo-400';
-              let dispColorHex = '';
-              if (m.senderId === 'SYSTEM') {
-                 dispName = 'System';
-                 dispColor = 'text-slate-500';
-              } else if (m.senderId === 'YOU') {
-                 dispName = 'You';
-                 const me = getMyPlayer();
-                 if (me && me.color) dispColorHex = PLAYER_COLORS[me.color].hex;
-                 else dispColor = 'text-emerald-400';
-              } else {
-                 const pl = players.find(p => p.peerId === m.senderId);
-                 if (pl) {
-                    dispName = pl.username;
-                    if (pl.color) dispColorHex = PLAYER_COLORS[pl.color].hex;
-                 }
-                 else dispName = m.senderId.substring(0, 6);
-              }
-              
-              return (
-                <div key={i} className={`flex ${m.senderId === 'YOU' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
-                    m.senderId === 'YOU' 
-                      ? 'bg-indigo-600 text-white rounded-br-sm' 
-                      : m.senderId === 'SYSTEM'
-                      ? 'bg-slate-700/50 text-slate-400 italic text-xs w-full text-center'
-                      : 'bg-slate-700 text-slate-100 rounded-bl-sm'
-                  }`}>
-                    {m.senderId !== 'YOU' && m.senderId !== 'SYSTEM' && (
-                      <div className={`text-xs font-medium mb-1 ${dispColorHex ? '' : dispColor}`} style={dispColorHex ? { color: dispColorHex } : {}}>{dispName}</div>
-                    )}
-                    <div>{m.text}</div>
-                  </div>
-                </div>
-              );
-            })
-          )}
+          <span className="text-slate-400 font-bold">{isChatOpen ? '▼' : '▲'}</span>
         </div>
 
-        <form onSubmit={handleSendMessage} className="p-3 bg-slate-800 border-t border-slate-700 flex gap-2">
-          <input
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Type a message..."
-            className="flex-grow bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-          <button
-            type="submit"
-            disabled={!inputValue.trim()}
-            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white p-2 rounded-lg transition-colors flex items-center justify-center"
-          >
-            <Send className="w-4 h-4" />
-          </button>
-        </form>
+        {isChatOpen && (
+          <div className="flex-grow p-4 overflow-y-auto space-y-4 flex flex-col min-h-0">
+            {messages.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-slate-500 italic text-sm text-center">
+                No messages yet. Chat with the host and other players before the game begins.
+              </div>
+            ) : (
+              messages.map((m, i) => {
+                let dispName = m.senderId;
+                let dispColor = 'text-indigo-400';
+                let dispColorHex = '';
+                if (m.senderId === 'SYSTEM') {
+                  dispName = 'System';
+                  dispColor = 'text-slate-500';
+                } else if (m.senderId === 'YOU') {
+                  dispName = 'You';
+                  const me = getMyPlayer();
+                  if (me && me.color) dispColorHex = PLAYER_COLORS[me.color].hex;
+                  else dispColor = 'text-emerald-400';
+                } else {
+                  const pl = players.find(p => p.peerId === m.senderId);
+                  if (pl) {
+                    dispName = pl.username;
+                    if (pl.color) dispColorHex = PLAYER_COLORS[pl.color].hex;
+                  }
+                  else dispName = m.senderId.substring(0, 6);
+                }
+
+                return (
+                  <div key={i} className={`flex ${m.senderId === 'YOU' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${m.senderId === 'YOU'
+                        ? 'bg-indigo-600 text-white rounded-br-sm'
+                        : m.senderId === 'SYSTEM'
+                          ? 'bg-slate-700/50 text-slate-400 italic text-xs w-full text-center'
+                          : 'bg-slate-700 text-slate-100 rounded-bl-sm'
+                      }`}>
+                      {m.senderId !== 'YOU' && m.senderId !== 'SYSTEM' && (
+                        <div className={`text-xs font-medium mb-1 ${dispColorHex ? '' : dispColor}`} style={dispColorHex ? { color: dispColorHex } : {}}>{dispName}</div>
+                      )}
+                      <div>{m.text}</div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+
+        {isChatOpen && (
+          <form onSubmit={handleSendMessage} className="p-3 bg-slate-800 border-t border-slate-700 flex gap-2 shrink-0">
+            <input
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder="Type a message..."
+              className="flex-grow bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <button
+              type="submit"
+              disabled={!inputValue.trim()}
+              className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white p-2 rounded-lg transition-colors flex items-center justify-center"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );

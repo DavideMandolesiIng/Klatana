@@ -15,6 +15,7 @@ export interface GameSettings {
   trueRoll: boolean;
   mapShape: string;
   mapSize: string;
+  balancedResources: boolean;
 }
 
 // We map generic resource types. DESERT produces nothing.

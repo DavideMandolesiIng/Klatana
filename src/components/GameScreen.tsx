@@ -235,6 +235,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         } else if (card.type === 'RAPID_EXPANSION') {
             newState.gamePhase = 'FREE_ROAD_BUILDING';
             newState.freeRoadsLeft = 2;
+            setBuildMode('ROAD');
             broadcastState(newState);
         } else if (card.type === 'MONOPOLY' || card.type === 'ABUNDANCE') {
             setActiveCardContext(card.type);
@@ -1047,13 +1048,23 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                             <h3 className="font-bold text-slate-300 uppercase text-xs tracking-wider mb-2">Action Cards</h3>
                             <div className="flex flex-col gap-2 flex-grow">
                                 {myPlayer?.actionCards.map((card, i) => (
-                                    <div key={i} className="bg-slate-900 p-2 rounded border border-slate-700 flex justify-between items-center">
-                                        <span className="text-[10px] font-bold text-slate-300 uppercase">{card.type}</span>
+                                    <div key={i} className="bg-slate-900 p-2 rounded border border-slate-700 flex justify-between items-center group relative cursor-help">
+                                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-48 pointer-events-none z-[60]">
+                                            <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Info</span>
+                                            <span className="text-[10px] text-slate-300 text-center font-medium">
+                                                {card.type === 'NINJA' ? 'Move the Ninja to a new hex and steal 1 resource from an adjacent opponent.' :
+                                                 card.type === 'MONUMENT' ? '+1 Victory Point (Hidden from others until the end).' :
+                                                 card.type === 'MONOPOLY' ? 'Name 1 resource. All opponents must give you ALL their cards of that type.' :
+                                                 card.type === 'ABUNDANCE' ? 'Instantly take any 2 resources of your choice from the bank.' :
+                                                 card.type === 'RAPID_EXPANSION' ? 'Instantly build 2 roads for free.' : ''}
+                                            </span>
+                                        </div>
+                                        <span className="text-[10px] font-bold text-slate-300 uppercase truncate pr-1 flex-1">{card.type}</span>
                                         {card.type !== 'MONUMENT' && (
                                             <button
                                                 onClick={() => handlePlayCard(i)}
                                                 disabled={!isMyTurn || gameState.phase === 'ROLL' || gameState.activeTurnPlayedCard || card.boughtThisTurn}
-                                                className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 rounded text-[10px] font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                                                className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 rounded text-[10px] font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed relative z-10"
                                             >
                                                 Play
                                             </button>
@@ -1078,6 +1089,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         validCityNodes={validCityNodes}
                         pendingBuild={pendingBuild}
                         currentPlayerColor={myPlayer ? PLAYER_COLORS[myPlayer.color as keyof typeof PLAYER_COLORS].hex : 'white'}
+                        isMyTurn={isMyTurn}
                         onConfirmBuild={handleConfirmBuild}
                         onCancelBuild={handleCancelBuild}
                         onNodeClick={handleNodeClick}
@@ -1307,7 +1319,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                                 <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
                                                                 {Object.entries({ OAK: 1, CLAY: 1, CEREALS: 1, WOOL: 1 }).map(([res, cost]) => {
                                                                     const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
-                                                                    return <div key={res} className="flex justify-between text-[10px] font-bold"><span className="text-slate-400">{res}</span><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
+                                                                    return <div key={res} className="flex items-center justify-between text-[10px] font-bold mb-1"><div className="flex items-center gap-1.5"><img src={RESOURCE_ICONS[res]} className="w-3.5 h-3.5 drop-shadow-sm filter-none" alt=""/><span className="text-slate-400">{res}</span></div><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
                                                                 })}
                                                             </div>
                                                         </div>
@@ -1319,7 +1331,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                                 <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
                                                                 {Object.entries({ CEREALS: 2, ORE: 3 }).map(([res, cost]) => {
                                                                     const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
-                                                                    return <div key={res} className="flex justify-between text-[10px] font-bold"><span className="text-slate-400">{res}</span><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
+                                                                    return <div key={res} className="flex items-center justify-between text-[10px] font-bold mb-1"><div className="flex items-center gap-1.5"><img src={RESOURCE_ICONS[res]} className="w-3.5 h-3.5 drop-shadow-sm filter-none" alt=""/><span className="text-slate-400">{res}</span></div><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
                                                                 })}
                                                             </div>
                                                         </div>
@@ -1331,7 +1343,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                                 <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
                                                                 {Object.entries({ OAK: 1, CLAY: 1 }).map(([res, cost]) => {
                                                                     const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
-                                                                    return <div key={res} className="flex justify-between text-[10px] font-bold"><span className="text-slate-400">{res}</span><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
+                                                                    return <div key={res} className="flex items-center justify-between text-[10px] font-bold mb-1"><div className="flex items-center gap-1.5"><img src={RESOURCE_ICONS[res]} className="w-3.5 h-3.5 drop-shadow-sm filter-none" alt=""/><span className="text-slate-400">{res}</span></div><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
                                                                 })}
                                                             </div>
                                                         </div>
@@ -1343,7 +1355,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                                 <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
                                                                 {Object.entries({ CEREALS: 1, WOOL: 1, ORE: 1 }).map(([res, cost]) => {
                                                                     const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
-                                                                    return <div key={res} className="flex justify-between text-[10px] font-bold"><span className="text-slate-400">{res}</span><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
+                                                                    return <div key={res} className="flex items-center justify-between text-[10px] font-bold mb-1"><div className="flex items-center gap-1.5"><img src={RESOURCE_ICONS[res]} className="w-3.5 h-3.5 drop-shadow-sm filter-none" alt=""/><span className="text-slate-400">{res}</span></div><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
                                                                 })}
                                                             </div>
                                                         </div>
