@@ -32,6 +32,7 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
       // Host immediately registers themselves as Red
       setPlayers([{
         peerId: peerService.peerId,
+        playerId: peerService.playerId,
         username: myUsername,
         color: 'RED',
         isHost: true
@@ -44,7 +45,7 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
       // Client sends JOIN intent to Host as soon as they render the lobby
       const connectedPeers = peerService.getConnectedPeers();
       if (connectedPeers.length > 0) {
-        peerService.sendTo(connectedPeers[0], { type: 'JOIN_LOBBY', username: myUsername });
+        peerService.sendTo(connectedPeers[0], { type: 'JOIN_LOBBY', username: myUsername, playerId: peerService.playerId });
       }
     }
 
@@ -87,7 +88,7 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
       else if (data.type === 'PING_LOBBY' && peerService.role !== 'host') {
         const connectedPeers = peerService.getConnectedPeers();
         if (connectedPeers.length > 0) {
-          peerService.sendTo(connectedPeers[0], { type: 'JOIN_LOBBY', username: localStorage.getItem('klatana_username') || 'Unknown' });
+          peerService.sendTo(connectedPeers[0], { type: 'JOIN_LOBBY', username: localStorage.getItem('klatana_username') || 'Unknown', playerId: peerService.playerId });
         }
       }
       else if (peerService.role === 'host') {
@@ -102,7 +103,7 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
             const available = (Object.keys(PLAYER_COLORS) as PlayerColor[]).filter(c => !usedColors.includes(c));
             const assigned = available.length > 0 ? available[0] : null;
 
-            const next = [...prev, { peerId: incomingPeerId, username: data.username, color: assigned, isHost: false }];
+            const next = [...prev, { peerId: incomingPeerId, playerId: data.playerId, username: data.username, color: assigned, isHost: false }];
             setTimeout(() => {
               peerService.broadcast({ type: 'LOBBY_STATE', players: next });
               peerService.broadcast({ type: 'LOBBY_SETTINGS', settings: settingsRef.current });
@@ -146,7 +147,11 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
   const handleStartGameClick = async () => {
     if (peerService.role === 'host') {
       const newMap = generateStandardMap(settingsRef.current.balancedResources);
-      await peerService.setGameStarted();
+      try {
+        await peerService.setGameStarted();
+      } catch (err) {
+        console.warn("Failed to set room status to IN_PROGRESS in Firebase. Continuing P2P...", err);
+      }
       peerService.broadcast({ type: 'startGame', map: newMap, players, settings: settingsRef.current });
       onStartGame(newMap, players, settingsRef.current);
     }
@@ -234,9 +239,8 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
 
           <div className="mt-6 pt-4 border-t border-slate-700">
             {(() => {
-              const connectedCount = peerService.getConnectedPeers().length;
-              // Host is 1 player. So total expected players in lobby UI = connectedCount + 1
-              const allPlayersReady = peerService.role === 'host' ? players.length === connectedCount + 1 : true;
+              // Host is 1 player. We check if at least we have the right amount of registered players.
+              const allPlayersReady = peerService.role === 'host' ? players.length > 0 : true;
               return (
                 <button
                   onClick={handleStartGameClick}

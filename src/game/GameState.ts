@@ -45,6 +45,8 @@ export interface PlayerState {
   inventory: { availableRoads: number; availableSettlements: number; availableCities: number };
   victoryPoints: number;
   actionCards: { type: ActionCardType, boughtThisTurn: boolean }[];
+  playerId?: string;
+  isInert?: boolean;
 }
 
 export interface Settlement {
@@ -88,6 +90,8 @@ export interface GameState {
     request: Partial<ResourceCounts>;
     acceptedBy: string[];
   };
+  isPaused: boolean;
+  disconnectedPlayers: string[];
 }
 
 export const createDiceDeck = (): { die1: number, die2: number }[] => {
@@ -128,12 +132,14 @@ export const createInitialGameState = (lobbyPlayers: PlayerData[], map: MapTempl
   return {
     players: lobbyPlayers.map(p => ({
       peerId: p.peerId,
+      playerId: p.playerId,
       username: p.username,
       color: p.color || 'RED',
       resources: { OAK: 0, CLAY: 0, CEREALS: 0, WOOL: 0, ORE: 0, NUGGETS: 0 },
       inventory: { availableRoads: 15, availableSettlements: 5, availableCities: 4 },
       victoryPoints: 0,
-      actionCards: []
+      actionCards: [],
+      isInert: false
     })),
     currentTurnIndex: 0,
     gamePhase: 'SETUP_1',
@@ -155,7 +161,9 @@ export const createInitialGameState = (lobbyPlayers: PlayerData[], map: MapTempl
     playedNinjaCards: {},
     winningScore: settings.winPoints,
     diceDeck: settings.trueRoll ? [] : createDiceDeck(),
-    settings
+    settings,
+    isPaused: false,
+    disconnectedPlayers: []
   };
 };
 
@@ -356,7 +364,7 @@ export const distributeResources = (gameState: GameState, map: MapTemplate, roll
       const settlement = gameState.settlements[nodeId];
       if (settlement) {
          const owner = newPlayers.find(p => p.peerId === settlement.ownerId);
-         if (owner) {
+         if (owner && !owner.isInert) {
             const amount = settlement.isCity ? 2 : 1;
             owner.resources[hex.resource as keyof ResourceCounts] += amount;
             logEntries.push(`${owner.username} got ${amount} ${hex.resource}`);

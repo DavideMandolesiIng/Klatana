@@ -1,4 +1,4 @@
-﻿export type PlayerColor = 'RED' | 'BLUE' | 'WHITE' | 'ORANGE' | 'GREEN' | 'PURPLE';
+export type PlayerColor = 'RED' | 'BLUE' | 'WHITE' | 'ORANGE' | 'GREEN' | 'PURPLE';
 
 export const PLAYER_COLORS: Record<PlayerColor, { name: string, hex: string }> = {
     RED: { name: 'Red', hex: '#dc2626' },
@@ -14,4 +14,5 @@ export interface PlayerData {
     username: string;
     color: PlayerColor | null; // null if they haven't picked yet
     isHost: boolean;
+    playerId?: string;
 }

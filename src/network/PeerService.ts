@@ -13,6 +13,8 @@ export class PeerService {
   public roomCode: string = '';
   public gameStatus: 'LOBBY' | 'IN_PROGRESS' = 'LOBBY';
   public knownPlayers: Set<string> = new Set();
+  public playerId: string = '';
+  public username: string = '';
   
   // Connections (for Host: multiple clients. For Client: only the host)
   private connections: Map<string, DataConnection> = new Map();
@@ -21,7 +23,7 @@ export class PeerService {
   private onConnectionCallback: ConnectionHandler | null = null;
   private onDisconnectCallback: ((peerId: string) => void) | null = null;
   private onConnectionRejectedCallback: ((reason: string) => void) | null = null;
-  private onPlayerReconnectedCallback: ((peerId: string) => void) | null = null;
+  private onPlayerReconnectedCallback: ((peerId: string, metadata: any) => void) | null = null;
 
   constructor() {}
 
@@ -41,7 +43,7 @@ export class PeerService {
     this.onConnectionRejectedCallback = callback;
   }
 
-  public onPlayerReconnected(callback: (peerId: string) => void) {
+  public onPlayerReconnected(callback: (peerId: string, metadata: any) => void) {
     this.onPlayerReconnectedCallback = callback;
   }
 
@@ -81,23 +83,14 @@ export class PeerService {
 
       this.peer.on('connection', (conn) => {
         if (this.gameStatus === 'IN_PROGRESS') {
-          if (!this.knownPlayers.has(conn.peer)) {
-            // New player trying to join after game started. Reject.
-            conn.on('open', () => {
-              conn.send({ type: 'CONNECTION_REJECTED', reason: 'Game already started' });
-              setTimeout(() => conn.close(), 500);
-            });
-            return;
-          } else {
-            // Reconnecting player
-            this.handleNewConnection(conn);
-            conn.on('open', () => {
-               if (this.onPlayerReconnectedCallback) {
-                  this.onPlayerReconnectedCallback(conn.peer);
-               }
-            });
-            return;
-          }
+          // Reconnecting player (GameScreen will validate against disconnectedPlayers)
+          this.handleNewConnection(conn);
+          conn.on('open', () => {
+             if (this.onPlayerReconnectedCallback) {
+                this.onPlayerReconnectedCallback(conn.peer, conn.metadata);
+             }
+          });
+          return;
         }
         
         // Normal lobby join
@@ -130,7 +123,10 @@ export class PeerService {
         localStorage.setItem('klatana_peer_id', id);
         localStorage.setItem('klatana_room_code', codeUpper);
         
-        const conn = this.peer!.connect(roomInfo.hostPeerId, { reliable: true });
+        const conn = this.peer!.connect(roomInfo.hostPeerId, { 
+           reliable: true,
+           metadata: { playerId: this.playerId, username: this.username }
+        });
         
         conn.on('open', () => {
           this.handleNewConnection(conn);
@@ -191,6 +187,15 @@ export class PeerService {
 
   public getConnectedPeers(): string[] {
     return Array.from(this.connections.keys());
+  }
+
+  public rejectConnection(peerId: string, reason: string) {
+    const conn = this.connections.get(peerId);
+    if (conn) {
+       conn.send({ type: 'CONNECTION_REJECTED', reason });
+       setTimeout(() => conn.close(), 500);
+       this.connections.delete(peerId);
+    }
   }
 
   public destroy() {

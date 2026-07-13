@@ -67,6 +67,52 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                 setGameState(data.state);
             }
         });
+
+        if (peerService.role === 'host') {
+            peerService.onPeerDisconnect((disconnectedPeerId) => {
+                setGameState(prev => {
+                    const p = prev.players.find(x => x.peerId === disconnectedPeerId);
+                    if (p && !p.isInert) {
+                        const newState = {
+                            ...prev,
+                            isPaused: true,
+                            disconnectedPlayers: [...prev.disconnectedPlayers, p.playerId || disconnectedPeerId],
+                            logs: [...prev.logs, `${p.username} disconnected. Game paused.`]
+                        };
+                        peerService.broadcast({ type: 'GAME_STATE_UPDATE', state: newState });
+                        return newState;
+                    }
+                    return prev;
+                });
+            });
+
+            peerService.onPlayerReconnected((peerId, metadata) => {
+                setGameState(prev => {
+                    const incomingPlayerId = metadata?.playerId;
+                    if (incomingPlayerId && prev.disconnectedPlayers.includes(incomingPlayerId)) {
+                        const pIndex = prev.players.findIndex(x => x.playerId === incomingPlayerId);
+                        if (pIndex !== -1) {
+                            const newPlayers = [...prev.players];
+                            newPlayers[pIndex] = { ...newPlayers[pIndex], peerId };
+                            const newDisconnected = prev.disconnectedPlayers.filter(id => id !== incomingPlayerId);
+                            const newState = {
+                                ...prev,
+                                players: newPlayers,
+                                disconnectedPlayers: newDisconnected,
+                                isPaused: newDisconnected.length > 0,
+                                logs: [...prev.logs, `${newPlayers[pIndex].username} reconnected!`]
+                            };
+                            peerService.broadcast({ type: 'GAME_STATE_UPDATE', state: newState });
+                            setTimeout(() => peerService.sendTo(peerId, { type: 'GAME_STATE_UPDATE', state: newState }), 100);
+                            return newState;
+                        }
+                    } else if (metadata?.playerId) {
+                         peerService.rejectConnection(peerId, 'You are not in this game or not disconnected.');
+                    }
+                    return prev;
+                });
+            });
+        }
     }, []);
 
     const broadcastState = (newState: GameState) => {
@@ -132,15 +178,23 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
     const [activeCardContext, setActiveCardContext] = useState<'MONOPOLY' | 'ABUNDANCE' | null>(null);
 
-    const handleEndTurn = () => {
-        if (!isMyTurn || gameState.phase === 'ROLL' || gameState.gamePhase !== 'MAIN_GAME') return;
+    const handleEndTurn = (forceHostSkip = false) => {
+        if (!forceHostSkip) {
+            if (!isMyTurn || gameState.phase === 'ROLL' || gameState.gamePhase !== 'MAIN_GAME') return;
+        }
 
-        const nextIndex = (gameState.currentTurnIndex + 1) % gameState.players.length;
+        let nextIndex = (gameState.currentTurnIndex + 1) % gameState.players.length;
+        let loops = 0;
+        while (gameState.players[nextIndex].isInert && loops < gameState.players.length) {
+            nextIndex = (nextIndex + 1) % gameState.players.length;
+            loops++;
+        }
+        
         const nextPlayer = gameState.players[nextIndex];
 
         const newPlayers = [...gameState.players];
-        const myIndex = newPlayers.findIndex(p => p.peerId === myPlayer!.peerId);
-        if (myIndex !== -1) {
+        const myIndex = newPlayers.findIndex(p => p.peerId === myPlayer?.peerId);
+        if (myIndex !== -1 && !forceHostSkip) {
             newPlayers[myIndex] = {
                 ...newPlayers[myIndex],
                 actionCards: newPlayers[myIndex].actionCards.map(c => ({ ...c, boughtThisTurn: false }))
@@ -161,6 +215,12 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         setPendingBuild(null);
         broadcastState(newState);
     };
+
+    useEffect(() => {
+        if (peerService.role === 'host' && gameState.players[gameState.currentTurnIndex]?.isInert) {
+            handleEndTurn(true);
+        }
+    }, [gameState.currentTurnIndex, gameState.players]);
 
     const handleBuyCard = () => {
         if (!isMyTurn || gameState.phase === 'ROLL' || !canAffordCard || gameState.actionCardDeck.length === 0) return;
@@ -827,6 +887,53 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                 </div>
             )}
 
+            {/* PAUSED MODAL */}
+            {gameState.isPaused && (
+                <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center backdrop-blur-md">
+                    <div className="bg-slate-800 p-8 rounded-3xl border border-red-500/50 shadow-2xl max-w-md w-full text-center flex flex-col items-center gap-4">
+                        <div className="text-5xl font-black text-red-500 mb-2 drop-shadow-lg">⏸️</div>
+                        <h2 className="text-2xl font-bold text-white uppercase tracking-widest">
+                            Game Paused
+                        </h2>
+                        <div className="text-slate-300">
+                            Waiting for players to reconnect:
+                            <ul className="mt-4 space-y-2">
+                                {gameState.disconnectedPlayers.map(id => {
+                                    const p = gameState.players.find(x => (x.playerId || x.peerId) === id);
+                                    return (
+                                        <li key={id} className="flex justify-between items-center bg-slate-900 p-3 rounded-lg border border-slate-700">
+                                            <span className="font-bold">{p?.username || 'Unknown Player'}</span>
+                                            {peerService.role === 'host' && (
+                                                <button
+                                                    onClick={() => {
+                                                        const newPlayers = [...gameState.players];
+                                                        const idx = newPlayers.findIndex(x => (x.playerId || x.peerId) === id);
+                                                        if (idx !== -1) {
+                                                            newPlayers[idx] = { ...newPlayers[idx], isInert: true };
+                                                        }
+                                                        const newDisconnected = gameState.disconnectedPlayers.filter(x => x !== id);
+                                                        broadcastState({
+                                                            ...gameState,
+                                                            players: newPlayers,
+                                                            disconnectedPlayers: newDisconnected,
+                                                            isPaused: newDisconnected.length > 0,
+                                                            logs: [...gameState.logs, `${p?.username} was marked as inert. They will be skipped.`]
+                                                        });
+                                                    }}
+                                                    className="bg-red-600 hover:bg-red-700 text-white text-xs px-3 py-1.5 rounded-md font-bold uppercase transition"
+                                                >
+                                                    Mark as Inert (Kick)
+                                                </button>
+                                            )}
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* NINJA DISCARD MODAL */}
             {gameState.gamePhase === 'NINJA_DISCARD' && myPlayer && gameState.playersNeedingToDiscard.includes(myPlayer.peerId) && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm">
@@ -1369,7 +1476,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                         End Free Road
                                                     </button>
                                                 ) : (
-                                                    <button onClick={handleEndTurn} disabled={gameState.gamePhase !== 'MAIN_GAME'} className={`px-6 py-3 rounded-xl font-bold shadow-2xl transition-colors border text-sm uppercase tracking-wider ${gameState.gamePhase === 'MAIN_GAME' ? 'bg-red-600 hover:bg-red-500 border-red-400' : 'bg-red-800 border-red-700 opacity-50 cursor-not-allowed'}`}>
+                                                    <button onClick={() => handleEndTurn(false)} disabled={gameState.gamePhase !== 'MAIN_GAME'} className={`px-6 py-3 rounded-xl font-bold shadow-2xl transition-colors border text-sm uppercase tracking-wider ${gameState.gamePhase === 'MAIN_GAME' ? 'bg-red-600 hover:bg-red-500 border-red-400' : 'bg-red-800 border-red-700 opacity-50 cursor-not-allowed'}`}>
                                                         End Turn
                                                     </button>
                                                 )}

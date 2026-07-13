@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { peerService } from '../network/PeerService';
 import { Users, Plus, LogIn } from 'lucide-react';
 
@@ -13,6 +13,15 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby }) => {
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState('');
 
+  const getPlayerId = () => {
+    let id = localStorage.getItem('klatana_player_id');
+    if (!id) {
+        id = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2);
+        localStorage.setItem('klatana_player_id', id);
+    }
+    return id;
+  };
+
   const handleCreateRoom = async () => {
     if (!username.trim()) { setError('Please enter a username'); return; }
     localStorage.setItem('klatana_username', username.trim());
@@ -21,6 +30,9 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby }) => {
       setError('');
       
       // Need lazy initialization of peer service or something similar, but let's just use it
+      
+      peerService.playerId = getPlayerId();
+      peerService.username = username.trim();
       await peerService.createRoom();
       onJoinLobby();
     } catch (err: any) {
@@ -57,6 +69,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby }) => {
         throw new Error('Error: Game already in progress');
       }
 
+      peerService.playerId = getPlayerId();
+      peerService.username = username.trim();
       await peerService.joinRoom(joinCode, isReconnecting ? savedPeerId! : undefined);
       onJoinLobby();
     } catch (err: any) {
