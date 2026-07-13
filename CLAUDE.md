@@ -30,12 +30,12 @@ src/
 **Tech stack**: React 19 + TypeScript + Vite 8, TailwindCSS 4 (PostCSS), Firebase 12 for persistence/sync, PeerJS for P2P, react-router-dom 7, lucide-react icons.
 
 ### Game model
-- `GameState.ts` is the single source of truth — a flat `GameState` interface (players, settlements, roads, action-card deck, phase flags, logs, settings).
+- `GameState.ts` is the single source of truth — a flat `GameState` interface (players, settlements, streets, action-card deck, phase flags, logs, settings).
 - Phases are two-level: `GamePhase` (SETUP_1 → SETUP_2 → MAIN_GAME → ... → GAME_OVER) and the per-turn `TurnPhase` (ROLL → TRADE → BUILD).
-- Settlement/road placement legality is centralized in `validateSettlementPlacement` / `validateRoadPlacement`; the UI calls `getValidSettlementPlacements` / `getValidRoadPlacements` to highlight only legal spots.
-- Hex adjacency math (nodes, edges, neighbors) lives in `HexMath.ts` and is reused across validation, resource distribution, longest-road DFS, and port trade rates.
+- Settlement/street placement legality is centralized in `validateSettlementPlacement` / `validateStreetPlacement`; the UI calls `getValidSettlementPlacements` / `getValidStreetPlacements` to highlight only legal spots.
+- Hex adjacency math (nodes, edges, neighbors) lives in `HexMath.ts` and is reused across validation, resource distribution, longest-street DFS, and port trade rates.
 - Resource economy uses `ResourceCounts` (OAK/CLAY/CEREALS/WOOL/ORE/NUGGETS, excluding DESERT) and `BUILD_COSTS`; `canAfford` is the shared check.
-- Longest road is computed via edge-graph DFS that breaks at enemy-occupied nodes (`getLongestRoadForPlayer`). Scores/win are computed in `calculateScores`.
+- Longest street is computed via edge-graph DFS that breaks at enemy-occupied nodes (`getLongestStreetForPlayer`). Scores/win are computed in `calculateScores`.
 
 ### Networking model
 - Firebase (`network/firebase.ts`) handles lobby presence and authoritative game-state sync.
@@ -51,5 +51,5 @@ src/
 
 ## Testing Notes
 
-- No test runner is configured yet. When adding tests, cover: settlement/road adjacency rules, `canAfford`/resource math, dice distribution, and Firebase/PeerService listeners.
+- No test runner is configured yet. When adding tests, cover: settlement/street adjacency rules, `canAfford`/resource math, dice distribution, and Firebase/PeerService listeners.
 - `npm run build` (runs `tsc -b`) is the fastest way to catch type errors across the game logic.

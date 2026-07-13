@@ -68,7 +68,7 @@ export class HexMath {
    *   this hex, this hex + dir[i], this hex + dir[(i+1)%6]
    *
    * This is the source-of-truth for all node IDs in the game.
-   * Any change to this formula WILL break settlement/road adjacency logic.
+   * Any change to this formula WILL break settlement/street adjacency logic.
    */
   static getHexNodeIds(axial: Axial): string[] {
     const ids: string[] = [];
@@ -174,7 +174,7 @@ export class HexMath {
    *   endpoint1 = getNodeId(hexA, hexA+dir[i], hexA+dir[(i-1+6)%6])
    *   endpoint2 = getNodeId(hexA, hexA+dir[i], hexA+dir[(i+1)%6])
    *
-   * Used in main-game road validation to find the shared node between two
+   * Used in main-game street validation to find the shared node between two
    * edges (for the enemy-settlement blocking check).
    */
   static getEdgeNodeIds(edgeId: string): string[] {

@@ -3,9 +3,9 @@ import { type PlayerData } from './Player';
 import { HexMath } from './HexMath';
 
 export type TurnPhase = 'ROLL' | 'TRADE' | 'BUILD';
-export type GamePhase = 'SETUP_1' | 'SETUP_2' | 'MAIN_GAME' | 'NINJA_DISCARD' | 'NINJA_MOVE' | 'NINJA_STEAL' | 'FREE_ROAD_BUILDING' | 'GAME_OVER' | 'P2P_TRADE_PENDING';
+export type GamePhase = 'SETUP_1' | 'SETUP_2' | 'MAIN_GAME' | 'NINJA_DISCARD' | 'NINJA_MOVE' | 'NINJA_STEAL' | 'FREE_STREET_BUILDING' | 'GAME_OVER' | 'P2P_TRADE_PENDING';
 export type ActionCardType = 'NINJA' | 'MONUMENT' | 'MONOPOLY' | 'ABUNDANCE' | 'RAPID_EXPANSION';
-export type SetupAction = 'SETTLEMENT' | 'ROAD';
+export type SetupAction = 'SETTLEMENT' | 'street';
 
 export interface GameSettings {
   hideBankResources: boolean;
@@ -22,7 +22,7 @@ export interface GameSettings {
 export type ResourceCounts = Record<Exclude<ResourceType, 'DESERT'>, number>;
 
 export const BUILD_COSTS = {
-  ROAD: { OAK: 1, CLAY: 1 },
+  street: { OAK: 1, CLAY: 1 },
   SETTLEMENT: { OAK: 1, CLAY: 1, CEREALS: 1, WOOL: 1 },
   CITY: { ORE: 3, CEREALS: 2 },
   ACTION_CARD: { ORE: 1, CEREALS: 1, WOOL: 1 }
@@ -42,7 +42,7 @@ export interface PlayerState {
   username: string;
   color: string;
   resources: ResourceCounts;
-  inventory: { availableRoads: number; availableSettlements: number; availableCities: number };
+  inventory: { availableStreets: number; availableSettlements: number; availableCities: number };
   victoryPoints: number;
   actionCards: { type: ActionCardType, boughtThisTurn: boolean }[];
   playerId?: string;
@@ -55,7 +55,7 @@ export interface Settlement {
   nodeId: string;
 }
 
-export interface Road {
+export interface street {
   ownerId: string;
   edgeId: string;
 }
@@ -70,16 +70,16 @@ export interface GameState {
   diceRoll: { die1: number; die2: number, total: number } | null;
   logs: string[];
   settlements: Record<string, Settlement>;
-  roads: Record<string, Road>;
+  streets: Record<string, street>;
   actionCardDeck: ActionCardType[];
   ninjaHexCoords: { q: number, r: number };
   playersNeedingToDiscard: string[];
   activeTurnPlayedCard: boolean;
-  freeRoadsLeft: number;
+  freeStreetsLeft: number;
   largestArmyHolder: string | null;
   largestArmySize: number;
-  longestRoadHolder: string | null;
-  longestRoadLength: number;
+  longestStreetHolder: string | null;
+  longeststreetLength: number;
   playedNinjaCards: Record<string, number>;
   winningScore: number;
   diceDeck: { die1: number, die2: number }[];
@@ -136,7 +136,7 @@ export const createInitialGameState = (lobbyPlayers: PlayerData[], map: MapTempl
       username: p.username,
       color: p.color || 'RED',
       resources: { OAK: 0, CLAY: 0, CEREALS: 0, WOOL: 0, ORE: 0, NUGGETS: 0 },
-      inventory: { availableRoads: 15, availableSettlements: 5, availableCities: 4 },
+      inventory: { availableStreets: 15, availableSettlements: 5, availableCities: 4 },
       victoryPoints: 0,
       actionCards: [],
       isInert: false
@@ -146,18 +146,18 @@ export const createInitialGameState = (lobbyPlayers: PlayerData[], map: MapTempl
     setupAction: 'SETTLEMENT',
     phase: 'ROLL',
     diceRoll: null,
-    logs: ['Game started! Setup Phase 1: Place a settlement and a road.'],
+    logs: ['Game started! Setup Phase 1: Place a settlement and a street.'],
     settlements: {},
-    roads: {},
+    streets: {},
     actionCardDeck: deck,
     ninjaHexCoords: desertCoords,
     playersNeedingToDiscard: [],
     activeTurnPlayedCard: false,
-    freeRoadsLeft: 0,
+    freeStreetsLeft: 0,
     largestArmyHolder: null,
     largestArmySize: 0,
-    longestRoadHolder: null,
-    longestRoadLength: 0,
+    longestStreetHolder: null,
+    longeststreetLength: 0,
     playedNinjaCards: {},
     winningScore: settings.winPoints,
     diceDeck: settings.trueRoll ? [] : createDiceDeck(),
@@ -188,28 +188,28 @@ export const validateSettlementPlacement = (gameState: GameState, nodeId: string
             return {valid: false, reason: "Not enough resources."};
         }
 
-        const ownsConnectedRoad = Object.values(gameState.roads).some(r => r.ownerId === peerId && HexMath.isEdgeAdjacentToNode(r.edgeId, nodeId));
-        if (!ownsConnectedRoad) return {valid: false, reason: "Must connect to one of your roads."};
+        const ownsConnectedStreet = Object.values(gameState.streets).some(r => r.ownerId === peerId && HexMath.isEdgeAdjacentToNode(r.edgeId, nodeId));
+        if (!ownsConnectedStreet) return {valid: false, reason: "Must connect to one of your streets."};
     }
     return {valid: true};
 };
 
-export const validateRoadPlacement = (gameState: GameState, edgeId: string, peerId: string): {valid: boolean, reason?: string} => {
-    if (gameState.roads[edgeId]) return {valid: false, reason: "Edge is already occupied."};
+export const validatestreetPlacement = (gameState: GameState, edgeId: string, peerId: string): {valid: boolean, reason?: string} => {
+    if (gameState.streets[edgeId]) return {valid: false, reason: "Edge is already occupied."};
 
     const player = gameState.players.find(p => p.peerId === peerId);
-    if (player && player.inventory.availableRoads <= 0) {
-        return {valid: false, reason: "No roads left in inventory."};
+    if (player && player.inventory.availableStreets <= 0) {
+        return {valid: false, reason: "No streets left in inventory."};
     }
 
     if (gameState.gamePhase === 'SETUP_1' || gameState.gamePhase === 'SETUP_2') {
         if (!gameState.lastBuiltNodeId) return {valid: false, reason: "Must place a settlement first."};
         if (!HexMath.isEdgeAdjacentToNode(edgeId, gameState.lastBuiltNodeId)) {
-            return {valid: false, reason: "Road must connect to your newly placed settlement."};
+            return {valid: false, reason: "street must connect to your newly placed settlement."};
         }
-    } else if (gameState.gamePhase === 'MAIN_GAME' || gameState.gamePhase === 'FREE_ROAD_BUILDING') {
+    } else if (gameState.gamePhase === 'MAIN_GAME' || gameState.gamePhase === 'FREE_STREET_BUILDING') {
         const player = gameState.players.find(p => p.peerId === peerId);
-        if (gameState.gamePhase === 'MAIN_GAME' && player && !canAfford(player.resources, BUILD_COSTS.ROAD)) {
+        if (gameState.gamePhase === 'MAIN_GAME' && player && !canAfford(player.resources, BUILD_COSTS.street)) {
             return {valid: false, reason: "Not enough resources."};
         }
 
@@ -218,9 +218,9 @@ export const validateRoadPlacement = (gameState: GameState, edgeId: string, peer
             s => s.ownerId === peerId && HexMath.isEdgeAdjacentToNode(edgeId, s.nodeId)
         );
 
-        // Check: connects to own road, but NOT if the shared node is blocked by an enemy settlement
+        // Check: connects to own street, but NOT if the shared node is blocked by an enemy settlement
         const edgeNodes = HexMath.getEdgeNodeIds(edgeId);
-        const connectsToOwnRoadUnblocked = Object.values(gameState.roads).some(r => {
+        const connectsToOwnStreetUnblocked = Object.values(gameState.streets).some(r => {
             if (r.ownerId !== peerId) return false;
             if (!HexMath.areEdgesAdjacent(edgeId, r.edgeId)) return false;
             // Find the shared node between the two edges
@@ -233,23 +233,23 @@ export const validateRoadPlacement = (gameState: GameState, edgeId: string, peer
             return true;
         });
 
-        if (!connectsToOwnSettlement && !connectsToOwnRoadUnblocked) {
-            return {valid: false, reason: "Road must connect to your own settlement, city, or an unblocked road."};
+        if (!connectsToOwnSettlement && !connectsToOwnStreetUnblocked) {
+            return {valid: false, reason: "street must connect to your own settlement, city, or an unblocked street."};
         }
     } else {
-        return {valid: false, reason: "Cannot build a road during this phase."};
+        return {valid: false, reason: "Cannot build a street during this phase."};
     }
     return {valid: true};
 };
 
 /**
- * Returns the Set of edge IDs where the current player is allowed to place a road.
+ * Returns the Set of edge IDs where the current player is allowed to place a street.
  * This is used by the UI to highlight only truly valid edges.
  */
-export const getValidRoadPlacements = (gameState: GameState, peerId: string, allEdgeIds: string[]): Set<string> => {
+export const getValidStreetPlacements = (gameState: GameState, peerId: string, allEdgeIds: string[]): Set<string> => {
     const valid = new Set<string>();
     for (const edgeId of allEdgeIds) {
-        if (validateRoadPlacement(gameState, edgeId, peerId).valid) {
+        if (validatestreetPlacement(gameState, edgeId, peerId).valid) {
             valid.add(edgeId);
         }
     }
@@ -384,13 +384,13 @@ export const distributeResources = (gameState: GameState, map: MapTemplate, roll
   };
 };
 
-// 1. Get Longest Road using Node DFS
-export const getLongestRoadForPlayer = (gameState: GameState, peerId: string): number => {
-    const myRoads = Object.values(gameState.roads).filter(r => r.ownerId === peerId);
-    if (myRoads.length === 0) return 0;
+// 1. Get Longest street using Node DFS
+export const getLongestStreetForPlayer = (gameState: GameState, peerId: string): number => {
+    const myStreets = Object.values(gameState.streets).filter(r => r.ownerId === peerId);
+    if (myStreets.length === 0) return 0;
 
     const nodeAdj: Record<string, { toNode: string, edgeId: string }[]> = {};
-    myRoads.forEach(r => {
+    myStreets.forEach(r => {
         const [n1, n2] = HexMath.getEdgeNodeIds(r.edgeId);
         if (!nodeAdj[n1]) nodeAdj[n1] = [];
         if (!nodeAdj[n2]) nodeAdj[n2] = [];
@@ -426,12 +426,12 @@ export const calculateScores = (gameState: GameState): GameState => {
     let newState: GameState = { ...gameState, players: JSON.parse(JSON.stringify(gameState.players)) as PlayerState[] };
 
 
-    // Calculate Longest Road and Base Points
-    const playerRoadLengths: Record<string, number> = {};
+    // Calculate Longest street and Base Points
+    const playerstreetLengths: Record<string, number> = {};
     const playerBasePoints: Record<string, number> = {};
 
     newState.players.forEach(p => {
-        playerRoadLengths[p.peerId] = getLongestRoadForPlayer(newState, p.peerId);
+        playerstreetLengths[p.peerId] = getLongestStreetForPlayer(newState, p.peerId);
         playerBasePoints[p.peerId] = 0;
     });
 
@@ -441,22 +441,22 @@ export const calculateScores = (gameState: GameState): GameState => {
         }
     });
 
-    // Determine Longest Road Holder
+    // Determine Longest street Holder
     newState.players.forEach(p => {
-        const roadLen = playerRoadLengths[p.peerId];
-        if (roadLen >= 5 && roadLen > newState.longestRoadLength) {
-            if (newState.longestRoadHolder !== p.peerId) {
-                newState.logs.push(`${p.username} took the Longest Road award!`);
+        const streetLen = playerstreetLengths[p.peerId];
+        if (streetLen >= 5 && streetLen > newState.longeststreetLength) {
+            if (newState.longestStreetHolder !== p.peerId) {
+                newState.logs.push(`${p.username} took the Longest street award!`);
             }
-            newState.longestRoadHolder = p.peerId;
-            newState.longestRoadLength = roadLen;
+            newState.longestStreetHolder = p.peerId;
+            newState.longeststreetLength = streetLen;
         }
     });
 
     // Update Scores and Check Win
     newState.players.forEach(p => {
         let publicVp = playerBasePoints[p.peerId];
-        if (newState.longestRoadHolder === p.peerId) publicVp += 2;
+        if (newState.longestStreetHolder === p.peerId) publicVp += 2;
         if (newState.largestArmyHolder === p.peerId) publicVp += 2;
         
         p.victoryPoints = publicVp;

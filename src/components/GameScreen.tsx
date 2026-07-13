@@ -3,7 +3,7 @@ import { GameBoard } from './GameBoard';
 import { type MapTemplate } from '../game/mapTemplates';
 import { type PlayerData, PLAYER_COLORS } from '../game/Player';
 import { peerService } from '../network/PeerService';
-import { type GameState, createInitialGameState, rollDice, distributeResources, validateSettlementPlacement, validateRoadPlacement, getStartingResources, advanceSetupTurn, getValidRoadPlacements, getValidSettlementPlacements, BUILD_COSTS, canAfford, calculateScores, type ResourceCounts, getLongestRoadForPlayer, type GameSettings, createDiceDeck } from '../game/GameState';
+import { type GameState, createInitialGameState, rollDice, distributeResources, validateSettlementPlacement, validatestreetPlacement, getStartingResources, advanceSetupTurn, getValidStreetPlacements, getValidSettlementPlacements, BUILD_COSTS, canAfford, calculateScores, type ResourceCounts, getLongestStreetForPlayer, type GameSettings, createDiceDeck } from '../game/GameState';
 import { HexMath } from '../game/HexMath';
 import { TradeModal } from './TradeModal';
 
@@ -51,12 +51,12 @@ export type ResourceDiff = { res: string; diff: number };
 
 export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData[], settings: GameSettings, onReturnToLobby?: () => void }> = ({ map, initialPlayers, settings, onReturnToLobby }) => {
     const [gameState, setGameState] = useState<GameState>(() => createInitialGameState(initialPlayers, map, settings));
-    const [buildMode, setBuildMode] = useState<'NONE' | 'SETTLEMENT' | 'ROAD' | 'CITY'>('NONE');
+    const [buildMode, setBuildMode] = useState<'NONE' | 'SETTLEMENT' | 'street' | 'CITY'>('NONE');
     const [discardSelection, setDiscardSelection] = useState<Partial<Record<string, number>>>({});
     const [abundancePicks, setAbundancePicks] = useState<string[]>([]);
     const [showTradeModal, setShowTradeModal] = useState(false);
     const [showBankPanel, setShowBankPanel] = useState(false);
-    const [pendingBuild, setPendingBuild] = useState<{ type: 'SETTLEMENT' | 'ROAD' | 'CITY', id: string, costText: string } | null>(null);
+    const [pendingBuild, setPendingBuild] = useState<{ type: 'SETTLEMENT' | 'street' | 'CITY', id: string, costText: string } | null>(null);
 
     const [recentAnimations, setRecentAnimations] = useState<{ id: string; event: AnimationEvent; diffs: ResourceDiff[] }[]>([]);
     const prevResources = useRef<ResourceCounts | null>(null);
@@ -293,9 +293,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
             broadcastState(newState);
         } else if (card.type === 'RAPID_EXPANSION') {
-            newState.gamePhase = 'FREE_ROAD_BUILDING';
-            newState.freeRoadsLeft = 2;
-            setBuildMode('ROAD');
+            newState.gamePhase = 'FREE_STREET_BUILDING';
+            newState.freeStreetsLeft = 2;
+            setBuildMode('street');
             broadcastState(newState);
         } else if (card.type === 'MONOPOLY' || card.type === 'ABUNDANCE') {
             setActiveCardContext(card.type);
@@ -389,9 +389,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const isSetupPhase = gameState.gamePhase === 'SETUP_1' || gameState.gamePhase === 'SETUP_2';
     const activeBuildMode = isSetupPhase ? (gameState.setupAction || 'NONE') : buildMode;
 
-    const canAffordRoad = isSetupPhase || 
-        (gameState.gamePhase === 'FREE_ROAD_BUILDING' && myPlayer && myPlayer.inventory.availableRoads > 0) ||
-        (gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.ROAD) && myPlayer.inventory.availableRoads > 0);
+    const canAffordStreet = isSetupPhase || 
+        (gameState.gamePhase === 'FREE_STREET_BUILDING' && myPlayer && myPlayer.inventory.availableStreets > 0) ||
+        (gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.street) && myPlayer.inventory.availableStreets > 0);
     const canAffordSettlement = isSetupPhase || (gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.SETTLEMENT) && myPlayer.inventory.availableSettlements > 0);
     const canAffordCity = gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.CITY) && myPlayer.inventory.availableCities > 0;
     const canAffordCard = gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.ACTION_CARD);
@@ -415,9 +415,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         return getValidSettlementPlacements(gameState, myPlayer.peerId, allNodeIds).size > 0;
     }, [gameState, myPlayer, allNodeIds, isMyTurn]);
 
-    const hasValidRoadSpots = useMemo(() => {
+    const hasValidStreetSpots = useMemo(() => {
         if (!myPlayer || !isMyTurn) return false;
-        return getValidRoadPlacements(gameState, myPlayer.peerId, allEdgeIds).size > 0;
+        return getValidStreetPlacements(gameState, myPlayer.peerId, allEdgeIds).size > 0;
     }, [gameState, myPlayer, allEdgeIds, isMyTurn]);
 
     const hasValidCitySpots = useMemo(() => {
@@ -425,9 +425,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         return Object.values(gameState.settlements).some(s => s.ownerId === myPlayer.peerId && !s.isCity);
     }, [gameState, myPlayer, isMyTurn]);
 
-    const validRoadEdges = useMemo(() => {
-        if (!myPlayer || activeBuildMode !== 'ROAD' || !isMyTurn) return new Set<string>();
-        return getValidRoadPlacements(gameState, myPlayer.peerId, allEdgeIds);
+    const validStreetEdges = useMemo(() => {
+        if (!myPlayer || activeBuildMode !== 'street' || !isMyTurn) return new Set<string>();
+        return getValidStreetPlacements(gameState, myPlayer.peerId, allEdgeIds);
     }, [gameState, myPlayer, activeBuildMode, allEdgeIds, isMyTurn]);
 
     const validSettlementNodes = useMemo(() => {
@@ -521,7 +521,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
             if (isSetupPhase) {
                 newState.lastBuiltNodeId = nodeId;
-                newState.setupAction = 'ROAD';
+                newState.setupAction = 'street';
                 if (gameState.gamePhase === 'SETUP_2') {
                     const gained = getStartingResources(newState, nodeId, map);
                     Object.entries(gained).forEach(([res, count]) => {
@@ -538,9 +538,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             return;
         }
 
-        if (pendingBuild.type === 'ROAD') {
+        if (pendingBuild.type === 'street') {
             const edgeId = pendingBuild.id;
-            const validation = validateRoadPlacement(gameState, edgeId, myPlayer!.peerId);
+            const validation = validatestreetPlacement(gameState, edgeId, myPlayer!.peerId);
             if (!validation.valid) return;
 
             const newPlayers = [...gameState.players];
@@ -550,12 +550,12 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                 resources: { ...newPlayers[playerIndex].resources },
                 inventory: {
                     ...newPlayers[playerIndex].inventory,
-                    availableRoads: newPlayers[playerIndex].inventory.availableRoads - 1
+                    availableStreets: newPlayers[playerIndex].inventory.availableStreets - 1
                 }
             };
 
-            if (!isSetupPhase && gameState.gamePhase !== 'FREE_ROAD_BUILDING') {
-                Object.entries(BUILD_COSTS.ROAD).forEach(([res, count]) => {
+            if (!isSetupPhase && gameState.gamePhase !== 'FREE_STREET_BUILDING') {
+                Object.entries(BUILD_COSTS.street).forEach(([res, count]) => {
                     updatedPlayer.resources[res as keyof typeof updatedPlayer.resources] -= count;
                 });
             }
@@ -564,18 +564,18 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             let newState: GameState = {
                 ...gameState,
                 players: newPlayers,
-                roads: {
-                    ...gameState.roads,
+                streets: {
+                    ...gameState.streets,
                     [edgeId]: { ownerId: myPlayer!.peerId, edgeId }
                 },
-                logs: [...gameState.logs, `${currentPlayer.username} built a road.`]
+                logs: [...gameState.logs, `${currentPlayer.username} built a street.`]
             };
 
             if (isSetupPhase) {
                 newState = advanceSetupTurn(newState);
-            } else if (gameState.gamePhase === 'FREE_ROAD_BUILDING') {
-                newState.freeRoadsLeft -= 1;
-                if (newState.freeRoadsLeft <= 0) {
+            } else if (gameState.gamePhase === 'FREE_STREET_BUILDING') {
+                newState.freeStreetsLeft -= 1;
+                if (newState.freeStreetsLeft <= 0) {
                     newState.gamePhase = 'MAIN_GAME';
                     setBuildMode('NONE');
                 }
@@ -668,7 +668,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
         if (isSetupPhase) {
             newState.lastBuiltNodeId = nodeId;
-            newState.setupAction = 'ROAD';
+            newState.setupAction = 'street';
             if (gameState.gamePhase === 'SETUP_2') {
                 const gained = getStartingResources(newState, nodeId, map);
                 Object.entries(gained).forEach(([res, count]) => {
@@ -684,9 +684,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     };
 
     const handleEdgeClick = (edgeId: string) => {
-        if (activeBuildMode !== 'ROAD' || !isMyTurn) return;
+        if (activeBuildMode !== 'street' || !isMyTurn) return;
 
-        const validation = validateRoadPlacement(gameState, edgeId, myPlayer!.peerId);
+        const validation = validatestreetPlacement(gameState, edgeId, myPlayer!.peerId);
         if (!validation.valid) {
             alert(validation.reason);
             return;
@@ -699,12 +699,12 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             resources: { ...newPlayers[playerIndex].resources },
             inventory: {
                 ...newPlayers[playerIndex].inventory,
-                availableRoads: newPlayers[playerIndex].inventory.availableRoads - 1
+                availableStreets: newPlayers[playerIndex].inventory.availableStreets - 1
             }
         };
 
-        if (!isSetupPhase && gameState.gamePhase !== 'FREE_ROAD_BUILDING') {
-            Object.entries(BUILD_COSTS.ROAD).forEach(([res, count]) => {
+        if (!isSetupPhase && gameState.gamePhase !== 'FREE_STREET_BUILDING') {
+            Object.entries(BUILD_COSTS.street).forEach(([res, count]) => {
                 updatedPlayer.resources[res as keyof typeof updatedPlayer.resources] -= count;
             });
         }
@@ -713,18 +713,18 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         let newState: GameState = {
             ...gameState,
             players: newPlayers,
-            roads: {
-                ...gameState.roads,
+            streets: {
+                ...gameState.streets,
                 [edgeId]: { ownerId: myPlayer!.peerId, edgeId }
             },
-            logs: [...gameState.logs, `${currentPlayer.username} built a road.`]
+            logs: [...gameState.logs, `${currentPlayer.username} built a street.`]
         };
 
         if (isSetupPhase) {
             newState = advanceSetupTurn(newState);
-        } else if (gameState.gamePhase === 'FREE_ROAD_BUILDING') {
-            newState.freeRoadsLeft -= 1;
-            if (newState.freeRoadsLeft <= 0) {
+        } else if (gameState.gamePhase === 'FREE_STREET_BUILDING') {
+            newState.freeStreetsLeft -= 1;
+            if (newState.freeStreetsLeft <= 0) {
                 newState.gamePhase = 'MAIN_GAME';
                 setBuildMode('NONE');
             }
@@ -848,7 +848,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                             <th className="px-3 py-2">Total VPs</th>
                                             <th className="px-3 py-2">Cards Found</th>
                                             <th className="px-3 py-2">Army Size</th>
-                                            <th className="px-3 py-2">Longest Road</th>
+                                            <th className="px-3 py-2">Longest street</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-700/50">
@@ -869,7 +869,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                         <td className="px-3 py-2 font-bold text-yellow-500">{totalVp}</td>
                                                         <td className="px-3 py-2 font-medium">{p.actionCards.length}</td>
                                                         <td className="px-3 py-2 font-medium">{gameState.largestArmyHolder === p.peerId ? gameState.largestArmySize : (gameState.playedNinjaCards[p.peerId] || 0)}</td>
-                                                        <td className="px-3 py-2 font-medium">{gameState.longestRoadHolder === p.peerId ? gameState.longestRoadLength : getLongestRoadForPlayer(gameState, p.peerId)}</td>
+                                                        <td className="px-3 py-2 font-medium">{gameState.longestStreetHolder === p.peerId ? gameState.longeststreetLength : getLongestStreetForPlayer(gameState, p.peerId)}</td>
                                                     </tr>
                                                 );
                                         })}
@@ -1163,7 +1163,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                  card.type === 'MONUMENT' ? '+1 Victory Point (Hidden from others until the end).' :
                                                  card.type === 'MONOPOLY' ? 'Name 1 resource. All opponents must give you ALL their cards of that type.' :
                                                  card.type === 'ABUNDANCE' ? 'Instantly take any 2 resources of your choice from the bank.' :
-                                                 card.type === 'RAPID_EXPANSION' ? 'Instantly build 2 roads for free.' : ''}
+                                                 card.type === 'RAPID_EXPANSION' ? 'Instantly build 2 streets for free.' : ''}
                                             </span>
                                         </div>
                                         <span className="text-[10px] font-bold text-slate-300 uppercase truncate pr-1 flex-1">{card.type}</span>
@@ -1191,7 +1191,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         template={map}
                         gameState={gameState}
                         buildMode={activeBuildMode}
-                        validRoadEdges={validRoadEdges}
+                        validStreetEdges={validStreetEdges}
                         validSettlementNodes={validSettlementNodes}
                         validCityNodes={validCityNodes}
                         pendingBuild={pendingBuild}
@@ -1362,7 +1362,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         <div className="flex flex-col gap-1 pointer-events-none bg-slate-900/90 backdrop-blur-md p-2.5 rounded-lg border border-slate-700 shadow-xl text-[9px] uppercase font-bold tracking-wider hidden md:flex">
                             <div className="text-slate-400 border-b border-slate-700 pb-1 mb-0.5 text-center">Build Costs</div>
                             <div className="flex items-center justify-between gap-4 text-slate-300">
-                                <span>Road</span>
+                                <span>street</span>
                                 <div className="flex gap-1 drop-shadow-sm">
                                     <img src={RESOURCE_ICONS.OAK} className="w-3 h-3" />
                                     <img src={RESOURCE_ICONS.CLAY} className="w-3 h-3" />
@@ -1443,8 +1443,8 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                             </div>
                                                         </div>
                                                         <div className="relative group flex items-stretch">
-                                                            <button onClick={() => setBuildMode('ROAD')} disabled={!canAffordRoad || !hasValidRoadSpots} title={canAffordRoad && !hasValidRoadSpots ? "No valid spots available on board" : undefined} className={`px-6 py-3 rounded-xl font-bold transition-colors shadow-xl border text-sm uppercase tracking-wider ${canAffordRoad && hasValidRoadSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : (canAffordRoad && !hasValidRoadSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed')}`}>
-                                                                Road
+                                                            <button onClick={() => setBuildMode('street')} disabled={!canAffordStreet || !hasValidStreetSpots} title={canAffordStreet && !hasValidStreetSpots ? "No valid spots available on board" : undefined} className={`px-6 py-3 rounded-xl font-bold transition-colors shadow-xl border text-sm uppercase tracking-wider ${canAffordStreet && hasValidStreetSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : (canAffordStreet && !hasValidStreetSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed')}`}>
+                                                                street
                                                             </button>
                                                             <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
                                                                 <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
@@ -1468,12 +1468,12 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                         </div>
                                                     </>
                                                 )}
-                                                {gameState.gamePhase === 'FREE_ROAD_BUILDING' ? (
+                                                {gameState.gamePhase === 'FREE_STREET_BUILDING' ? (
                                                     <button onClick={() => {
-                                                        broadcastState({ ...gameState, gamePhase: 'MAIN_GAME', freeRoadsLeft: 0 });
+                                                        broadcastState({ ...gameState, gamePhase: 'MAIN_GAME', freeStreetsLeft: 0 });
                                                         setBuildMode('NONE');
                                                     }} className="px-6 py-3 rounded-xl font-bold shadow-2xl transition-colors border border-amber-500 bg-amber-600 hover:bg-amber-500 text-sm uppercase tracking-wider">
-                                                        End Free Road
+                                                        End Free street
                                                     </button>
                                                 ) : (
                                                     <button onClick={() => handleEndTurn(false)} disabled={gameState.gamePhase !== 'MAIN_GAME'} className={`px-6 py-3 rounded-xl font-bold shadow-2xl transition-colors border text-sm uppercase tracking-wider ${gameState.gamePhase === 'MAIN_GAME' ? 'bg-red-600 hover:bg-red-500 border-red-400' : 'bg-red-800 border-red-700 opacity-50 cursor-not-allowed'}`}>
@@ -1565,9 +1565,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                     <span className="font-bold text-sm truncate">{p.username}</span>
                                 </div>
                                 <div className="flex gap-3 text-xs items-center mt-1">
-                                    <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded shadow border ${gameState.longestRoadHolder === p.peerId ? 'bg-amber-900 border-amber-500 text-amber-500' : 'bg-slate-800 border-slate-700 text-slate-400'}`} title="Road Length">
+                                    <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded shadow border ${gameState.longestStreetHolder === p.peerId ? 'bg-amber-900 border-amber-500 text-amber-500' : 'bg-slate-800 border-slate-700 text-slate-400'}`} title="street Length">
                                         <span className="text-[10px]">🛣️</span>
-                                        <span className="font-bold">{gameState.longestRoadHolder === p.peerId ? gameState.longestRoadLength : getLongestRoadForPlayer(gameState, p.peerId)}</span>
+                                        <span className="font-bold">{gameState.longestStreetHolder === p.peerId ? gameState.longeststreetLength : getLongestStreetForPlayer(gameState, p.peerId)}</span>
                                     </div>
                                     <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded shadow border ${gameState.largestArmyHolder === p.peerId ? 'bg-red-900 border-red-500 text-red-500' : 'bg-slate-800 border-slate-700 text-slate-400'}`} title="Army Size">
                                         <span className="text-[10px]">⚔️</span>

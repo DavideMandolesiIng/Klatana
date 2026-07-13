@@ -3,7 +3,7 @@
 This template provides a minimal setup for building a completely free, open-source multiplayer board game using React 19, TypeScript, Vite 8, Firebase 12, and PeerJS. The project aims to offer a low-maintenance, peer-to-peer architecture that allows players to enjoy the game without any hidden costs.
 
 ## Project Overview
-A multiplayer browser-based game where players build settlements/roads on a hexagonal map, manage resources, and compete for victory points. Built with React 19, TypeScript, Vite 8, and Firebase 12 for real-time sync.
+A multiplayer browser-based game where players build settlements/streets on a hexagonal map, manage resources, and compete for victory points. Built with React 19, TypeScript, Vite 8, and Firebase 12 for real-time sync.
 
 ### Technology Stack
 - **Frontend**: React 19, TypeScript, Vite 8

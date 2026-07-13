@@ -3,7 +3,7 @@ import { HexMath } from '../game/HexMath';
 import { type MapTemplate } from '../game/mapTemplates';
 import { type GameState } from '../game/GameState';
 import { PLAYER_COLORS } from '../game/Player';
-import { SettlementAsset, RoadAsset, CityAsset } from './Assets';
+import { SettlementAsset, StreetAsset, CityAsset } from './Assets';
 
 import desertTexture from '../assets/textures/desert-texture.jpeg';
 import wavesBackground from '../assets/textures/waves-background.jpeg';
@@ -27,13 +27,13 @@ import ninjaIcon from '../assets/icons/ninja_icon.png';
 interface GameBoardProps {
   template: MapTemplate;
   gameState?: GameState;
-  buildMode?: 'NONE' | 'SETTLEMENT' | 'ROAD' | 'CITY';
-  /** Pre-computed set of valid edge IDs for road placement highlighting */
-  validRoadEdges?: Set<string>;
+  buildMode?: 'NONE' | 'SETTLEMENT' | 'street' | 'CITY';
+  /** Pre-computed set of valid edge IDs for street placement highlighting */
+  validStreetEdges?: Set<string>;
   /** Pre-computed set of valid node IDs for settlement placement highlighting */
   validSettlementNodes?: Set<string>;
   validCityNodes?: Set<string>;
-  pendingBuild?: { type: 'SETTLEMENT' | 'ROAD' | 'CITY', id: string, costText: string } | null;
+  pendingBuild?: { type: 'SETTLEMENT' | 'street' | 'CITY', id: string, costText: string } | null;
   currentPlayerColor?: string;
   onConfirmBuild?: () => void;
   onCancelBuild?: () => void;
@@ -89,7 +89,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   template,
   gameState,
   buildMode = 'NONE',
-  validRoadEdges,
+  validStreetEdges,
   validSettlementNodes,
   validCityNodes,
   pendingBuild,
@@ -365,23 +365,23 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           );
         })}
 
-        {/* RENDER EDGES (ROADS) */}
+        {/* RENDER EDGES (STREETS) */}
         {uniqueEdges.map(edge => {
-          const road = gameState?.roads[edge.id];
+          const street = gameState?.streets[edge.id];
           // Only highlight if this specific edge is in the pre-validated set
-          const isValidPlacement = buildMode === 'ROAD' && !road && (validRoadEdges?.has(edge.id) ?? false);
+          const isValidPlacement = buildMode === 'street' && !street && (validStreetEdges?.has(edge.id) ?? false);
           const isClickable = isValidPlacement;
-          const isPendingEdge = pendingBuild?.type === 'ROAD' && pendingBuild.id === edge.id;
+          const isPendingEdge = pendingBuild?.type === 'street' && pendingBuild.id === edge.id;
 
           return (
             <g key={`edge-${edge.id}`} onClick={() => isClickable && onEdgeClick?.(edge.id)} style={{ cursor: isClickable ? 'pointer' : 'default' }}>
               {/* Invisible wide hit-area */}
               <line x1={edge.x1} y1={edge.y1} x2={edge.x2} y2={edge.y2} stroke="transparent" strokeWidth="20" />
-              {road ? (
-                <RoadAsset x={edge.x1} y={edge.y1} x2={edge.x2} y2={edge.y2} playerColor={PLAYER_COLORS[gameState!.players.find(p => p.peerId === road.ownerId)?.color as keyof typeof PLAYER_COLORS]?.hex || 'white'} />
+              {street ? (
+                <StreetAsset x={edge.x1} y={edge.y1} x2={edge.x2} y2={edge.y2} playerColor={PLAYER_COLORS[gameState!.players.find(p => p.peerId === street.ownerId)?.color as keyof typeof PLAYER_COLORS]?.hex || 'white'} />
               ) : isPendingEdge ? (
                 <g>
-                  <RoadAsset x={edge.x1} y={edge.y1} x2={edge.x2} y2={edge.y2} playerColor={currentPlayerColor} />
+                  <StreetAsset x={edge.x1} y={edge.y1} x2={edge.x2} y2={edge.y2} playerColor={currentPlayerColor} />
                   <foreignObject x={((edge.x1 + edge.x2) / 2) - 60} y={((edge.y1 + edge.y2) / 2) - 70} width="120" height="90" style={{ pointerEvents: 'none' }}>
                     <div className="bg-slate-900/90 backdrop-blur-md p-2 rounded-lg border border-indigo-500 shadow-xl flex flex-col items-center pointer-events-auto" style={{ pointerEvents: 'auto' }}>
                       <span className="text-[10px] text-slate-300 font-bold mb-1 text-center leading-tight">Cost: {pendingBuild.costText}</span>
