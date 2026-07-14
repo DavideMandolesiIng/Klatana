@@ -4,9 +4,10 @@ import { Users, Plus, LogIn } from 'lucide-react';
 
 interface MainMenuProps {
   onJoinLobby: () => void;
+  onPrivacyPolicy: () => void;
 }
 
-export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby }) => {
+export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby, onPrivacyPolicy }) => {
   const [joinCode, setJoinCode] = useState('');
   const [username, setUsername] = useState(localStorage.getItem('klatana_username') || '');
   const [isCreating, setIsCreating] = useState(false);
@@ -16,8 +17,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby }) => {
   const getPlayerId = () => {
     let id = localStorage.getItem('klatana_player_id');
     if (!id) {
-        id = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2);
-        localStorage.setItem('klatana_player_id', id);
+      id = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2);
+      localStorage.setItem('klatana_player_id', id);
     }
     return id;
   };
@@ -28,9 +29,9 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby }) => {
     try {
       setIsCreating(true);
       setError('');
-      
+
       // Need lazy initialization of peer service or something similar, but let's just use it
-      
+
       peerService.playerId = getPlayerId();
       peerService.username = username.trim();
       await peerService.createRoom();
@@ -48,13 +49,13 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby }) => {
       setError('Please enter a valid 4-letter code');
       return;
     }
-    
+
     localStorage.setItem('klatana_username', username.trim());
-    
+
     try {
       setIsJoining(true);
       setError('');
-      
+
       const { getRoomInfo } = await import('../network/firebase');
       const roomInfo = await getRoomInfo(joinCode.toUpperCase());
       if (!roomInfo) {
@@ -86,8 +87,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby }) => {
           <div className="mx-auto bg-indigo-500/10 w-16 h-16 rounded-full flex items-center justify-center mb-4">
             <Users className="w-8 h-8 text-indigo-400" />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Hexagonal Realms</h1>
-          <p className="text-slate-400">Multiplayer Turn-Based Strategy</p>
+          <h1 className="text-3xl font-bold text-white mb-2">Klatana</h1>
+          <p className="text-slate-400">Play your favourite board game with your Friends</p>
         </div>
 
         <div className="p-8 space-y-6">
@@ -99,7 +100,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby }) => {
 
           <div>
             <label htmlFor="username" className="block text-sm font-medium text-slate-400 mb-1">
-              Player Identity
+              Your Username
             </label>
             <input
               id="username"
@@ -136,7 +137,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby }) => {
           <form onSubmit={handleJoinRoom} className="space-y-4">
             <div>
               <label htmlFor="roomCode" className="block text-sm font-medium text-slate-400 mb-1">
-                Room Code
+                Room Code - Join your friends
               </label>
               <input
                 id="roomCode"
@@ -163,6 +164,19 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby }) => {
               )}
             </button>
           </form>
+        </div>
+
+        {/* Footer for Privacy Policy */}
+        <div className="p-4 bg-slate-900 border-t border-slate-700 text-center flex flex-col items-center gap-2">
+          <p className="text-[11px] text-slate-500 max-w-s leading-tight">
+            Klatana is a free, open-source fan project. It is not affiliated with, endorsed by, or sponsored by Catan Studio, Asmodee, or any related entities.
+          </p>
+          <button
+            onClick={onPrivacyPolicy}
+            className="text-xs text-slate-400 hover:text-indigo-400 font-medium transition-colors"
+          >
+            Privacy Policy
+          </button>
         </div>
       </div>
     </div>

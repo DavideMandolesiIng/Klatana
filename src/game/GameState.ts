@@ -4,28 +4,28 @@ import { HexMath } from './HexMath';
 
 export type TurnPhase = 'ROLL' | 'TRADE' | 'BUILD';
 export type GamePhase = 'SETUP_1' | 'SETUP_2' | 'MAIN_GAME' | 'NINJA_DISCARD' | 'NINJA_MOVE' | 'NINJA_STEAL' | 'FREE_STREET_BUILDING' | 'GAME_OVER' | 'P2P_TRADE_PENDING';
-export type ActionCardType = 'NINJA' | 'MONUMENT' | 'MONOPOLY' | 'ABUNDANCE' | 'RAPID_EXPANSION';
+export type ActionCardType = 'NINJA' | 'MONUMENT' | 'MARKET CONTROL' | 'ABUNDANCE' | 'RAPID_EXPANSION';
 export type SetupAction = 'SETTLEMENT' | 'street';
 
 export interface GameSettings {
-  hideBankResources: boolean;
-  winPoints: number;
-  turnTimer: number | null;
-  discardLimit: number;
-  trueRoll: boolean;
-  mapShape: string;
-  mapSize: string;
-  balancedResources: boolean;
+    hideBankResources: boolean;
+    winPoints: number;
+    turnTimer: number | null;
+    discardLimit: number;
+    trueRoll: boolean;
+    mapShape: string;
+    mapSize: string;
+    balancedResources: boolean;
 }
 
 // We map generic resource types. DESERT produces nothing.
 export type ResourceCounts = Record<Exclude<ResourceType, 'DESERT'>, number>;
 
 export const BUILD_COSTS = {
-  street: { OAK: 1, CLAY: 1 },
-  SETTLEMENT: { OAK: 1, CLAY: 1, CEREALS: 1, WOOL: 1 },
-  CITY: { ORE: 3, CEREALS: 2 },
-  ACTION_CARD: { ORE: 1, CEREALS: 1, WOOL: 1 }
+    street: { OAK: 1, CLAY: 1 },
+    SETTLEMENT: { OAK: 1, CLAY: 1, CEREALS: 1, WOOL: 1 },
+    CITY: { ORE: 3, CEREALS: 2 },
+    ACTION_CARD: { ORE: 1, CEREALS: 1, WOOL: 1 }
 };
 
 export const canAfford = (resources: ResourceCounts, cost: Partial<Record<string, number>>): boolean => {
@@ -38,60 +38,60 @@ export const canAfford = (resources: ResourceCounts, cost: Partial<Record<string
 };
 
 export interface PlayerState {
-  peerId: string;
-  username: string;
-  color: string;
-  resources: ResourceCounts;
-  inventory: { availableStreets: number; availableSettlements: number; availableCities: number };
-  victoryPoints: number;
-  actionCards: { type: ActionCardType, boughtThisTurn: boolean }[];
-  playerId?: string;
-  isInert?: boolean;
+    peerId: string;
+    username: string;
+    color: string;
+    resources: ResourceCounts;
+    inventory: { availableStreets: number; availableSettlements: number; availableCities: number };
+    victoryPoints: number;
+    actionCards: { type: ActionCardType, boughtThisTurn: boolean }[];
+    playerId?: string;
+    isInert?: boolean;
 }
 
 export interface Settlement {
-  ownerId: string;
-  isCity: boolean;
-  nodeId: string;
+    ownerId: string;
+    isCity: boolean;
+    nodeId: string;
 }
 
 export interface street {
-  ownerId: string;
-  edgeId: string;
+    ownerId: string;
+    edgeId: string;
 }
 
 export interface GameState {
-  players: PlayerState[];
-  currentTurnIndex: number;
-  gamePhase: GamePhase;
-  setupAction?: SetupAction;
-  lastBuiltNodeId?: string;
-  phase: TurnPhase;
-  diceRoll: { die1: number; die2: number, total: number } | null;
-  logs: string[];
-  settlements: Record<string, Settlement>;
-  streets: Record<string, street>;
-  actionCardDeck: ActionCardType[];
-  ninjaHexCoords: { q: number, r: number };
-  playersNeedingToDiscard: string[];
-  activeTurnPlayedCard: boolean;
-  freeStreetsLeft: number;
-  largestArmyHolder: string | null;
-  largestArmySize: number;
-  longestStreetHolder: string | null;
-  longeststreetLength: number;
-  playedNinjaCards: Record<string, number>;
-  winningScore: number;
-  diceDeck: { die1: number, die2: number }[];
-  settings: GameSettings;
-  tradeProposal?: {
-    proposerId: string;
-    offer: Partial<ResourceCounts>;
-    request: Partial<ResourceCounts>;
-    acceptedBy: string[];
-  };
-  isPaused: boolean;
-  disconnectedPlayers: string[];
+    players: PlayerState[];
+    currentTurnIndex: number;
+    gamePhase: GamePhase;
+    setupAction?: SetupAction;
+    lastBuiltNodeId?: string;
+    phase: TurnPhase;
+    diceRoll: { die1: number; die2: number, total: number } | null;
+    logs: string[];
+    settlements: Record<string, Settlement>;
+    streets: Record<string, street>;
+    actionCardDeck: ActionCardType[];
+    ninjaHexCoords: { q: number, r: number };
+    playersNeedingToDiscard: string[];
+    activeTurnPlayedCard: boolean;
+    freeStreetsLeft: number;
+    largestClanHolder: string | null;
+    largestClanSize: number;
+    longestStreetHolder: string | null;
+    longeststreetLength: number;
+    playedNinjaCards: Record<string, number>;
+    winningScore: number;
+    diceDeck: { die1: number, die2: number }[];
+    settings: GameSettings;
+    tradeProposal?: {
+        proposerId: string;
+        offer: Partial<ResourceCounts>;
+        request: Partial<ResourceCounts>;
+        acceptedBy: string[];
+    };
+    isPaused: boolean;
+    disconnectedPlayers: string[];
 }
 
 export const createDiceDeck = (): { die1: number, die2: number }[] => {
@@ -110,107 +110,107 @@ export const createDiceDeck = (): { die1: number, die2: number }[] => {
 };
 
 export const createInitialGameState = (lobbyPlayers: PlayerData[], map: MapTemplate | undefined, settings: GameSettings): GameState => {
-  const deck: ActionCardType[] = [
-      ...Array(14).fill('NINJA'),
-      ...Array(5).fill('MONUMENT'),
-      ...Array(2).fill('MONOPOLY'),
-      ...Array(2).fill('ABUNDANCE'),
-      ...Array(2).fill('RAPID_EXPANSION')
-  ];
-  // Fisher-Yates shuffle
-  for (let i = deck.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [deck[i], deck[j]] = [deck[j], deck[i]];
-  }
+    const deck: ActionCardType[] = [
+        ...Array(14).fill('NINJA'),
+        ...Array(5).fill('MONUMENT'),
+        ...Array(2).fill('MARKET CONTROL'),
+        ...Array(2).fill('ABUNDANCE'),
+        ...Array(2).fill('RAPID_EXPANSION')
+    ];
+    // Fisher-Yates shuffle
+    for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
 
-  let desertCoords = { q: 0, r: 0 };
-  if (map) {
-      const desert = map.hexes.find(h => h.resource === 'DESERT');
-      if (desert) desertCoords = { ...desert.coords };
-  }
+    let desertCoords = { q: 0, r: 0 };
+    if (map) {
+        const desert = map.hexes.find(h => h.resource === 'DESERT');
+        if (desert) desertCoords = { ...desert.coords };
+    }
 
-  return {
-    players: lobbyPlayers.map(p => ({
-      peerId: p.peerId,
-      playerId: p.playerId,
-      username: p.username,
-      color: p.color || 'RED',
-      resources: { OAK: 0, CLAY: 0, CEREALS: 0, WOOL: 0, ORE: 0, NUGGETS: 0 },
-      inventory: { availableStreets: 15, availableSettlements: 5, availableCities: 4 },
-      victoryPoints: 0,
-      actionCards: [],
-      isInert: false
-    })),
-    currentTurnIndex: 0,
-    gamePhase: 'SETUP_1',
-    setupAction: 'SETTLEMENT',
-    phase: 'ROLL',
-    diceRoll: null,
-    logs: ['Game started! Setup Phase 1: Place a settlement and a street.'],
-    settlements: {},
-    streets: {},
-    actionCardDeck: deck,
-    ninjaHexCoords: desertCoords,
-    playersNeedingToDiscard: [],
-    activeTurnPlayedCard: false,
-    freeStreetsLeft: 0,
-    largestArmyHolder: null,
-    largestArmySize: 0,
-    longestStreetHolder: null,
-    longeststreetLength: 0,
-    playedNinjaCards: {},
-    winningScore: settings.winPoints,
-    diceDeck: settings.trueRoll ? [] : createDiceDeck(),
-    settings,
-    isPaused: false,
-    disconnectedPlayers: []
-  };
+    return {
+        players: lobbyPlayers.map(p => ({
+            peerId: p.peerId,
+            playerId: p.playerId,
+            username: p.username,
+            color: p.color || 'RED',
+            resources: { OAK: 0, CLAY: 0, CEREALS: 0, WOOL: 0, ORE: 0, NUGGETS: 0 },
+            inventory: { availableStreets: 15, availableSettlements: 5, availableCities: 4 },
+            victoryPoints: 0,
+            actionCards: [],
+            isInert: false
+        })),
+        currentTurnIndex: 0,
+        gamePhase: 'SETUP_1',
+        setupAction: 'SETTLEMENT',
+        phase: 'ROLL',
+        diceRoll: null,
+        logs: ['Game started! Setup Phase 1: Place a settlement and a street.'],
+        settlements: {},
+        streets: {},
+        actionCardDeck: deck,
+        ninjaHexCoords: desertCoords,
+        playersNeedingToDiscard: [],
+        activeTurnPlayedCard: false,
+        freeStreetsLeft: 0,
+        largestClanHolder: null,
+        largestClanSize: 0,
+        longestStreetHolder: null,
+        longeststreetLength: 0,
+        playedNinjaCards: {},
+        winningScore: settings.winPoints,
+        diceDeck: settings.trueRoll ? [] : createDiceDeck(),
+        settings,
+        isPaused: false,
+        disconnectedPlayers: []
+    };
 };
 
-export const validateSettlementPlacement = (gameState: GameState, nodeId: string, peerId: string): {valid: boolean, reason?: string} => {
-    if (gameState.settlements[nodeId]) return {valid: false, reason: "Node is already occupied."};
-    
+export const validateSettlementPlacement = (gameState: GameState, nodeId: string, peerId: string): { valid: boolean, reason?: string } => {
+    if (gameState.settlements[nodeId]) return { valid: false, reason: "Node is already occupied." };
+
     const player = gameState.players.find(p => p.peerId === peerId);
     if (player && player.inventory.availableSettlements <= 0) {
-        return {valid: false, reason: "No settlements left in inventory."};
+        return { valid: false, reason: "No settlements left in inventory." };
     }
-    
+
     const isTooClose = Object.keys(gameState.settlements).some(existingNode => HexMath.areNodesAdjacent(nodeId, existingNode));
-    if (isTooClose) return {valid: false, reason: "Distance Rule: Too close to another settlement."};
+    if (isTooClose) return { valid: false, reason: "Distance Rule: Too close to another settlement." };
 
     if (gameState.gamePhase !== 'MAIN_GAME' && gameState.gamePhase !== 'SETUP_1' && gameState.gamePhase !== 'SETUP_2') {
-        return {valid: false, reason: "Cannot build a settlement during this phase."};
+        return { valid: false, reason: "Cannot build a settlement during this phase." };
     }
 
     if (gameState.gamePhase === 'MAIN_GAME') {
         const player = gameState.players.find(p => p.peerId === peerId);
         if (player && !canAfford(player.resources, BUILD_COSTS.SETTLEMENT)) {
-            return {valid: false, reason: "Not enough resources."};
+            return { valid: false, reason: "Not enough resources." };
         }
 
         const ownsConnectedStreet = Object.values(gameState.streets).some(r => r.ownerId === peerId && HexMath.isEdgeAdjacentToNode(r.edgeId, nodeId));
-        if (!ownsConnectedStreet) return {valid: false, reason: "Must connect to one of your streets."};
+        if (!ownsConnectedStreet) return { valid: false, reason: "Must connect to one of your streets." };
     }
-    return {valid: true};
+    return { valid: true };
 };
 
-export const validatestreetPlacement = (gameState: GameState, edgeId: string, peerId: string): {valid: boolean, reason?: string} => {
-    if (gameState.streets[edgeId]) return {valid: false, reason: "Edge is already occupied."};
+export const validatestreetPlacement = (gameState: GameState, edgeId: string, peerId: string): { valid: boolean, reason?: string } => {
+    if (gameState.streets[edgeId]) return { valid: false, reason: "Edge is already occupied." };
 
     const player = gameState.players.find(p => p.peerId === peerId);
     if (player && player.inventory.availableStreets <= 0) {
-        return {valid: false, reason: "No streets left in inventory."};
+        return { valid: false, reason: "No streets left in inventory." };
     }
 
     if (gameState.gamePhase === 'SETUP_1' || gameState.gamePhase === 'SETUP_2') {
-        if (!gameState.lastBuiltNodeId) return {valid: false, reason: "Must place a settlement first."};
+        if (!gameState.lastBuiltNodeId) return { valid: false, reason: "Must place a settlement first." };
         if (!HexMath.isEdgeAdjacentToNode(edgeId, gameState.lastBuiltNodeId)) {
-            return {valid: false, reason: "street must connect to your newly placed settlement."};
+            return { valid: false, reason: "street must connect to your newly placed settlement." };
         }
     } else if (gameState.gamePhase === 'MAIN_GAME' || gameState.gamePhase === 'FREE_STREET_BUILDING') {
         const player = gameState.players.find(p => p.peerId === peerId);
         if (gameState.gamePhase === 'MAIN_GAME' && player && !canAfford(player.resources, BUILD_COSTS.street)) {
-            return {valid: false, reason: "Not enough resources."};
+            return { valid: false, reason: "Not enough resources." };
         }
 
         // Check: connects to own settlement/city at one of the two edge endpoints
@@ -234,12 +234,12 @@ export const validatestreetPlacement = (gameState: GameState, edgeId: string, pe
         });
 
         if (!connectsToOwnSettlement && !connectsToOwnStreetUnblocked) {
-            return {valid: false, reason: "street must connect to your own settlement, city, or an unblocked street."};
+            return { valid: false, reason: "street must connect to your own settlement, city, or an unblocked street." };
         }
     } else {
-        return {valid: false, reason: "Cannot build a street during this phase."};
+        return { valid: false, reason: "Cannot build a street during this phase." };
     }
-    return {valid: true};
+    return { valid: true };
 };
 
 /**
@@ -320,68 +320,68 @@ export const advanceSetupTurn = (gameState: GameState): GameState => {
 };
 
 export const rollDice = () => {
-  const die1 = Math.floor(Math.random() * 6) + 1;
-  const die2 = Math.floor(Math.random() * 6) + 1;
-  return { die1, die2, total: die1 + die2 };
+    const die1 = Math.floor(Math.random() * 6) + 1;
+    const die2 = Math.floor(Math.random() * 6) + 1;
+    return { die1, die2, total: die1 + die2 };
 };
 
 // Phase 3 placeholder for resource distribution.
 // Real node-checking logic will come in Phase 4 when nodes/settlements exist.
 export const distributeResources = (gameState: GameState, map: MapTemplate, roll: number): GameState => {
-  if (roll === 7) {
-    const limit = gameState.settings?.discardLimit ?? 7;
-    const playersNeedingToDiscard = gameState.players
-      .filter(p => Object.values(p.resources).reduce((sum, count) => sum + count, 0) > limit)
-      .map(p => p.peerId);
+    if (roll === 7) {
+        const limit = gameState.settings?.discardLimit ?? 7;
+        const playersNeedingToDiscard = gameState.players
+            .filter(p => Object.values(p.resources).reduce((sum, count) => sum + count, 0) > limit)
+            .map(p => p.peerId);
+
+        return {
+            ...gameState,
+            gamePhase: playersNeedingToDiscard.length > 0 ? 'NINJA_DISCARD' : 'NINJA_MOVE',
+            playersNeedingToDiscard,
+            logs: [...gameState.logs, `A 7 was rolled! Ninja activated. ${playersNeedingToDiscard.length > 0 ? 'Some players must discard.' : ''}`]
+        };
+    }
+
+    // Find hexes with this number
+    const activeHexes = map.hexes.filter(h => h.number === roll);
+    if (activeHexes.length === 0) {
+        return gameState;
+    }
+
+    const logEntries: string[] = [];
+    // Deep clone players to safely mutate resources
+    const newPlayers = JSON.parse(JSON.stringify(gameState.players)) as PlayerState[];
+
+    activeHexes.forEach(hex => {
+        if (hex.resource === 'DESERT') return;
+        if (hex.coords.q === gameState.ninjaHexCoords.q && hex.coords.r === gameState.ninjaHexCoords.r) {
+            logEntries.push(`Ninja blocked production on ${hex.resource} hex.`);
+            return;
+        }
+
+        const nodeIds = HexMath.getHexNodeIds(hex.coords);
+        nodeIds.forEach(nodeId => {
+            const settlement = gameState.settlements[nodeId];
+            if (settlement) {
+                const owner = newPlayers.find(p => p.peerId === settlement.ownerId);
+                if (owner && !owner.isInert) {
+                    const amount = settlement.isCity ? 2 : 1;
+                    owner.resources[hex.resource as keyof ResourceCounts] += amount;
+                    logEntries.push(`${owner.username} got ${amount} ${hex.resource}`);
+                }
+            }
+        });
+    });
+
+    if (logEntries.length === 0) {
+        logEntries.push(`Rolled ${roll}, but no one received resources.`);
+    }
 
     return {
-      ...gameState,
-      gamePhase: playersNeedingToDiscard.length > 0 ? 'NINJA_DISCARD' : 'NINJA_MOVE',
-      playersNeedingToDiscard,
-      logs: [...gameState.logs, `A 7 was rolled! Ninja activated. ${playersNeedingToDiscard.length > 0 ? 'Some players must discard.' : ''}`]
+        ...gameState,
+        players: newPlayers,
+        logs: [...gameState.logs, ...logEntries]
     };
-  }
-
-  // Find hexes with this number
-  const activeHexes = map.hexes.filter(h => h.number === roll);
-  if (activeHexes.length === 0) {
-    return gameState;
-  }
-
-  const logEntries: string[] = [];
-  // Deep clone players to safely mutate resources
-  const newPlayers = JSON.parse(JSON.stringify(gameState.players)) as PlayerState[];
-
-  activeHexes.forEach(hex => {
-    if (hex.resource === 'DESERT') return;
-    if (hex.coords.q === gameState.ninjaHexCoords.q && hex.coords.r === gameState.ninjaHexCoords.r) {
-        logEntries.push(`Ninja blocked production on ${hex.resource} hex.`);
-        return;
-    }
-    
-    const nodeIds = HexMath.getHexNodeIds(hex.coords);
-    nodeIds.forEach(nodeId => {
-      const settlement = gameState.settlements[nodeId];
-      if (settlement) {
-         const owner = newPlayers.find(p => p.peerId === settlement.ownerId);
-         if (owner && !owner.isInert) {
-            const amount = settlement.isCity ? 2 : 1;
-            owner.resources[hex.resource as keyof ResourceCounts] += amount;
-            logEntries.push(`${owner.username} got ${amount} ${hex.resource}`);
-         }
-      }
-    });
-  });
-
-  if (logEntries.length === 0) {
-    logEntries.push(`Rolled ${roll}, but no one received resources.`);
-  }
-
-  return {
-    ...gameState,
-    players: newPlayers,
-    logs: [...gameState.logs, ...logEntries]
-  };
 };
 
 // 1. Get Longest street using Node DFS
@@ -457,8 +457,8 @@ export const calculateScores = (gameState: GameState): GameState => {
     newState.players.forEach(p => {
         let publicVp = playerBasePoints[p.peerId];
         if (newState.longestStreetHolder === p.peerId) publicVp += 2;
-        if (newState.largestArmyHolder === p.peerId) publicVp += 2;
-        
+        if (newState.largestClanHolder === p.peerId) publicVp += 2;
+
         p.victoryPoints = publicVp;
 
         const hiddenVp = p.actionCards.filter(c => c.type === 'MONUMENT').length;

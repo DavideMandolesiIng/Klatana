@@ -1,6 +1,6 @@
-# Free Multiplayer Board Game
+# Klatana - Free Multiplayer Board Game
 
-This template provides a minimal setup for building a completely free, open-source multiplayer board game using React 19, TypeScript, Vite 8, Firebase 12, and PeerJS. The project aims to offer a low-maintenance, peer-to-peer architecture that allows players to enjoy the game without any hidden costs.
+This project is a completely free, open-source multiplayer board game using React 19, TypeScript, Vite 8, Firebase 12, and PeerJS. It aims to offer a low-maintenance, peer-to-peer architecture that allows players to enjoy the game without any hidden costs.
 
 ## Project Overview
 A multiplayer browser-based game where players build settlements/streets on a hexagonal map, manage resources, and compete for victory points. Built with React 19, TypeScript, Vite 8, and Firebase 12 for real-time sync.
@@ -48,6 +48,7 @@ A multiplayer browser-based game where players build settlements/streets on a he
 
 ## Project Goals
 - **Completely Free**: The game will be free for both the publisher who hosts the web app and for the final user.
+- **Disclaimer**: Klatana is a free, open-source fan project. It is not affiliated with, endorsed by, or sponsored by Catan Studio, Asmodee, or any related entities.
 - **Peer-to-Peer Architecture**: Minimal handshaking phase on a free database to ensure zero costs for hosting.
 - **Open Source**: All source code will be available under the [AGPLv3 License](LICENSE).
 

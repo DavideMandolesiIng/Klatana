@@ -241,7 +241,7 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
             </div>
           </div>
 
-          <div className="mt-6 pt-4 border-t border-slate-700">
+          <div className="mt-6 pt-4 border-t border-slate-700 flex flex-col items-center">
             {(() => {
               // Host is 1 player. We check if at least we have the right amount of registered players.
               const allPlayersReady = peerService.role === 'host' ? players.length > 0 : true;
@@ -258,6 +258,9 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
                 </button>
               );
             })()}
+            <p className="mt-4 text-[10px] text-slate-500/80 text-center leading-tight px-2">
+              Klatana is a free, open-source fan project. It is not affiliated with, endorsed by, or sponsored by Catan Studio, Asmodee, or any related entities.
+            </p>
           </div>
         </div>
       </div>
@@ -441,10 +444,10 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
                 return (
                   <div key={i} className={`flex ${m.senderId === 'YOU' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${m.senderId === 'YOU'
-                        ? 'bg-indigo-600 text-white rounded-br-sm'
-                        : m.senderId === 'SYSTEM'
-                          ? 'bg-slate-700/50 text-slate-400 italic text-xs w-full text-center'
-                          : 'bg-slate-700 text-slate-100 rounded-bl-sm'
+                      ? 'bg-indigo-600 text-white rounded-br-sm'
+                      : m.senderId === 'SYSTEM'
+                        ? 'bg-slate-700/50 text-slate-400 italic text-xs w-full text-center'
+                        : 'bg-slate-700 text-slate-100 rounded-bl-sm'
                       }`}>
                       {m.senderId !== 'YOU' && m.senderId !== 'SYSTEM' && (
                         <div className={`text-xs font-medium mb-1 ${dispColorHex ? '' : dispColor}`} style={dispColorHex ? { color: dispColorHex } : {}}>{dispName}</div>

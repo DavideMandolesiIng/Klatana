@@ -29,12 +29,12 @@ import cerealIcon from '../assets/icons/resources/cereal_icon.png';
 import nuggetsIcon from '../assets/icons/resources/nuggets_icon.png';
 
 const RESOURCE_ICONS: Record<string, string> = {
-  OAK: oakIcon,
-  CLAY: clayIcon,
-  ORE: oreIcon,
-  WOOL: woolIcon,
-  CEREALS: cerealIcon,
-  NUGGETS: nuggetsIcon
+    OAK: oakIcon,
+    CLAY: clayIcon,
+    ORE: oreIcon,
+    WOOL: woolIcon,
+    CEREALS: cerealIcon,
+    NUGGETS: nuggetsIcon
 };
 
 export const RESOURCE_GRADIENTS: Record<string, { center: string, edge: string }> = {
@@ -107,7 +107,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                             return newState;
                         }
                     } else if (metadata?.playerId) {
-                         peerService.rejectConnection(peerId, 'You are not in this game or not disconnected.');
+                        peerService.rejectConnection(peerId, 'You are not in this game or not disconnected.');
                     }
                     return prev;
                 });
@@ -134,18 +134,18 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                 if (diff !== 0) changes.push({ res, diff });
             });
             if (changes.length > 0) {
-                 const hasPositive = changes.some(c => c.diff > 0);
-                 const hasNegative = changes.some(c => c.diff < 0);
-                 let eventType: AnimationEvent = 'YIELD';
-                 if (hasPositive && hasNegative) eventType = 'TRADE';
-                 else if (hasNegative && !hasPositive) eventType = 'BUILD';
-                 else if (hasPositive && !hasNegative) eventType = 'YIELD';
+                const hasPositive = changes.some(c => c.diff > 0);
+                const hasNegative = changes.some(c => c.diff < 0);
+                let eventType: AnimationEvent = 'YIELD';
+                if (hasPositive && hasNegative) eventType = 'TRADE';
+                else if (hasNegative && !hasPositive) eventType = 'BUILD';
+                else if (hasPositive && !hasNegative) eventType = 'YIELD';
 
-                 const id = Math.random().toString(36).substring(2,9);
-                 setRecentAnimations(prev => [...prev, { id, event: eventType, diffs: changes }]);
-                 setTimeout(() => {
-                      setRecentAnimations(prev => prev.filter(anim => anim.id !== id));
-                 }, 2000);
+                const id = Math.random().toString(36).substring(2, 9);
+                setRecentAnimations(prev => [...prev, { id, event: eventType, diffs: changes }]);
+                setTimeout(() => {
+                    setRecentAnimations(prev => prev.filter(anim => anim.id !== id));
+                }, 2000);
             }
         }
         prevResources.current = { ...myPlayer.resources };
@@ -157,11 +157,11 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         let roll;
         let newDeck = [...gameState.diceDeck];
         if (gameState.settings.trueRoll) {
-             roll = rollDice();
+            roll = rollDice();
         } else {
-             if (newDeck.length === 0) newDeck = createDiceDeck();
-             const p = newDeck.pop()!;
-             roll = { die1: p.die1, die2: p.die2, total: p.die1 + p.die2 };
+            if (newDeck.length === 0) newDeck = createDiceDeck();
+            const p = newDeck.pop()!;
+            roll = { die1: p.die1, die2: p.die2, total: p.die1 + p.die2 };
         }
 
         let newState: GameState = {
@@ -176,7 +176,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         broadcastState(newState);
     };
 
-    const [activeCardContext, setActiveCardContext] = useState<'MONOPOLY' | 'ABUNDANCE' | null>(null);
+    const [activeCardContext, setActiveCardContext] = useState<'MARKET CONTROL' | 'ABUNDANCE' | null>(null);
 
     const handleEndTurn = (forceHostSkip = false) => {
         if (!forceHostSkip) {
@@ -189,7 +189,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             nextIndex = (nextIndex + 1) % gameState.players.length;
             loops++;
         }
-        
+
         const nextPlayer = gameState.players[nextIndex];
 
         const newPlayers = [...gameState.players];
@@ -279,16 +279,16 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         if (card.type === 'NINJA') {
             newState.gamePhase = 'NINJA_MOVE';
 
-            // Largest Army tracking
+            // Largest Clan tracking
             const newPlayedCount = (newState.playedNinjaCards[myPlayer!.peerId] || 0) + 1;
             newState.playedNinjaCards = { ...newState.playedNinjaCards, [myPlayer!.peerId]: newPlayedCount };
 
-            if (newPlayedCount >= 3 && newPlayedCount > newState.largestArmySize) {
-                if (newState.largestArmyHolder !== myPlayer!.peerId) {
-                    newState.logs.push(`${myPlayer!.username} took the Largest Army award!`);
+            if (newPlayedCount >= 3 && newPlayedCount > newState.largestClanSize) {
+                if (newState.largestClanHolder !== myPlayer!.peerId) {
+                    newState.logs.push(`${myPlayer!.username} took the Largest Clan award!`);
                 }
-                newState.largestArmyHolder = myPlayer!.peerId;
-                newState.largestArmySize = newPlayedCount;
+                newState.largestClanHolder = myPlayer!.peerId;
+                newState.largestClanSize = newPlayedCount;
             }
 
             broadcastState(newState);
@@ -297,7 +297,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             newState.freeStreetsLeft = 2;
             setBuildMode('street');
             broadcastState(newState);
-        } else if (card.type === 'MONOPOLY' || card.type === 'ABUNDANCE') {
+        } else if (card.type === 'MARKET CONTROL' || card.type === 'ABUNDANCE') {
             setActiveCardContext(card.type);
             broadcastState(newState);
         }
@@ -389,7 +389,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const isSetupPhase = gameState.gamePhase === 'SETUP_1' || gameState.gamePhase === 'SETUP_2';
     const activeBuildMode = isSetupPhase ? (gameState.setupAction || 'NONE') : buildMode;
 
-    const canAffordStreet = isSetupPhase || 
+    const canAffordStreet = isSetupPhase ||
         (gameState.gamePhase === 'FREE_STREET_BUILDING' && myPlayer && myPlayer.inventory.availableStreets > 0) ||
         (gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.street) && myPlayer.inventory.availableStreets > 0);
     const canAffordSettlement = isSetupPhase || (gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.SETTLEMENT) && myPlayer.inventory.availableSettlements > 0);
@@ -834,7 +834,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                             {gameState.players.find(p => p.victoryPoints + p.actionCards.filter(c => c.type === 'MONUMENT').length >= gameState.winningScore)?.username} Wins!
                         </h2>
                         <p className="text-slate-300">
-                            They reached {gameState.winningScore} Victory Points and conquered Hexagonal Realms.
+                            They reached {gameState.winningScore} Victory Points and conquered Klatana.
                         </p>
 
                         <div className="w-full mt-6 bg-slate-900 rounded-xl p-4 border border-slate-700">
@@ -847,7 +847,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                             <th className="px-3 py-2">Player</th>
                                             <th className="px-3 py-2">Total VPs</th>
                                             <th className="px-3 py-2">Cards Found</th>
-                                            <th className="px-3 py-2">Army Size</th>
+                                            <th className="px-3 py-2">Clan Size</th>
                                             <th className="px-3 py-2">Longest street</th>
                                         </tr>
                                     </thead>
@@ -868,11 +868,11 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                         </td>
                                                         <td className="px-3 py-2 font-bold text-yellow-500">{totalVp}</td>
                                                         <td className="px-3 py-2 font-medium">{p.actionCards.length}</td>
-                                                        <td className="px-3 py-2 font-medium">{gameState.largestArmyHolder === p.peerId ? gameState.largestArmySize : (gameState.playedNinjaCards[p.peerId] || 0)}</td>
+                                                        <td className="px-3 py-2 font-medium">{gameState.largestClanHolder === p.peerId ? gameState.largestClanSize : (gameState.playedNinjaCards[p.peerId] || 0)}</td>
                                                         <td className="px-3 py-2 font-medium">{gameState.longestStreetHolder === p.peerId ? gameState.longeststreetLength : getLongestStreetForPlayer(gameState, p.peerId)}</td>
                                                     </tr>
                                                 );
-                                        })}
+                                            })}
                                     </tbody>
                                 </table>
                             </div>
@@ -1015,10 +1015,10 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             )}
 
             {/* ACTION CARD MODALS */}
-            {activeCardContext === 'MONOPOLY' && (
+            {activeCardContext === 'MARKET CONTROL' && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm">
                     <div className="bg-slate-800 p-6 rounded-2xl border border-slate-600 shadow-2xl max-w-sm w-full">
-                        <h2 className="text-xl font-bold text-white mb-2 text-center uppercase tracking-wider text-indigo-400">Monopoly</h2>
+                        <h2 className="text-xl font-bold text-white mb-2 text-center uppercase tracking-wider text-indigo-400">Market Control</h2>
                         <p className="text-slate-300 text-sm mb-6 text-center">Choose a resource to steal from all players.</p>
                         <div className="grid grid-cols-2 gap-3">
                             {['OAK', 'CLAY', 'CEREALS', 'WOOL', 'ORE'].map(res => (
@@ -1044,7 +1044,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                         broadcastState({
                                             ...gameState,
                                             players: newPlayers,
-                                            logs: [...gameState.logs, `${myPlayer!.username} played Monopoly and took ${totalStolen} ${res}!`]
+                                            logs: [...gameState.logs, `${myPlayer!.username} played Market Control and took ${totalStolen} ${res}!`]
                                         });
                                         setActiveCardContext(null);
                                     }}
@@ -1109,6 +1109,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                 {/* Left Sidebar */}
                 <div className="w-56 flex flex-col gap-4 shrink-0">
                     <div className="flex-grow flex flex-col gap-4">
+
                         {/* Resources Box */}
                         <div className="bg-slate-800 p-3 rounded-xl border border-slate-700 shadow-lg flex flex-col shrink-0">
                             <h3 className="font-bold text-slate-300 uppercase text-xs tracking-wider mb-2">My Resources</h3>
@@ -1149,7 +1150,6 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                 </div>
                             )}
                         </div>
-
                         {/* Action Cards Box */}
                         <div className="bg-slate-800 p-3 rounded-xl border border-slate-700 shadow-lg flex flex-col shrink-0 min-h-0">
                             <h3 className="font-bold text-slate-300 uppercase text-xs tracking-wider mb-2">Action Cards</h3>
@@ -1160,10 +1160,10 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                             <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Info</span>
                                             <span className="text-[10px] text-slate-300 text-center font-medium">
                                                 {card.type === 'NINJA' ? 'Move the Ninja to a new hex and steal 1 resource from an adjacent opponent.' :
-                                                 card.type === 'MONUMENT' ? '+1 Victory Point (Hidden from others until the end).' :
-                                                 card.type === 'MONOPOLY' ? 'Name 1 resource. All opponents must give you ALL their cards of that type.' :
-                                                 card.type === 'ABUNDANCE' ? 'Instantly take any 2 resources of your choice from the bank.' :
-                                                 card.type === 'RAPID_EXPANSION' ? 'Instantly build 2 streets for free.' : ''}
+                                                    card.type === 'MONUMENT' ? '+1 Victory Point (Hidden from others until the end).' :
+                                                        card.type === 'MARKET CONTROL' ? 'Name 1 resource. All opponents must give you ALL their cards of that type.' :
+                                                            card.type === 'ABUNDANCE' ? 'Instantly take any 2 resources of your choice from the bank.' :
+                                                                card.type === 'RAPID_EXPANSION' ? 'Instantly build 2 streets for free.' : ''}
                                             </span>
                                         </div>
                                         <span className="text-[10px] font-bold text-slate-300 uppercase truncate pr-1 flex-1">{card.type}</span>
@@ -1181,6 +1181,12 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                             </div>
                             {/* Buy Card button moved to main button area */}
                         </div>{/* end Action Cards box */}
+                        {/* Disclaimer */}
+                        <div className="opacity-70 hover:opacity-100 transition-opacity pointer-events-none flex flex-col shrink-0">
+                            <p className="text-[10px] text-slate-400 max-w-sm leading-tight">
+                                Klatana is a free, open-source fan project.<br />It is not affiliated with, endorsed by, or sponsored by Catan Studio, Asmodee, or any related entities.
+                            </p>
+                        </div>
                     </div>{/* end flex-grow inner left sidebar */}
                 </div>{/* end w-56 Left Sidebar */}
 
@@ -1325,33 +1331,33 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                             {/* Trade Market (collapsible) */}
                             <div className="relative">
                                 {/* Toggle Tab */}
-                            <button
-                                onClick={() => setShowTradeModal(prev => !prev)}
-                                disabled={!isMyTurn || gameState.phase === 'ROLL' || isSetupPhase}
-                                className={`w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-tr-xl border-r border-t border-slate-600 shadow-xl transition-colors ${(!isMyTurn || gameState.phase === 'ROLL' || isSetupPhase)
-                                    ? 'bg-slate-800/80 text-slate-600 cursor-not-allowed'
-                                    : showTradeModal
-                                        ? 'bg-slate-800/95 text-blue-400 border-blue-700'
-                                        : 'bg-slate-800/80 text-slate-400 hover:text-blue-400 hover:border-blue-700'
-                                    }`}
-                            >
-                                <span>⚖ Trade Market</span>
-                                <span className="ml-2">{showTradeModal ? '▼' : '▲'}</span>
-                            </button>
+                                <button
+                                    onClick={() => setShowTradeModal(prev => !prev)}
+                                    disabled={!isMyTurn || gameState.phase === 'ROLL' || isSetupPhase}
+                                    className={`w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-tr-xl border-r border-t border-slate-600 shadow-xl transition-colors ${(!isMyTurn || gameState.phase === 'ROLL' || isSetupPhase)
+                                        ? 'bg-slate-800/80 text-slate-600 cursor-not-allowed'
+                                        : showTradeModal
+                                            ? 'bg-slate-800/95 text-blue-400 border-blue-700'
+                                            : 'bg-slate-800/80 text-slate-400 hover:text-blue-400 hover:border-blue-700'
+                                        }`}
+                                >
+                                    <span>⚖ Trade Market</span>
+                                    <span className="ml-2">{showTradeModal ? '▼' : '▲'}</span>
+                                </button>
 
-                            {/* Expanded Content */}
-                            {showTradeModal && (
-                                <div className="bg-slate-800/95 backdrop-blur-md border-r border-t border-slate-600 rounded-tr-xl shadow-2xl p-3">
-                                    <TradeModal
-                                        gameState={gameState}
-                                        myPlayerId={myPlayer.peerId}
-                                        map={map}
-                                        onClose={() => setShowTradeModal(false)}
-                                        onBankTrade={handleBankTrade}
-                                        onProposeTrade={handleProposeTrade}
-                                    />
-                                </div>
-                            )}
+                                {/* Expanded Content */}
+                                {showTradeModal && (
+                                    <div className="bg-slate-800/95 backdrop-blur-md border-r border-t border-slate-600 rounded-tr-xl shadow-2xl p-3">
+                                        <TradeModal
+                                            gameState={gameState}
+                                            myPlayerId={myPlayer.peerId}
+                                            map={map}
+                                            onClose={() => setShowTradeModal(false)}
+                                            onBankTrade={handleBankTrade}
+                                            onProposeTrade={handleProposeTrade}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
@@ -1426,7 +1432,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                                 <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
                                                                 {Object.entries({ OAK: 1, CLAY: 1, CEREALS: 1, WOOL: 1 }).map(([res, cost]) => {
                                                                     const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
-                                                                    return <div key={res} className="flex items-center justify-between text-[10px] font-bold mb-1"><div className="flex items-center gap-1.5"><img src={RESOURCE_ICONS[res]} className="w-3.5 h-3.5 drop-shadow-sm filter-none" alt=""/><span className="text-slate-400">{res}</span></div><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
+                                                                    return <div key={res} className="flex items-center justify-between text-[10px] font-bold mb-1"><div className="flex items-center gap-1.5"><img src={RESOURCE_ICONS[res]} className="w-3.5 h-3.5 drop-shadow-sm filter-none" alt="" /><span className="text-slate-400">{res}</span></div><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
                                                                 })}
                                                             </div>
                                                         </div>
@@ -1438,7 +1444,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                                 <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
                                                                 {Object.entries({ CEREALS: 2, ORE: 3 }).map(([res, cost]) => {
                                                                     const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
-                                                                    return <div key={res} className="flex items-center justify-between text-[10px] font-bold mb-1"><div className="flex items-center gap-1.5"><img src={RESOURCE_ICONS[res]} className="w-3.5 h-3.5 drop-shadow-sm filter-none" alt=""/><span className="text-slate-400">{res}</span></div><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
+                                                                    return <div key={res} className="flex items-center justify-between text-[10px] font-bold mb-1"><div className="flex items-center gap-1.5"><img src={RESOURCE_ICONS[res]} className="w-3.5 h-3.5 drop-shadow-sm filter-none" alt="" /><span className="text-slate-400">{res}</span></div><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
                                                                 })}
                                                             </div>
                                                         </div>
@@ -1450,7 +1456,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                                 <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
                                                                 {Object.entries({ OAK: 1, CLAY: 1 }).map(([res, cost]) => {
                                                                     const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
-                                                                    return <div key={res} className="flex items-center justify-between text-[10px] font-bold mb-1"><div className="flex items-center gap-1.5"><img src={RESOURCE_ICONS[res]} className="w-3.5 h-3.5 drop-shadow-sm filter-none" alt=""/><span className="text-slate-400">{res}</span></div><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
+                                                                    return <div key={res} className="flex items-center justify-between text-[10px] font-bold mb-1"><div className="flex items-center gap-1.5"><img src={RESOURCE_ICONS[res]} className="w-3.5 h-3.5 drop-shadow-sm filter-none" alt="" /><span className="text-slate-400">{res}</span></div><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
                                                                 })}
                                                             </div>
                                                         </div>
@@ -1462,7 +1468,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                                 <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
                                                                 {Object.entries({ CEREALS: 1, WOOL: 1, ORE: 1 }).map(([res, cost]) => {
                                                                     const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
-                                                                    return <div key={res} className="flex items-center justify-between text-[10px] font-bold mb-1"><div className="flex items-center gap-1.5"><img src={RESOURCE_ICONS[res]} className="w-3.5 h-3.5 drop-shadow-sm filter-none" alt=""/><span className="text-slate-400">{res}</span></div><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
+                                                                    return <div key={res} className="flex items-center justify-between text-[10px] font-bold mb-1"><div className="flex items-center gap-1.5"><img src={RESOURCE_ICONS[res]} className="w-3.5 h-3.5 drop-shadow-sm filter-none" alt="" /><span className="text-slate-400">{res}</span></div><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
                                                                 })}
                                                             </div>
                                                         </div>
@@ -1569,9 +1575,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                         <span className="text-[10px]">🛣️</span>
                                         <span className="font-bold">{gameState.longestStreetHolder === p.peerId ? gameState.longeststreetLength : getLongestStreetForPlayer(gameState, p.peerId)}</span>
                                     </div>
-                                    <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded shadow border ${gameState.largestArmyHolder === p.peerId ? 'bg-red-900 border-red-500 text-red-500' : 'bg-slate-800 border-slate-700 text-slate-400'}`} title="Army Size">
+                                    <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded shadow border ${gameState.largestClanHolder === p.peerId ? 'bg-red-900 border-red-500 text-red-500' : 'bg-slate-800 border-slate-700 text-slate-400'}`} title="Clan Size">
                                         <span className="text-[10px]">⚔️</span>
-                                        <span className="font-bold">{gameState.largestArmyHolder === p.peerId ? gameState.largestArmySize : (gameState.playedNinjaCards[p.peerId] || 0)}</span>
+                                        <span className="font-bold">{gameState.largestClanHolder === p.peerId ? gameState.largestClanSize : (gameState.playedNinjaCards[p.peerId] || 0)}</span>
                                     </div>
                                     <div className="ml-auto flex gap-2">
                                         <span title="Victory Points" className="bg-slate-800/80 px-1.5 py-0.5 rounded shadow border border-slate-700">VP: <span className="text-white font-bold">{p.victoryPoints}{p.peerId === myPlayer?.peerId ? <span className="text-emerald-400 font-normal">+{p.actionCards.filter(c => c.type === 'MONUMENT').length}</span> : ''}</span></span>
@@ -1592,10 +1598,10 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                     positionClass = 'bottom-32 left-12';
                 } else if (anim.event === 'BUILD') {
                     // bottom-right, directly from the specific Build action buttons
-                    positionClass = 'bottom-20 right-80'; 
+                    positionClass = 'bottom-20 right-80';
                 } else if (anim.event === 'YIELD') {
                     // Top-Left area of the central game board (or right next to local player avatar)
-                    positionClass = 'top-20 left-[280px]'; 
+                    positionClass = 'top-20 left-[280px]';
                 }
 
                 return (
