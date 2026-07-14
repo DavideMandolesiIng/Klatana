@@ -29,6 +29,9 @@ dist-ssr
 # Firebase
 .firebase/
 
+# Continue
+.continue/
+
 #notes
 notes.md
 GENERATION_CONTEXT.md

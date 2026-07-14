@@ -4,9 +4,9 @@ import { Send, Users, Wifi } from 'lucide-react';
 import { generateStandardMap } from '../game/MapGenerator';
 import { type MapTemplate } from '../game/mapTemplates';
 import { type PlayerData, type PlayerColor, PLAYER_COLORS } from '../game/Player';
-import { type GameSettings } from '../game/GameState';
+import { type GameSettings, type GameState } from '../game/GameState';
 
-export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map: MapTemplate, players: PlayerData[], settings: GameSettings) => void }> = ({ initialSettings, onStartGame }) => {
+export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map: MapTemplate, players: PlayerData[], settings: GameSettings, resumingState?: GameState) => void }> = ({ initialSettings, onStartGame }) => {
   const [messages, setMessages] = useState<{ senderId: string; text: string }[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isChatOpen, setIsChatOpen] = useState(true);
@@ -74,6 +74,10 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
       else if (data.type === 'startGame') {
         peerService.gameStatus = 'IN_PROGRESS';
         onStartGame(data.map, data.players, data.settings);
+      }
+      else if (data.type === 'RESUME_GAME') {
+        peerService.gameStatus = 'IN_PROGRESS';
+        onStartGame(data.map, data.players, data.state.settings, data.state);
       }
       else if (data.type === 'LOBBY_STATE') {
         // Client receives master lobby state from Host

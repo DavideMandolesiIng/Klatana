@@ -49,8 +49,8 @@ export const RESOURCE_GRADIENTS: Record<string, { center: string, edge: string }
 export type AnimationEvent = 'TRADE' | 'BUILD' | 'YIELD';
 export type ResourceDiff = { res: string; diff: number };
 
-export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData[], settings: GameSettings, onReturnToLobby?: () => void }> = ({ map, initialPlayers, settings, onReturnToLobby }) => {
-    const [gameState, setGameState] = useState<GameState>(() => createInitialGameState(initialPlayers, map, settings));
+export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData[], settings: GameSettings, initialGameState?: GameState, onReturnToLobby?: () => void }> = ({ map, initialPlayers, settings, initialGameState, onReturnToLobby }) => {
+    const [gameState, setGameState] = useState<GameState>(() => initialGameState || createInitialGameState(initialPlayers, map, settings));
     const [buildMode, setBuildMode] = useState<'NONE' | 'SETTLEMENT' | 'street' | 'CITY'>('NONE');
     const [discardSelection, setDiscardSelection] = useState<Partial<Record<string, number>>>({});
     const [abundancePicks, setAbundancePicks] = useState<string[]>([]);
@@ -103,7 +103,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                 logs: [...prev.logs, `${newPlayers[pIndex].username} reconnected!`]
                             };
                             peerService.broadcast({ type: 'GAME_STATE_UPDATE', state: newState });
-                            setTimeout(() => peerService.sendTo(peerId, { type: 'GAME_STATE_UPDATE', state: newState }), 100);
+                            setTimeout(() => peerService.sendTo(peerId, { type: 'RESUME_GAME', map, players: initialPlayers, state: newState }), 100);
                             return newState;
                         }
                     } else if (metadata?.playerId) {

@@ -5,7 +5,7 @@ import { GameScreen } from './components/GameScreen';
 import { type MapTemplate } from './game/mapTemplates';
 import { type PlayerData } from './game/Player';
 import { peerService } from './network/PeerService';
-import { type GameSettings } from './game/GameState';
+import { type GameSettings, type GameState } from './game/GameState';
 
 function App() {
   const [gameState, setGameState] = useState<'menu' | 'lobby' | 'playing'>('menu');
@@ -21,6 +21,7 @@ function App() {
       mapSize: 'medium',
       balancedResources: true
   });
+  const [resumeGameState, setResumeGameState] = useState<GameState | null>(null);
 
   useEffect(() => {
     peerService.onConnectionRejected((reason) => {
@@ -35,14 +36,15 @@ function App() {
       {gameState === 'menu' && <MainMenu onJoinLobby={() => setGameState('lobby')} />}
       {gameState === 'lobby' && <Lobby 
           initialSettings={gameSettings} 
-          onStartGame={(map: MapTemplate, players: PlayerData[], settings: GameSettings) => { 
+          onStartGame={(map: MapTemplate, players: PlayerData[], settings: GameSettings, resumingState?: GameState) => { 
               setGameMap(map); 
               setGamePlayers(players); 
               setGameSettings(settings); 
+              setResumeGameState(resumingState || null);
               setGameState('playing'); 
           }} 
       />}
-      {gameState === 'playing' && gameMap && <GameScreen map={gameMap} initialPlayers={gamePlayers} settings={gameSettings!} onReturnToLobby={() => setGameState('lobby')} />}
+      {gameState === 'playing' && gameMap && <GameScreen map={gameMap} initialPlayers={gamePlayers} settings={gameSettings!} initialGameState={resumeGameState || undefined} onReturnToLobby={() => setGameState('lobby')} />}
     </div>
   );
 }
