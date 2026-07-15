@@ -19,7 +19,8 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
     trueRoll: false,
     mapShape: 'standard',
     mapSize: 'medium',
-    balancedResources: true
+    balancedResources: true,
+    safeNinja: false
   });
   const settingsRef = React.useRef<GameSettings>(settings);
   const [players, setPlayers] = useState<PlayerData[]>([]);
@@ -50,9 +51,8 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
     }
 
     // Setup network listeners
-    peerService.onConnection((conn) => {
+    peerService.onConnection((_conn) => {
       // We don't automatically add them to UI array here, we wait for their JOIN_LOBBY msg
-      setMessages((prev) => [...prev, { senderId: 'SYSTEM', text: `Connection established with ${conn.peer.substring(0, 6)}...` }]);
     });
 
     peerService.onPeerDisconnect((disconnectedPeerId) => {
@@ -108,6 +108,7 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
             const assigned = available.length > 0 ? available[0] : null;
 
             const next = [...prev, { peerId: incomingPeerId, playerId: data.playerId, username: data.username, color: assigned, isHost: false }];
+            setMessages(m => [...m, { senderId: 'SYSTEM', text: `${data.username} joined the lobby` }]);
             setTimeout(() => {
               peerService.broadcast({ type: 'LOBBY_STATE', players: next });
               peerService.broadcast({ type: 'LOBBY_SETTINGS', settings: settingsRef.current });
@@ -159,6 +160,15 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
       peerService.broadcast({ type: 'startGame', map: newMap, players, settings: settingsRef.current });
       onStartGame(newMap, players, settingsRef.current);
     }
+  };
+
+  const getContrastColor = (hex: string): string => {
+    const r = parseInt(hex.slice(1, 3), 16) / 255;
+    const g = parseInt(hex.slice(3, 5), 16) / 255;
+    const b = parseInt(hex.slice(5, 7), 16) / 255;
+    const toLinear = (c: number) => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    const L = 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+    return L > 0.179 ? 'black' : 'white';
   };
 
   const handleColorSelect = (color: PlayerColor) => {
@@ -232,10 +242,22 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
                     key={c}
                     onClick={() => handleColorSelect(c)}
                     disabled={isTaken}
-                    className={`w-8 h-8 rounded-full shadow border-2 transition-all ${isTaken ? 'opacity-20 cursor-not-allowed' : 'hover:scale-110 cursor-pointer'} ${isMine ? 'ring-2 ring-offset-2 ring-offset-slate-800 ring-emerald-400 border-white' : 'border-transparent'}`}
+                    className={`relative w-8 h-8 rounded-full shadow border-2 transition-all ${isTaken ? 'opacity-50 cursor-not-allowed' : 'hover:scale-110 cursor-pointer'} ${isMine ? 'ring-2 ring-offset-2 ring-offset-slate-800 ring-emerald-400 border-white' : 'border-transparent'}`}
                     style={{ backgroundColor: PLAYER_COLORS[c].hex }}
-                    title={isTaken ? 'Color taken' : `Select ${PLAYER_COLORS[c].name}`}
-                  />
+                    title={isTaken ? `${PLAYER_COLORS[c].name} — taken` : `Select ${PLAYER_COLORS[c].name}`}
+                    aria-label={isTaken ? `${PLAYER_COLORS[c].name} — taken` : `Select ${PLAYER_COLORS[c].name}`}
+                  >
+                    {isTaken && (
+                      <svg
+                        viewBox="0 0 16 16"
+                        className="absolute inset-0 w-full h-full p-1.5 pointer-events-none"
+                        aria-hidden="true"
+                      >
+                        <line x1="2" y1="2" x2="14" y2="14" stroke={getContrastColor(PLAYER_COLORS[c].hex)} strokeWidth="2.5" strokeLinecap="round" />
+                        <line x1="14" y1="2" x2="2" y2="14" stroke={getContrastColor(PLAYER_COLORS[c].hex)} strokeWidth="2.5" strokeLinecap="round" />
+                      </svg>
+                    )}
+                  </button>
                 )
               })}
             </div>
@@ -357,6 +379,7 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
             <span className="text-xs text-slate-400">Cards over this limit must be discarded on a 7.</span>
           </div>
 
+
           {/* ── Dice & Turns ── */}
           <div className="col-span-2 mt-2">
             <h3 className="text-xs uppercase tracking-widest text-slate-500 font-bold mb-3">Dice &amp; Turns</h3>
@@ -383,6 +406,17 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
               <span className="text-xs text-slate-400">Hides remaining bank stock from all players.</span>
             </label>
           </div>
+          <div className="flex items-start gap-3 bg-slate-900/50 p-4 rounded-xl border border-slate-700">
+            <input type="checkbox" id="safeNinja"
+              checked={settings.safeNinja}
+              onChange={(e) => updateSettings({ safeNinja: e.target.checked })}
+              disabled={peerService.role !== 'host'}
+              className={`mt-1 w-5 h-5 rounded border-slate-600 bg-slate-700 accent-emerald-500 ${peerService.role === 'host' ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`} />
+            <label htmlFor="safeNinja" className={`flex-1 ${peerService.role === 'host' ? 'cursor-pointer' : 'opacity-80'} select-none`}>
+              <span className="font-semibold block text-slate-100">Safe Ninja</span>
+              <span className="text-xs text-slate-400">Players with 2 or fewer VP cannot be targeted for resource theft (the Ninja can still be placed on any hex).</span>
+            </label>
+          </div>
           <div className="flex flex-col gap-2 bg-slate-900/50 p-4 rounded-xl border border-slate-700">
             <label htmlFor="turnTimer" className="text-sm font-semibold text-slate-200">Turn Timer</label>
             <select id="turnTimer"
@@ -395,6 +429,8 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
               <option value="60">60 seconds</option>
               <option value="90">90 seconds</option>
               <option value="120">120 seconds</option>
+              <option value="240">240 seconds</option>
+              <option value="360">360 seconds</option>
             </select>
             <span className="text-xs text-slate-400">Auto-end turn when time runs out.</span>
           </div>

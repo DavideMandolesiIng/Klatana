@@ -16,6 +16,7 @@ export interface GameSettings {
     mapShape: string;
     mapSize: string;
     balancedResources: boolean;
+    safeNinja: boolean;
 }
 
 // We map generic resource types. DESERT produces nothing.
@@ -110,6 +111,13 @@ export const createDiceDeck = (): { die1: number, die2: number }[] => {
 };
 
 export const createInitialGameState = (lobbyPlayers: PlayerData[], map: MapTemplate | undefined, settings: GameSettings): GameState => {
+    // Randomize turn order at game start
+    const shuffledPlayers = [...lobbyPlayers];
+    for (let i = shuffledPlayers.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledPlayers[i], shuffledPlayers[j]] = [shuffledPlayers[j], shuffledPlayers[i]];
+    }
+
     const deck: ActionCardType[] = [
         ...Array(14).fill('NINJA'),
         ...Array(5).fill('MONUMENT'),
@@ -130,7 +138,7 @@ export const createInitialGameState = (lobbyPlayers: PlayerData[], map: MapTempl
     }
 
     return {
-        players: lobbyPlayers.map(p => ({
+        players: shuffledPlayers.map(p => ({
             peerId: p.peerId,
             playerId: p.playerId,
             username: p.username,

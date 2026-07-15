@@ -1,12 +1,16 @@
-export type PlayerColor = 'RED' | 'BLUE' | 'WHITE' | 'ORANGE' | 'GREEN' | 'PURPLE';
+export type PlayerColor = 'RED' | 'ORANGE' | 'YELLOW' | 'GREEN' | 'AQUA' | 'BLUE' | 'PURPLE' | 'PINK' | 'WHITE' | 'BLACK';
 
 export const PLAYER_COLORS: Record<PlayerColor, { name: string, hex: string }> = {
     RED: { name: 'Red', hex: '#dc2626' },
-    BLUE: { name: 'Blue', hex: '#2563eb' },
-    WHITE: { name: 'White', hex: '#f8fafc' },
     ORANGE: { name: 'Orange', hex: '#ea580c' },
+    YELLOW: { name: 'Yellow', hex: '#ffff00' },
     GREEN: { name: 'Green', hex: '#16a34a' },
-    PURPLE: { name: 'Purple', hex: '#9333ea' }
+    AQUA: { name: 'Aqua', hex: '#00ffff' },
+    BLUE: { name: 'Blue', hex: '#2563eb' },
+    PURPLE: { name: 'Purple', hex: '#9333ea' },
+    PINK: { name: 'Pink', hex: '#d534d5' },
+    WHITE: { name: 'White', hex: '#f8fafc' },
+    BLACK: { name: 'Black', hex: '#303030' }
 };
 
 export interface PlayerData {

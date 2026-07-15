@@ -799,6 +799,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         hexNodeIds.forEach(nId => {
             const s = gameState.settlements[nId];
             if (s && s.ownerId !== myPlayer!.peerId) {
+                const opp = gameState.players.find(p => p.peerId === s.ownerId);
+                // Safe Ninja: skip opponents with ≤2 VP
+                if (opp && gameState.settings?.safeNinja && opp.victoryPoints <= 2) return;
                 adjacentOpponents.add(s.ownerId);
             }
         });
@@ -989,6 +992,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                 hexNodeIds.forEach(nId => {
                                     const s = gameState.settlements[nId];
                                     if (s && s.ownerId !== myPlayer!.peerId) {
+                                        const opp = gameState.players.find(p => p.peerId === s.ownerId);
+                                        // Safe Ninja: skip opponents with ≤2 VP
+                                        if (opp && gameState.settings?.safeNinja && opp.victoryPoints <= 2) return;
                                         adjacentOpponents.add(s.ownerId);
                                     }
                                 });

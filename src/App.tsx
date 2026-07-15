@@ -20,7 +20,8 @@ function App() {
       trueRoll: false,
       mapShape: 'standard',
       mapSize: 'medium',
-      balancedResources: true
+      balancedResources: true,
+      safeNinja: false
   });
   const [resumeGameState, setResumeGameState] = useState<GameState | null>(null);
 
