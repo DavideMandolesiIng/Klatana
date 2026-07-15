@@ -65,6 +65,10 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         peerService.onMessage((data, _peerId) => {
             if (data.type === 'GAME_STATE_UPDATE') {
                 setGameState(data.state);
+                // Host must re-broadcast state updates from clients to all other clients
+                if (peerService.role === 'host') {
+                    peerService.broadcast({ type: 'GAME_STATE_UPDATE', state: data.state });
+                }
             }
         });
 

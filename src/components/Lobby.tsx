@@ -4,7 +4,7 @@ import { Send, Users, Wifi } from 'lucide-react';
 import { generateStandardMap } from '../game/MapGenerator';
 import { type MapTemplate } from '../game/mapTemplates';
 import { type PlayerData, type PlayerColor, PLAYER_COLORS } from '../game/Player';
-import { type GameSettings, type GameState } from '../game/GameState';
+import { type GameSettings, type GameState, createInitialGameState } from '../game/GameState';
 
 export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map: MapTemplate, players: PlayerData[], settings: GameSettings, resumingState?: GameState) => void }> = ({ initialSettings, onStartGame }) => {
   const [messages, setMessages] = useState<{ senderId: string; text: string }[]>([]);
@@ -73,7 +73,7 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
       }
       else if (data.type === 'startGame') {
         peerService.gameStatus = 'IN_PROGRESS';
-        onStartGame(data.map, data.players, data.settings);
+        onStartGame(data.map, data.players, data.settings, data.state);
       }
       else if (data.type === 'RESUME_GAME') {
         peerService.gameStatus = 'IN_PROGRESS';
@@ -157,8 +157,9 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
       } catch (err) {
         console.warn("Failed to set room status to IN_PROGRESS in Firebase. Continuing P2P...", err);
       }
-      peerService.broadcast({ type: 'startGame', map: newMap, players, settings: settingsRef.current });
-      onStartGame(newMap, players, settingsRef.current);
+      const initialGameState = createInitialGameState(players, newMap, settingsRef.current);
+      peerService.broadcast({ type: 'startGame', map: newMap, players, settings: settingsRef.current, state: initialGameState });
+      onStartGame(newMap, players, settingsRef.current, initialGameState);
     }
   };
 
