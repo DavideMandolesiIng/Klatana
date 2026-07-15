@@ -90,6 +90,7 @@ export interface GameState {
         offer: Partial<ResourceCounts>;
         request: Partial<ResourceCounts>;
         acceptedBy: string[];
+        declinedBy?: string[];
     };
     isPaused: boolean;
     disconnectedPlayers: string[];

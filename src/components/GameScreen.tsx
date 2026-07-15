@@ -3,7 +3,7 @@ import { GameBoard } from './GameBoard';
 import { type MapTemplate } from '../game/mapTemplates';
 import { type PlayerData, PLAYER_COLORS } from '../game/Player';
 import { peerService } from '../network/PeerService';
-import { type GameState, createInitialGameState, rollDice, distributeResources, validateHousePlacement, validatestreetPlacement, getStartingResources, advanceSetupTurn, getValidStreetPlacements, getValidHousePlacements, BUILD_COSTS, canAfford, calculateScores, type ResourceCounts, getLongestStreetForPlayer, type GameSettings, createDiceDeck } from '../game/GameState';
+import { type GameState, createInitialGameState, rollDice, distributeResources, validateHousePlacement, validatestreetPlacement, getStartingResources, advanceSetupTurn, getValidStreetPlacements, getValidHousePlacements, BUILD_COSTS, canAfford, calculateScores, type ResourceCounts, getLongestStreetForPlayer, type GameSettings, createDiceDeck, getPlayerTradeRates } from '../game/GameState';
 import { HexMath } from '../game/HexMath';
 import { TradeModal } from './TradeModal';
 
@@ -55,6 +55,11 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const [discardSelection, setDiscardSelection] = useState<Partial<Record<string, number>>>({});
     const [abundancePicks, setAbundancePicks] = useState<string[]>([]);
     const [showTradeModal, setShowTradeModal] = useState(false);
+    const [tradeModalConfig, setTradeModalConfig] = useState<{
+        initialTab?: 'BANK' | 'PLAYER';
+        initialBankGive?: string;
+        initialOffer?: Partial<ResourceCounts>;
+    }>({});
     const [showBankPanel, setShowBankPanel] = useState(true);
     const [pendingBuild, setPendingBuild] = useState<{ type: 'HOUSE' | 'street' | 'FORTRESS', id: string, costText: string } | null>(null);
 
@@ -64,11 +69,25 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     useEffect(() => {
         peerService.onMessage((data, _peerId) => {
             if (data.type === 'GAME_STATE_UPDATE') {
-                setGameState(data.state);
-                // Host must re-broadcast state updates from clients to all other clients
-                if (peerService.role === 'host') {
-                    peerService.broadcast({ type: 'GAME_STATE_UPDATE', state: data.state });
-                }
+                setGameState(prev => {
+                    let nextState = data.state;
+                    if (prev.tradeProposal && nextState.tradeProposal && prev.tradeProposal.proposerId === nextState.tradeProposal.proposerId) {
+                        nextState = {
+                            ...nextState,
+                            tradeProposal: {
+                                ...nextState.tradeProposal,
+                                acceptedBy: Array.from(new Set([...prev.tradeProposal.acceptedBy, ...nextState.tradeProposal.acceptedBy])),
+                                declinedBy: Array.from(new Set([...(prev.tradeProposal.declinedBy || []), ...(nextState.tradeProposal.declinedBy || [])]))
+                            }
+                        };
+                    }
+
+                    // Host must re-broadcast state updates from clients to all other clients
+                    if (peerService.role === 'host') {
+                        setTimeout(() => peerService.broadcast({ type: 'GAME_STATE_UPDATE', state: nextState }), 0);
+                    }
+                    return nextState;
+                });
             }
         });
 
@@ -348,6 +367,17 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         });
     };
 
+    const handleRejectTrade = () => {
+        if (!gameState.tradeProposal) return;
+        broadcastState({
+            ...gameState,
+            tradeProposal: {
+                ...gameState.tradeProposal,
+                declinedBy: [...(gameState.tradeProposal.declinedBy || []), myPlayer!.peerId]
+            }
+        });
+    };
+
     const handleFinalizeTrade = (acceptedPeerId: string) => {
         if (!gameState.tradeProposal) return;
         const newPlayers = [...gameState.players];
@@ -388,6 +418,21 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             tradeProposal: undefined,
             logs: [...gameState.logs, `${myPlayer!.username} canceled their trade proposal.`]
         });
+    };
+
+    const handleResourceClick = (res: string) => {
+        if (!myPlayer || isSetupPhase) return;
+
+        const rates = getPlayerTradeRates(gameState, map, myPlayer.peerId);
+        const rate = rates[res as keyof typeof rates] || 4;
+        const count = myPlayer.resources[res as keyof typeof myPlayer.resources] || 0;
+
+        if (count >= rate) {
+            setTradeModalConfig({ initialTab: 'BANK', initialBankGive: res });
+        } else {
+            setTradeModalConfig({ initialTab: 'PLAYER', initialOffer: { [res]: 1 } });
+        }
+        setShowTradeModal(true);
     };
 
     const isSetupPhase = gameState.gamePhase === 'SETUP_1' || gameState.gamePhase === 'SETUP_2';
@@ -816,11 +861,17 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             logs: [...gameState.logs, `${currentPlayer.username} moved the Ninja.`]
         };
 
-        if (adjacentOpponents.size > 0) {
+        const hasTargetableOpponents = Array.from(adjacentOpponents).some(oppId => {
+            const opp = gameState.players.find(p => p.peerId === oppId);
+            if (!opp) return false;
+            return Object.values(opp.resources).reduce((a, b) => a + b, 0) > 0;
+        });
+
+        if (hasTargetableOpponents) {
             newState.gamePhase = 'NINJA_STEAL';
         } else {
             newState.gamePhase = 'MAIN_GAME';
-            newState.logs.push(`No opponents adjacent to the Ninja.`);
+            newState.logs.push(`No targetable opponents adjacent to the Ninja.`);
         }
 
         broadcastState(newState);
@@ -1162,7 +1213,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         <div className="bg-slate-800 p-3 rounded-xl border border-slate-700 shadow-lg flex flex-col shrink-0">
                             <h3 className="font-bold text-slate-300 uppercase text-xs tracking-wider mb-2">My Resources</h3>
                             {myPlayer && (
-                                <div className="grid grid-cols-2 gap-1.5 mb-2">
+                                <div className="grid grid-cols-3 gap-1.5 mb-2">
                                     {Object.entries(myPlayer.resources)
                                         .filter(([res]) => res !== 'NUGGETS' || map.hexes.some(h => h.resource === 'NUGGETS'))
                                         .map(([res, count]) => {
@@ -1181,7 +1232,8 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                             return (
                                                 <div
                                                     key={res}
-                                                    className="relative p-1.5 rounded border border-black/30 flex justify-between items-center shadow-md overflow-hidden"
+                                                    onClick={() => handleResourceClick(res)}
+                                                    className="relative flex flex-col items-center justify-between p-1.5 rounded-lg border border-black/30 shadow-md overflow-hidden min-h-[70px] transition-transform hover:scale-105 cursor-pointer"
                                                     style={{ background: `radial-gradient(circle at center, ${grad.center}, ${grad.edge})` }}
                                                 >
                                                     {RESOURCE_TEXTURES[res] && (
@@ -1190,8 +1242,15 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                             style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }}
                                                         />
                                                     )}
-                                                    <span className={`relative z-10 text-[10px] font-bold ${textClass} truncate mr-1`}>{res}</span>
-                                                    <span className={`relative z-10 font-black ${numTextClass} ${numBgClass} px-1.5 rounded text-xs`}>{count}</span>
+                                                    <div className="relative z-10 flex flex-col items-center gap-0.5">
+                                                        <img src={RESOURCE_ICONS[res as keyof typeof RESOURCE_ICONS]} alt={res} className="w-6 h-6 drop-shadow-md filter-none" />
+                                                        <span className={`text-[8px] font-bold uppercase tracking-wider ${textClass} text-center leading-tight truncate w-full`}>
+                                                            {res}
+                                                        </span>
+                                                    </div>
+                                                    <div className={`relative z-10 font-black ${numTextClass} ${numBgClass} px-2 py-0.5 rounded text-xs mt-1 w-full text-center shadow-inner`}>
+                                                        {count}
+                                                    </div>
                                                 </div>
                                             );
                                         })}
@@ -1320,15 +1379,25 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                         <div className="space-y-2">
                                             {gameState.tradeProposal.acceptedBy.includes(myPlayer.peerId) ? (
                                                 <p className="text-emerald-400 font-bold text-center text-[9px]">You accepted this offer. Waiting for proposer...</p>
+                                            ) : gameState.tradeProposal.declinedBy?.includes(myPlayer.peerId) ? (
+                                                <p className="text-red-400 font-bold text-center text-[9px]">You rejected this offer.</p>
                                             ) : (
                                                 <>
-                                                    <button
-                                                        onClick={handleAcceptTrade}
-                                                        disabled={!canAfford(myPlayer.resources, gameState.tradeProposal.request)}
-                                                        className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-[10px] rounded font-bold uppercase tracking-wider transition-colors shadow"
-                                                    >
-                                                        Accept Trade
-                                                    </button>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={handleAcceptTrade}
+                                                            disabled={!canAfford(myPlayer.resources, gameState.tradeProposal.request)}
+                                                            className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-[10px] rounded font-bold uppercase tracking-wider transition-colors shadow"
+                                                        >
+                                                            Accept
+                                                        </button>
+                                                        <button
+                                                            onClick={handleRejectTrade}
+                                                            className="flex-1 py-2 bg-red-600 hover:bg-red-500 text-[10px] rounded font-bold uppercase tracking-wider transition-colors shadow"
+                                                        >
+                                                            Reject
+                                                        </button>
+                                                    </div>
                                                     {!canAfford(myPlayer.resources, gameState.tradeProposal.request) && (
                                                         <p className="text-red-400 text-[9px] text-center font-bold">You do not have the requested resources.</p>
                                                     )}
@@ -1344,8 +1413,8 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                 {/* Toggle Tab */}
                                 <button
                                     onClick={() => setShowTradeModal(prev => !prev)}
-                                    disabled={!isMyTurn || gameState.phase === 'ROLL' || isSetupPhase}
-                                    className={`w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-tr-xl border-r border-t border-slate-600 shadow-xl transition-colors ${(!isMyTurn || gameState.phase === 'ROLL' || isSetupPhase)
+                                    disabled={isSetupPhase}
+                                    className={`w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-tr-xl border-r border-t border-slate-600 shadow-xl transition-colors ${isSetupPhase
                                         ? 'bg-slate-800/80 text-slate-600 cursor-not-allowed'
                                         : showTradeModal
                                             ? 'bg-slate-800/95 text-blue-400 border-blue-700'
@@ -1366,6 +1435,10 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                             onClose={() => setShowTradeModal(false)}
                                             onBankTrade={handleBankTrade}
                                             onProposeTrade={handleProposeTrade}
+                                            canPropose={isMyTurn && gameState.phase !== 'ROLL' && !isSetupPhase}
+                                            initialTab={tradeModalConfig.initialTab}
+                                            initialBankGive={tradeModalConfig.initialBankGive}
+                                            initialOffer={tradeModalConfig.initialOffer}
                                         />
                                     </div>
                                 )}

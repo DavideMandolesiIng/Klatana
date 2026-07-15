@@ -10,22 +10,32 @@ interface TradeModalProps {
     onClose: () => void;
     onBankTrade: (giveRes: string, giveAmount: number, getRes: string) => void;
     onProposeTrade: (offer: Partial<ResourceCounts>, request: Partial<ResourceCounts>) => void;
+    canPropose: boolean;
+    initialTab?: 'BANK' | 'PLAYER';
+    initialBankGive?: string;
+    initialOffer?: Partial<ResourceCounts>;
 }
 
 const RESOURCES: Exclude<ResourceType, 'DESERT'>[] = ['OAK', 'CLAY', 'CEREALS', 'WOOL', 'ORE'];
 
-export const TradeModal: React.FC<TradeModalProps> = ({ gameState, myPlayerId, map, onClose, onBankTrade, onProposeTrade }) => {
-    const [tab, setTab] = useState<'BANK' | 'PLAYER'>('BANK');
+export const TradeModal: React.FC<TradeModalProps> = ({ gameState, myPlayerId, map, onClose, onBankTrade, onProposeTrade, canPropose, initialTab, initialBankGive, initialOffer }) => {
+    const [tab, setTab] = useState<'BANK' | 'PLAYER'>(initialTab || 'BANK');
     const myPlayer = gameState.players.find(p => p.peerId === myPlayerId);
     const rates = getPlayerTradeRates(gameState, map, myPlayerId);
 
     // Bank Trade State
-    const [bankGive, setBankGive] = useState<string>('OAK');
+    const [bankGive, setBankGive] = useState<string>(initialBankGive || 'OAK');
     const [bankGet, setBankGet] = useState<string>('CLAY');
 
     // Player Trade State
-    const [offer, setOffer] = useState<Partial<ResourceCounts>>({});
+    const [offer, setOffer] = useState<Partial<ResourceCounts>>(initialOffer || {});
     const [request, setRequest] = useState<Partial<ResourceCounts>>({});
+
+    React.useEffect(() => {
+        if (initialTab) setTab(initialTab);
+        if (initialBankGive) setBankGive(initialBankGive);
+        if (initialOffer) setOffer({ ...initialOffer });
+    }, [initialTab, initialBankGive, initialOffer]);
 
     if (!myPlayer) return null;
 
@@ -126,7 +136,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({ gameState, myPlayerId, m
 
                     <button
                         onClick={handleBankTrade}
-                        disabled={myPlayer.resources[bankGive as keyof typeof myPlayer.resources] < rates[bankGive as keyof typeof rates]}
+                        disabled={!canPropose || myPlayer.resources[bankGive as keyof typeof myPlayer.resources] < rates[bankGive as keyof typeof rates]}
                         className="w-full py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed rounded-lg font-bold uppercase tracking-wider text-[10px] transition-colors shadow"
                     >
                         Execute Trade
@@ -183,7 +193,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({ gameState, myPlayerId, m
 
                     <button
                         onClick={handleProposeTrade}
-                        disabled={Object.values(offer).reduce((a, b) => a + (b || 0), 0) === 0 || Object.values(request).reduce((a, b) => a + (b || 0), 0) === 0}
+                        disabled={!canPropose || Object.values(offer).reduce((a, b) => a + (b || 0), 0) === 0 || Object.values(request).reduce((a, b) => a + (b || 0), 0) === 0}
                         className="w-full py-1.5 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed rounded-lg font-bold uppercase tracking-wider text-[10px] transition-colors shadow"
                     >
                         Propose Trade
