@@ -3,7 +3,7 @@ import { HexMath } from '../game/HexMath';
 import { type MapTemplate } from '../game/mapTemplates';
 import { type GameState } from '../game/GameState';
 import { PLAYER_COLORS } from '../game/Player';
-import { SettlementAsset, StreetAsset, CityAsset } from './Assets';
+import { HouseAsset, StreetAsset, FortressAsset } from './Assets';
 
 import desertTexture from '../assets/textures/desert-texture.jpeg';
 import wavesBackground from '../assets/textures/waves-background.jpeg';
@@ -27,13 +27,13 @@ import ninjaIcon from '../assets/icons/ninja_icon.png';
 interface GameBoardProps {
   template: MapTemplate;
   gameState?: GameState;
-  buildMode?: 'NONE' | 'SETTLEMENT' | 'street' | 'CITY';
+  buildMode?: 'NONE' | 'HOUSE' | 'street' | 'FORTRESS';
   /** Pre-computed set of valid edge IDs for street placement highlighting */
   validStreetEdges?: Set<string>;
-  /** Pre-computed set of valid node IDs for settlement placement highlighting */
-  validSettlementNodes?: Set<string>;
-  validCityNodes?: Set<string>;
-  pendingBuild?: { type: 'SETTLEMENT' | 'street' | 'CITY', id: string, costText: string } | null;
+  /** Pre-computed set of valid node IDs for house placement highlighting */
+  validHouseNodes?: Set<string>;
+  validFortressNodes?: Set<string>;
+  pendingBuild?: { type: 'HOUSE' | 'street' | 'FORTRESS', id: string, costText: string } | null;
   currentPlayerColor?: string;
   onConfirmBuild?: () => void;
   onCancelBuild?: () => void;
@@ -90,8 +90,8 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   gameState,
   buildMode = 'NONE',
   validStreetEdges,
-  validSettlementNodes,
-  validCityNodes,
+  validHouseNodes,
+  validFortressNodes,
   pendingBuild,
   currentPlayerColor = 'white',
   isMyTurn = false,
@@ -137,14 +137,24 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
           {/* Player Tint Filters (Multiply) */}
           {Object.values(PLAYER_COLORS).map(({ hex }) => (
-            <filter key={`tint-${hex}`} id={`tint-${hex.replace('#', '')}`} colorInterpolationFilters="sRGB">
+            <filter key={`tint-${hex}`} id={`tint-${hex.replace('#', '')}`} colorInterpolationFilters="sRGB" x="-50%" y="-50%" width="200%" height="200%">
               <feFlood floodColor={hex} result="flood" />
               <feBlend mode="multiply" in="flood" in2="SourceGraphic" result="blend" />
               <feComposite in="blend" in2="SourceAlpha" operator="in" result="tinted" />
-              {/* White outline for contrast */}
-              <feDropShadow dx="0" dy="0" stdDeviation="1" floodColor="#fff" floodOpacity="0.7" />
-              {/* Stronger drop shadow for depth */}
-              <feDropShadow dx="0" dy="3" stdDeviation="2" floodColor="#000" floodOpacity="0.9" />
+
+              {/* Solid white outline */}
+              <feMorphology in="SourceAlpha" operator="dilate" radius="2" result="expanded" />
+              <feFlood floodColor="#fff" result="whiteColor" />
+              <feComposite in="whiteColor" in2="expanded" operator="in" result="outline" />
+
+              {/* Merge outline with the tinted base graphic */}
+              <feMerge result="mergedObj">
+                <feMergeNode in="outline" />
+                <feMergeNode in="tinted" />
+              </feMerge>
+
+              {/* Drop shadow for depth */}
+              <feDropShadow in="mergedObj" dx="0" dy="4" stdDeviation="4" floodColor="#000" floodOpacity="0.9" />
             </filter>
           ))}
 
@@ -180,29 +190,29 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           const isRolled7 = gameState?.diceRoll?.total === 7;
           const isRolledThisHex = gameState?.diceRoll && gameState.diceRoll.total === hex.number;
           const isHexClickable = gameState?.gamePhase === 'NINJA_MOVE' && !isCurrentNinjaHex && isMyTurn;
-          
+
           let highlightStroke = isHexClickable ? '#fbbf24' : '#0f172a';
           let highlightWidth = isHexClickable ? '4' : '2';
           let pulseClass = isHexClickable ? 'animate-pulse' : '';
           let hexStyle = {};
 
           if (isCurrentNinjaHex && isRolled7) {
-              if (isMyTurn) {
-                  highlightStroke = '#ef4444';
-                  highlightWidth = '4';
-                  pulseClass = 'animate-pulse';
-                  hexStyle = { filter: 'drop-shadow(0px 0px 12px rgba(239, 68, 68, 0.8))' };
-              } else {
-                  highlightStroke = '#ef4444';
-                  highlightWidth = '3';
-                  pulseClass = ''; 
-                  hexStyle = { filter: 'drop-shadow(0px 0px 4px rgba(239, 68, 68, 0.4))' };
-              }
-          } else if (isRolledThisHex) {
-              highlightStroke = '#00ffff';
-              highlightWidth = '6';
+            if (isMyTurn) {
+              highlightStroke = '#ef4444';
+              highlightWidth = '4';
               pulseClass = 'animate-pulse';
-              hexStyle = { filter: 'drop-shadow(0px 0px 16px rgba(0, 255, 255, 1))' };
+              hexStyle = { filter: 'drop-shadow(0px 0px 12px rgba(239, 68, 68, 0.8))' };
+            } else {
+              highlightStroke = '#ef4444';
+              highlightWidth = '3';
+              pulseClass = '';
+              hexStyle = { filter: 'drop-shadow(0px 0px 4px rgba(239, 68, 68, 0.4))' };
+            }
+          } else if (isRolledThisHex) {
+            highlightStroke = '#00ffff';
+            highlightWidth = '6';
+            pulseClass = 'animate-pulse';
+            hexStyle = { filter: 'drop-shadow(0px 0px 16px rgba(0, 255, 255, 1))' };
           }
 
           return (
@@ -393,31 +403,31 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                   </foreignObject>
                 </g>
               ) : (
-                isValidPlacement && <line x1={edge.x1} y1={edge.y1} x2={edge.x2} y2={edge.y2} stroke="white" strokeWidth="6" opacity="0.4" strokeDasharray="4 4" />
+                isValidPlacement && <line x1={edge.x1} y1={edge.y1} x2={edge.x2} y2={edge.y2} stroke="#fbbf24" strokeWidth="10" opacity="0.9" strokeDasharray="8 6" className="animate-pulse" style={{ filter: 'drop-shadow(0px 0px 4px rgba(251, 191, 36, 0.8))' }} />
               )}
             </g>
           );
         })}
 
-        {/* RENDER NODES (SETTLEMENTS/CITIES) */}
+        {/* RENDER NODES (HOUSES/FORTRESSES) */}
         {uniqueNodes.map(node => {
-          const settlement = gameState?.settlements[node.id];
+          const house = gameState?.houses[node.id];
           // Only highlight if this specific node is in the pre-validated set
-          const isValidPlacement = buildMode === 'SETTLEMENT' && !settlement && (validSettlementNodes?.has(node.id) ?? false);
-          const isValidCityUpgrade = buildMode === 'CITY' && settlement && !settlement.isCity && (validCityNodes?.has(node.id) ?? false);
-          const isClickable = isValidPlacement || isValidCityUpgrade;
+          const isValidPlacement = buildMode === 'HOUSE' && !house && (validHouseNodes?.has(node.id) ?? false);
+          const isValidFortressUpgrade = buildMode === 'FORTRESS' && house && !house.isFortress && (validFortressNodes?.has(node.id) ?? false);
+          const isClickable = isValidPlacement || isValidFortressUpgrade;
           const isPendingNode = pendingBuild?.id === node.id;
 
           let nodeAsset = null;
-          if (settlement) {
-            const color = PLAYER_COLORS[gameState!.players.find(p => p.peerId === settlement.ownerId)?.color as keyof typeof PLAYER_COLORS]?.hex || 'white';
-            if (settlement.isCity) {
-              nodeAsset = <CityAsset x={node.x} y={node.y} playerColor={color} />;
-            } else if (isPendingNode && pendingBuild.type === 'CITY') {
-              nodeAsset = <CityAsset x={node.x} y={node.y} playerColor={color} />;
+          if (house) {
+            const color = PLAYER_COLORS[gameState!.players.find(p => p.peerId === house.ownerId)?.color as keyof typeof PLAYER_COLORS]?.hex || 'white';
+            if (house.isFortress) {
+              nodeAsset = <FortressAsset x={node.x} y={node.y} playerColor={color} />;
+            } else if (isPendingNode && pendingBuild.type === 'FORTRESS') {
+              nodeAsset = <FortressAsset x={node.x} y={node.y} playerColor={color} />;
             } else {
-              nodeAsset = <SettlementAsset x={node.x} y={node.y} playerColor={color} />;
-              if (isValidCityUpgrade) {
+              nodeAsset = <HouseAsset x={node.x} y={node.y} playerColor={color} />;
+              if (isValidFortressUpgrade) {
                 nodeAsset = (
                   <g>
                     {nodeAsset}
@@ -426,8 +436,8 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 );
               }
             }
-          } else if (isPendingNode && pendingBuild.type === 'SETTLEMENT') {
-            nodeAsset = <SettlementAsset x={node.x} y={node.y} playerColor={currentPlayerColor} />;
+          } else if (isPendingNode && pendingBuild.type === 'HOUSE') {
+            nodeAsset = <HouseAsset x={node.x} y={node.y} playerColor={currentPlayerColor} />;
           }
 
           return (

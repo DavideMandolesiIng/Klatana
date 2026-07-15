@@ -10,7 +10,7 @@ export const PLAYER_COLORS: Record<PlayerColor, { name: string, hex: string }> =
     PURPLE: { name: 'Purple', hex: '#9333ea' },
     PINK: { name: 'Pink', hex: '#d534d5' },
     WHITE: { name: 'White', hex: '#f8fafc' },
-    BLACK: { name: 'Black', hex: '#303030' }
+    BLACK: { name: 'Black', hex: '#404040' }
 };
 
 export interface PlayerData {

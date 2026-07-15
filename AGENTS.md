@@ -1,7 +1,7 @@
 # AGENTS.md
 
 ## Project Overview
-A multiplayer browser-based game where players build settlements/streets on a hexagonal map, manage resources, and compete for victory points. Built with React 19, TypeScript, Vite 8, and Firebase 12 for real-time sync.
+A multiplayer browser-based game where players build houses/streets on a hexagonal map, manage resources, and compete for victory points. Built with React 19, TypeScript, Vite 8, and Firebase 12 for real-time sync.
 
 ## Technology Stack
 - **Frontend**: React 19, TypeScript, Vite 8
@@ -16,7 +16,7 @@ A multiplayer browser-based game where players build settlements/streets on a he
    - `src/network/`: Firebase/PeerJS integration
    - `src/components/`: UI elements
 2. **State Flow**: All state changes must go through `GameState.ts`
-3. **Validation**: Centralized validation in `GameState.ts` (e.g., `validateSettlementPlacement`)
+3. **Validation**: Centralized validation in `GameState.ts` (e.g., `validateHousePlacement`)
 
 ## Coding Conventions
 - UseTypeScript: Yes (100%)

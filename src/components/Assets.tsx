@@ -1,6 +1,6 @@
 import React from 'react';
-import settlementIcon from '../assets/icons/builds/settlement_icon.png';
-import cityIcon from '../assets/icons/builds/city_icon.png';
+import houseIcon from '../assets/icons/builds/house_icon.png';
+import fortressIcon from '../assets/icons/builds/fortress_icon.png';
 import streetIcon from '../assets/icons/builds/street_icon.png';
 
 export interface AssetProps {
@@ -16,14 +16,14 @@ export interface StreetAssetProps extends AssetProps {
   angle?: number;
 }
 
-export const SettlementAsset: React.FC<AssetProps> = ({ x, y, playerColor, skinId = 'classic' }) => {
+export const HouseAsset: React.FC<AssetProps> = ({ x, y, playerColor, skinId = 'classic' }) => {
   if (skinId === 'classic') {
     const filterId = `url(#tint-${playerColor.replace('#', '')})`;
     const WIDTH = 44;
     const HEIGHT = 44;
     return (
       <image
-        href={settlementIcon}
+        href={houseIcon}
         x={x - WIDTH / 2}
         y={y - HEIGHT / 2}
         width={WIDTH}
@@ -62,14 +62,14 @@ export const StreetAsset: React.FC<StreetAssetProps> = ({ x, y, x2, y2, playerCo
   return null;
 };
 
-export const CityAsset: React.FC<AssetProps> = ({ x, y, playerColor, skinId = 'classic' }) => {
+export const FortressAsset: React.FC<AssetProps> = ({ x, y, playerColor, skinId = 'classic' }) => {
   if (skinId === 'classic') {
     const filterId = `url(#tint-${playerColor.replace('#', '')})`;
     const WIDTH = 52;
     const HEIGHT = 52;
     return (
       <image
-        href={cityIcon}
+        href={fortressIcon}
         x={x - WIDTH / 2}
         y={y - HEIGHT / 2}
         width={WIDTH}

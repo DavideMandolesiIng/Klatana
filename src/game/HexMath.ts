@@ -68,13 +68,13 @@ export class HexMath {
    *   this hex, this hex + dir[i], this hex + dir[(i+1)%6]
    *
    * This is the source-of-truth for all node IDs in the game.
-   * Any change to this formula WILL break settlement/street adjacency logic.
+   * Any change to this formula WILL break house/street adjacency logic.
    */
   static getHexNodeIds(axial: Axial): string[] {
     const ids: string[] = [];
     for (let i = 0; i < 6; i++) {
       const nextDir = (i + 1) % 6; // <-- MUST be i+1, not i-1
-      const nA = { q: axial.q + this.directions[i].q,       r: axial.r + this.directions[i].r };
+      const nA = { q: axial.q + this.directions[i].q, r: axial.r + this.directions[i].r };
       const nB = { q: axial.q + this.directions[nextDir].q, r: axial.r + this.directions[nextDir].r };
       ids.push(this.getNodeId(axial, nA, nB));
     }
@@ -163,8 +163,8 @@ export class HexMath {
       return { q, r };
     });
     return this.isAdjacent(h[0], h[1]) &&
-           this.isAdjacent(h[1], h[2]) &&
-           this.isAdjacent(h[0], h[2]);
+      this.isAdjacent(h[1], h[2]) &&
+      this.isAdjacent(h[0], h[2]);
   }
 
   /**
@@ -175,7 +175,7 @@ export class HexMath {
    *   endpoint2 = getNodeId(hexA, hexA+dir[i], hexA+dir[(i+1)%6])
    *
    * Used in main-game street validation to find the shared node between two
-   * edges (for the enemy-settlement blocking check).
+   * edges (for the enemy-house blocking check).
    */
   static getEdgeNodeIds(edgeId: string): string[] {
     const parts = edgeId.split('|');

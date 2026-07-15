@@ -3,7 +3,7 @@ import { GameBoard } from './GameBoard';
 import { type MapTemplate } from '../game/mapTemplates';
 import { type PlayerData, PLAYER_COLORS } from '../game/Player';
 import { peerService } from '../network/PeerService';
-import { type GameState, createInitialGameState, rollDice, distributeResources, validateSettlementPlacement, validatestreetPlacement, getStartingResources, advanceSetupTurn, getValidStreetPlacements, getValidSettlementPlacements, BUILD_COSTS, canAfford, calculateScores, type ResourceCounts, getLongestStreetForPlayer, type GameSettings, createDiceDeck } from '../game/GameState';
+import { type GameState, createInitialGameState, rollDice, distributeResources, validateHousePlacement, validatestreetPlacement, getStartingResources, advanceSetupTurn, getValidStreetPlacements, getValidHousePlacements, BUILD_COSTS, canAfford, calculateScores, type ResourceCounts, getLongestStreetForPlayer, type GameSettings, createDiceDeck } from '../game/GameState';
 import { HexMath } from '../game/HexMath';
 import { TradeModal } from './TradeModal';
 
@@ -51,12 +51,12 @@ export type ResourceDiff = { res: string; diff: number };
 
 export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData[], settings: GameSettings, initialGameState?: GameState, onReturnToLobby?: () => void }> = ({ map, initialPlayers, settings, initialGameState, onReturnToLobby }) => {
     const [gameState, setGameState] = useState<GameState>(() => initialGameState || createInitialGameState(initialPlayers, map, settings));
-    const [buildMode, setBuildMode] = useState<'NONE' | 'SETTLEMENT' | 'street' | 'CITY'>('NONE');
+    const [buildMode, setBuildMode] = useState<'NONE' | 'HOUSE' | 'street' | 'FORTRESS'>('NONE');
     const [discardSelection, setDiscardSelection] = useState<Partial<Record<string, number>>>({});
     const [abundancePicks, setAbundancePicks] = useState<string[]>([]);
     const [showTradeModal, setShowTradeModal] = useState(false);
-    const [showBankPanel, setShowBankPanel] = useState(false);
-    const [pendingBuild, setPendingBuild] = useState<{ type: 'SETTLEMENT' | 'street' | 'CITY', id: string, costText: string } | null>(null);
+    const [showBankPanel, setShowBankPanel] = useState(true);
+    const [pendingBuild, setPendingBuild] = useState<{ type: 'HOUSE' | 'street' | 'FORTRESS', id: string, costText: string } | null>(null);
 
     const [recentAnimations, setRecentAnimations] = useState<{ id: string; event: AnimationEvent; diffs: ResourceDiff[] }[]>([]);
     const prevResources = useRef<ResourceCounts | null>(null);
@@ -396,8 +396,8 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const canAffordStreet = isSetupPhase ||
         (gameState.gamePhase === 'FREE_STREET_BUILDING' && myPlayer && myPlayer.inventory.availableStreets > 0) ||
         (gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.street) && myPlayer.inventory.availableStreets > 0);
-    const canAffordSettlement = isSetupPhase || (gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.SETTLEMENT) && myPlayer.inventory.availableSettlements > 0);
-    const canAffordCity = gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.CITY) && myPlayer.inventory.availableCities > 0;
+    const canAffordHouse = isSetupPhase || (gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.HOUSE) && myPlayer.inventory.availableHouses > 0);
+    const canAffordFortress = gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.FORTRESS) && myPlayer.inventory.availableFortresses > 0;
     const canAffordCard = gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.ACTION_CARD);
 
     // Pre-compute valid placements for UI highlighting (derived from authoritative validation)
@@ -414,9 +414,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         };
     }, [map]);
 
-    const hasValidSettlementSpots = useMemo(() => {
+    const hasValidHouseSpots = useMemo(() => {
         if (!myPlayer || !isMyTurn) return false;
-        return getValidSettlementPlacements(gameState, myPlayer.peerId, allNodeIds).size > 0;
+        return getValidHousePlacements(gameState, myPlayer.peerId, allNodeIds).size > 0;
     }, [gameState, myPlayer, allNodeIds, isMyTurn]);
 
     const hasValidStreetSpots = useMemo(() => {
@@ -424,9 +424,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         return getValidStreetPlacements(gameState, myPlayer.peerId, allEdgeIds).size > 0;
     }, [gameState, myPlayer, allEdgeIds, isMyTurn]);
 
-    const hasValidCitySpots = useMemo(() => {
+    const hasValidFortressSpots = useMemo(() => {
         if (!myPlayer || !isMyTurn) return false;
-        return Object.values(gameState.settlements).some(s => s.ownerId === myPlayer.peerId && !s.isCity);
+        return Object.values(gameState.houses).some(s => s.ownerId === myPlayer.peerId && !s.isFortress);
     }, [gameState, myPlayer, isMyTurn]);
 
     const validStreetEdges = useMemo(() => {
@@ -434,16 +434,16 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         return getValidStreetPlacements(gameState, myPlayer.peerId, allEdgeIds);
     }, [gameState, myPlayer, activeBuildMode, allEdgeIds, isMyTurn]);
 
-    const validSettlementNodes = useMemo(() => {
-        if (!myPlayer || activeBuildMode !== 'SETTLEMENT' || !isMyTurn) return new Set<string>();
-        return getValidSettlementPlacements(gameState, myPlayer.peerId, allNodeIds);
+    const validHouseNodes = useMemo(() => {
+        if (!myPlayer || activeBuildMode !== 'HOUSE' || !isMyTurn) return new Set<string>();
+        return getValidHousePlacements(gameState, myPlayer.peerId, allNodeIds);
     }, [gameState, myPlayer, activeBuildMode, allNodeIds, isMyTurn]);
 
-    const validCityNodes = useMemo(() => {
-        if (!myPlayer || activeBuildMode !== 'CITY' || !isMyTurn) return new Set<string>();
+    const validFortressNodes = useMemo(() => {
+        if (!myPlayer || activeBuildMode !== 'FORTRESS' || !isMyTurn) return new Set<string>();
         const nodes = new Set<string>();
-        Object.values(gameState.settlements).forEach(s => {
-            if (s.ownerId === myPlayer.peerId && !s.isCity) {
+        Object.values(gameState.houses).forEach(s => {
+            if (s.ownerId === myPlayer.peerId && !s.isFortress) {
                 nodes.add(s.nodeId);
             }
         });
@@ -453,10 +453,10 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const handleConfirmBuild = () => {
         if (!pendingBuild || !isMyTurn) return;
 
-        if (pendingBuild.type === 'CITY') {
+        if (pendingBuild.type === 'FORTRESS') {
             const nodeId = pendingBuild.id;
-            const settlement = gameState.settlements[nodeId];
-            if (!settlement || settlement.ownerId !== myPlayer!.peerId || settlement.isCity) return;
+            const house = gameState.houses[nodeId];
+            if (!house || house.ownerId !== myPlayer!.peerId || house.isFortress) return;
 
             const newPlayers = [...gameState.players];
             const playerIndex = newPlayers.findIndex(p => p.peerId === myPlayer!.peerId);
@@ -465,12 +465,12 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                 resources: { ...newPlayers[playerIndex].resources },
                 inventory: {
                     ...newPlayers[playerIndex].inventory,
-                    availableCities: newPlayers[playerIndex].inventory.availableCities - 1,
-                    availableSettlements: newPlayers[playerIndex].inventory.availableSettlements + 1
+                    availableFortresses: newPlayers[playerIndex].inventory.availableFortresses - 1,
+                    availableHouses: newPlayers[playerIndex].inventory.availableHouses + 1
                 }
             };
 
-            Object.entries(BUILD_COSTS.CITY).forEach(([res, count]) => {
+            Object.entries(BUILD_COSTS.FORTRESS).forEach(([res, count]) => {
                 updatedPlayer.resources[res as keyof typeof updatedPlayer.resources] -= count;
             });
             newPlayers[playerIndex] = updatedPlayer;
@@ -478,11 +478,11 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             const newState: GameState = {
                 ...gameState,
                 players: newPlayers,
-                settlements: {
-                    ...gameState.settlements,
-                    [nodeId]: { ...settlement, isCity: true }
+                houses: {
+                    ...gameState.houses,
+                    [nodeId]: { ...house, isFortress: true }
                 },
-                logs: [...gameState.logs, `${currentPlayer.username} upgraded a settlement to a City.`]
+                logs: [...gameState.logs, `${currentPlayer.username} upgraded a house to a Fortress.`]
             };
             setBuildMode('NONE');
             setPendingBuild(null);
@@ -490,9 +490,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             return;
         }
 
-        if (pendingBuild.type === 'SETTLEMENT') {
+        if (pendingBuild.type === 'HOUSE') {
             const nodeId = pendingBuild.id;
-            const validation = validateSettlementPlacement(gameState, nodeId, myPlayer!.peerId);
+            const validation = validateHousePlacement(gameState, nodeId, myPlayer!.peerId);
             if (!validation.valid) return;
 
             const newPlayers = [...gameState.players];
@@ -502,12 +502,12 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                 resources: { ...newPlayers[playerIndex].resources },
                 inventory: {
                     ...newPlayers[playerIndex].inventory,
-                    availableSettlements: newPlayers[playerIndex].inventory.availableSettlements - 1
+                    availableHouses: newPlayers[playerIndex].inventory.availableHouses - 1
                 }
             };
 
             if (!isSetupPhase) {
-                Object.entries(BUILD_COSTS.SETTLEMENT).forEach(([res, count]) => {
+                Object.entries(BUILD_COSTS.HOUSE).forEach(([res, count]) => {
                     updatedPlayer.resources[res as keyof typeof updatedPlayer.resources] -= count;
                 });
             }
@@ -516,11 +516,11 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             const newState: GameState = {
                 ...gameState,
                 players: newPlayers,
-                settlements: {
-                    ...gameState.settlements,
-                    [nodeId]: { ownerId: myPlayer!.peerId, isCity: false, nodeId }
+                houses: {
+                    ...gameState.houses,
+                    [nodeId]: { ownerId: myPlayer!.peerId, isFortress: false, nodeId }
                 },
-                logs: [...gameState.logs, `${currentPlayer.username} placed a settlement.`]
+                logs: [...gameState.logs, `${currentPlayer.username} placed a house.`]
             };
 
             if (isSetupPhase) {
@@ -599,9 +599,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const handleNodeClick = (nodeId: string) => {
         if (!isMyTurn) return;
 
-        if (activeBuildMode === 'CITY') {
-            const settlement = gameState.settlements[nodeId];
-            if (!settlement || settlement.ownerId !== myPlayer!.peerId || settlement.isCity) return;
+        if (activeBuildMode === 'FORTRESS') {
+            const house = gameState.houses[nodeId];
+            if (!house || house.ownerId !== myPlayer!.peerId || house.isFortress) return;
 
             const newPlayers = [...gameState.players];
             const playerIndex = newPlayers.findIndex(p => p.peerId === myPlayer!.peerId);
@@ -610,12 +610,12 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                 resources: { ...newPlayers[playerIndex].resources },
                 inventory: {
                     ...newPlayers[playerIndex].inventory,
-                    availableCities: newPlayers[playerIndex].inventory.availableCities - 1,
-                    availableSettlements: newPlayers[playerIndex].inventory.availableSettlements + 1
+                    availableFortresses: newPlayers[playerIndex].inventory.availableFortresses - 1,
+                    availableHouses: newPlayers[playerIndex].inventory.availableHouses + 1
                 }
             };
 
-            Object.entries(BUILD_COSTS.CITY).forEach(([res, count]) => {
+            Object.entries(BUILD_COSTS.FORTRESS).forEach(([res, count]) => {
                 updatedPlayer.resources[res as keyof typeof updatedPlayer.resources] -= count;
             });
             newPlayers[playerIndex] = updatedPlayer;
@@ -623,20 +623,20 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             const newState: GameState = {
                 ...gameState,
                 players: newPlayers,
-                settlements: {
-                    ...gameState.settlements,
-                    [nodeId]: { ...settlement, isCity: true }
+                houses: {
+                    ...gameState.houses,
+                    [nodeId]: { ...house, isFortress: true }
                 },
-                logs: [...gameState.logs, `${currentPlayer.username} upgraded a settlement to a City.`]
+                logs: [...gameState.logs, `${currentPlayer.username} upgraded a house to a Fortress.`]
             };
             setBuildMode('NONE');
             broadcastState(newState);
             return;
         }
 
-        if (activeBuildMode !== 'SETTLEMENT') return;
+        if (activeBuildMode !== 'HOUSE') return;
 
-        const validation = validateSettlementPlacement(gameState, nodeId, myPlayer!.peerId);
+        const validation = validateHousePlacement(gameState, nodeId, myPlayer!.peerId);
         if (!validation.valid) {
             alert(validation.reason);
             return;
@@ -649,12 +649,12 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             resources: { ...newPlayers[playerIndex].resources },
             inventory: {
                 ...newPlayers[playerIndex].inventory,
-                availableSettlements: newPlayers[playerIndex].inventory.availableSettlements - 1
+                availableHouses: newPlayers[playerIndex].inventory.availableHouses - 1
             }
         };
 
         if (!isSetupPhase) {
-            Object.entries(BUILD_COSTS.SETTLEMENT).forEach(([res, count]) => {
+            Object.entries(BUILD_COSTS.HOUSE).forEach(([res, count]) => {
                 updatedPlayer.resources[res as keyof typeof updatedPlayer.resources] -= count;
             });
         }
@@ -663,11 +663,11 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         const newState: GameState = {
             ...gameState,
             players: newPlayers,
-            settlements: {
-                ...gameState.settlements,
-                [nodeId]: { ownerId: myPlayer!.peerId, isCity: false, nodeId }
+            houses: {
+                ...gameState.houses,
+                [nodeId]: { ownerId: myPlayer!.peerId, isFortress: false, nodeId }
             },
-            logs: [...gameState.logs, `${currentPlayer.username} placed a settlement.`]
+            logs: [...gameState.logs, `${currentPlayer.username} placed a house.`]
         };
 
         if (isSetupPhase) {
@@ -797,11 +797,11 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const handleHexClick = (q: number, r: number) => {
         if (gameState.gamePhase !== 'NINJA_MOVE' || !isMyTurn) return;
 
-        // Find adjacent settlements
+        // Find adjacent houses
         const hexNodeIds = HexMath.getHexNodeIds({ q, r });
         const adjacentOpponents = new Set<string>();
         hexNodeIds.forEach(nId => {
-            const s = gameState.settlements[nId];
+            const s = gameState.houses[nId];
             if (s && s.ownerId !== myPlayer!.peerId) {
                 const opp = gameState.players.find(p => p.peerId === s.ownerId);
                 // Safe Ninja: skip opponents with ≤2 VP
@@ -994,7 +994,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                 const hexNodeIds = HexMath.getHexNodeIds(gameState.ninjaHexCoords);
                                 const adjacentOpponents = new Set<string>();
                                 hexNodeIds.forEach(nId => {
-                                    const s = gameState.settlements[nId];
+                                    const s = gameState.houses[nId];
                                     if (s && s.ownerId !== myPlayer!.peerId) {
                                         const opp = gameState.players.find(p => p.peerId === s.ownerId);
                                         // Safe Ninja: skip opponents with ≤2 VP
@@ -1119,6 +1119,44 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                 {/* Left Sidebar */}
                 <div className="w-56 flex flex-col gap-4 shrink-0">
                     <div className="flex-grow flex flex-col gap-4">
+                        {/* Disclaimer */}
+                        <div className="opacity-70 hover:opacity-100 transition-opacity pointer-events-none flex flex-col shrink-0">
+                            <p className="text-[10px] text-slate-400 max-w-sm leading-tight">
+                                Klatana is a free, open-source fan project.<br />It is not affiliated with, endorsed by, or sponsored by Catan Studio, Asmodee, or any related entities.
+                            </p>
+                        </div>
+
+                        {/* Action Cards Box */}
+                        <div className="bg-slate-800 p-3 rounded-xl border border-slate-700 shadow-lg flex flex-col shrink-0 min-h-0 mt-auto">
+                            <h3 className="font-bold text-slate-300 uppercase text-xs tracking-wider mb-2">Action Cards</h3>
+                            <div className="flex flex-col gap-2 flex-grow">
+                                {myPlayer?.actionCards.map((card, i) => (
+                                    <div key={i} className="bg-slate-900 p-2 rounded border border-slate-700 flex justify-between items-center group relative cursor-help">
+                                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-48 pointer-events-none z-[60]">
+                                            <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Info</span>
+                                            <span className="text-[10px] text-slate-300 text-center font-medium">
+                                                {card.type === 'NINJA' ? 'Move the Ninja to a new hex and steal 1 resource from an adjacent opponent.' :
+                                                    card.type === 'MONUMENT' ? '+1 Victory Point (Hidden from others until the end).' :
+                                                        card.type === 'MARKET CONTROL' ? 'Name 1 resource. All opponents must give you ALL their cards of that type.' :
+                                                            card.type === 'ABUNDANCE' ? 'Instantly take any 2 resources of your choice from the bank.' :
+                                                                card.type === 'RAPID_EXPANSION' ? 'Instantly build 2 streets for free.' : ''}
+                                            </span>
+                                        </div>
+                                        <span className="text-[10px] font-bold text-slate-300 uppercase truncate pr-1 flex-1">{card.type}</span>
+                                        {card.type !== 'MONUMENT' && (
+                                            <button
+                                                onClick={() => handlePlayCard(i)}
+                                                disabled={!isMyTurn || gameState.phase === 'ROLL' || gameState.activeTurnPlayedCard || card.boughtThisTurn}
+                                                className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 rounded text-[10px] font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed relative z-10"
+                                            >
+                                                Play
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            {/* Buy Card button moved to main button area */}
+                        </div>{/* end Action Cards box */}
 
                         {/* Resources Box */}
                         <div className="bg-slate-800 p-3 rounded-xl border border-slate-700 shadow-lg flex flex-col shrink-0">
@@ -1160,43 +1198,6 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                 </div>
                             )}
                         </div>
-                        {/* Action Cards Box */}
-                        <div className="bg-slate-800 p-3 rounded-xl border border-slate-700 shadow-lg flex flex-col shrink-0 min-h-0">
-                            <h3 className="font-bold text-slate-300 uppercase text-xs tracking-wider mb-2">Action Cards</h3>
-                            <div className="flex flex-col gap-2 flex-grow">
-                                {myPlayer?.actionCards.map((card, i) => (
-                                    <div key={i} className="bg-slate-900 p-2 rounded border border-slate-700 flex justify-between items-center group relative cursor-help">
-                                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-48 pointer-events-none z-[60]">
-                                            <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Info</span>
-                                            <span className="text-[10px] text-slate-300 text-center font-medium">
-                                                {card.type === 'NINJA' ? 'Move the Ninja to a new hex and steal 1 resource from an adjacent opponent.' :
-                                                    card.type === 'MONUMENT' ? '+1 Victory Point (Hidden from others until the end).' :
-                                                        card.type === 'MARKET CONTROL' ? 'Name 1 resource. All opponents must give you ALL their cards of that type.' :
-                                                            card.type === 'ABUNDANCE' ? 'Instantly take any 2 resources of your choice from the bank.' :
-                                                                card.type === 'RAPID_EXPANSION' ? 'Instantly build 2 streets for free.' : ''}
-                                            </span>
-                                        </div>
-                                        <span className="text-[10px] font-bold text-slate-300 uppercase truncate pr-1 flex-1">{card.type}</span>
-                                        {card.type !== 'MONUMENT' && (
-                                            <button
-                                                onClick={() => handlePlayCard(i)}
-                                                disabled={!isMyTurn || gameState.phase === 'ROLL' || gameState.activeTurnPlayedCard || card.boughtThisTurn}
-                                                className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 rounded text-[10px] font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed relative z-10"
-                                            >
-                                                Play
-                                            </button>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                            {/* Buy Card button moved to main button area */}
-                        </div>{/* end Action Cards box */}
-                        {/* Disclaimer */}
-                        <div className="opacity-70 hover:opacity-100 transition-opacity pointer-events-none flex flex-col shrink-0">
-                            <p className="text-[10px] text-slate-400 max-w-sm leading-tight">
-                                Klatana is a free, open-source fan project.<br />It is not affiliated with, endorsed by, or sponsored by Catan Studio, Asmodee, or any related entities.
-                            </p>
-                        </div>
                     </div>{/* end flex-grow inner left sidebar */}
                 </div>{/* end w-56 Left Sidebar */}
 
@@ -1208,8 +1209,8 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         gameState={gameState}
                         buildMode={activeBuildMode}
                         validStreetEdges={validStreetEdges}
-                        validSettlementNodes={validSettlementNodes}
-                        validCityNodes={validCityNodes}
+                        validHouseNodes={validHouseNodes}
+                        validFortressNodes={validFortressNodes}
                         pendingBuild={pendingBuild}
                         currentPlayerColor={myPlayer ? PLAYER_COLORS[myPlayer.color as keyof typeof PLAYER_COLORS].hex : 'white'}
                         isMyTurn={isMyTurn}
@@ -1385,7 +1386,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                 </div>
                             </div>
                             <div className="flex items-center justify-between gap-4 text-slate-300">
-                                <span>Settlement</span>
+                                <span>House</span>
                                 <div className="flex gap-1 drop-shadow-sm">
                                     <img src={RESOURCE_ICONS.OAK} className="w-3 h-3" />
                                     <img src={RESOURCE_ICONS.CLAY} className="w-3 h-3" />
@@ -1394,7 +1395,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                 </div>
                             </div>
                             <div className="flex items-center justify-between gap-4 text-slate-300">
-                                <span>City</span>
+                                <span>Fortress</span>
                                 <div className="flex gap-1 drop-shadow-sm">
                                     <img src={RESOURCE_ICONS.ORE} className="w-3 h-3" />
                                     <img src={RESOURCE_ICONS.ORE} className="w-3 h-3" />
@@ -1435,8 +1436,8 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                 ) : (
                                                     <>
                                                         <div className="relative group flex items-stretch">
-                                                            <button onClick={() => setBuildMode('SETTLEMENT')} disabled={!canAffordSettlement || !hasValidSettlementSpots} title={canAffordSettlement && !hasValidSettlementSpots ? "No valid spots available on board" : undefined} className={`px-6 py-3 rounded-xl font-bold transition-colors shadow-xl border text-sm uppercase tracking-wider ${canAffordSettlement && hasValidSettlementSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : (canAffordSettlement && !hasValidSettlementSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed')}`}>
-                                                                Settlement
+                                                            <button onClick={() => setBuildMode('HOUSE')} disabled={!canAffordHouse || !hasValidHouseSpots} title={canAffordHouse && !hasValidHouseSpots ? "No valid spots available on board" : undefined} className={`px-6 py-3 rounded-xl font-bold transition-colors shadow-xl border text-sm uppercase tracking-wider ${canAffordHouse && hasValidHouseSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : (canAffordHouse && !hasValidHouseSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed')}`}>
+                                                                House
                                                             </button>
                                                             <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
                                                                 <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
@@ -1447,8 +1448,8 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                             </div>
                                                         </div>
                                                         <div className="relative group flex items-stretch">
-                                                            <button onClick={() => setBuildMode('CITY')} disabled={!canAffordCity || !hasValidCitySpots} title={canAffordCity && !hasValidCitySpots ? "No valid spots available on board" : undefined} className={`px-6 py-3 rounded-xl font-bold transition-colors shadow-xl border text-sm uppercase tracking-wider ${canAffordCity && hasValidCitySpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : (canAffordCity && !hasValidCitySpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed')}`}>
-                                                                City
+                                                            <button onClick={() => setBuildMode('FORTRESS')} disabled={!canAffordFortress || !hasValidFortressSpots} title={canAffordFortress && !hasValidFortressSpots ? "No valid spots available on board" : undefined} className={`px-6 py-3 rounded-xl font-bold transition-colors shadow-xl border text-sm uppercase tracking-wider ${canAffordFortress && hasValidFortressSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : (canAffordFortress && !hasValidFortressSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed')}`}>
+                                                                Fortress
                                                             </button>
                                                             <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
                                                                 <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>

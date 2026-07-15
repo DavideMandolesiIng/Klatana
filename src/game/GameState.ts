@@ -5,7 +5,7 @@ import { HexMath } from './HexMath';
 export type TurnPhase = 'ROLL' | 'TRADE' | 'BUILD';
 export type GamePhase = 'SETUP_1' | 'SETUP_2' | 'MAIN_GAME' | 'NINJA_DISCARD' | 'NINJA_MOVE' | 'NINJA_STEAL' | 'FREE_STREET_BUILDING' | 'GAME_OVER' | 'P2P_TRADE_PENDING';
 export type ActionCardType = 'NINJA' | 'MONUMENT' | 'MARKET CONTROL' | 'ABUNDANCE' | 'RAPID_EXPANSION';
-export type SetupAction = 'SETTLEMENT' | 'street';
+export type SetupAction = 'HOUSE' | 'street';
 
 export interface GameSettings {
     hideBankResources: boolean;
@@ -24,8 +24,8 @@ export type ResourceCounts = Record<Exclude<ResourceType, 'DESERT'>, number>;
 
 export const BUILD_COSTS = {
     street: { OAK: 1, CLAY: 1 },
-    SETTLEMENT: { OAK: 1, CLAY: 1, CEREALS: 1, WOOL: 1 },
-    CITY: { ORE: 3, CEREALS: 2 },
+    HOUSE: { OAK: 1, CLAY: 1, CEREALS: 1, WOOL: 1 },
+    FORTRESS: { ORE: 3, CEREALS: 2 },
     ACTION_CARD: { ORE: 1, CEREALS: 1, WOOL: 1 }
 };
 
@@ -43,16 +43,16 @@ export interface PlayerState {
     username: string;
     color: string;
     resources: ResourceCounts;
-    inventory: { availableStreets: number; availableSettlements: number; availableCities: number };
+    inventory: { availableStreets: number; availableHouses: number; availableFortresses: number };
     victoryPoints: number;
     actionCards: { type: ActionCardType, boughtThisTurn: boolean }[];
     playerId?: string;
     isInert?: boolean;
 }
 
-export interface Settlement {
+export interface House {
     ownerId: string;
-    isCity: boolean;
+    isFortress: boolean;
     nodeId: string;
 }
 
@@ -70,7 +70,7 @@ export interface GameState {
     phase: TurnPhase;
     diceRoll: { die1: number; die2: number, total: number } | null;
     logs: string[];
-    settlements: Record<string, Settlement>;
+    houses: Record<string, House>;
     streets: Record<string, street>;
     actionCardDeck: ActionCardType[];
     ninjaHexCoords: { q: number, r: number };
@@ -144,18 +144,18 @@ export const createInitialGameState = (lobbyPlayers: PlayerData[], map: MapTempl
             username: p.username,
             color: p.color || 'RED',
             resources: { OAK: 0, CLAY: 0, CEREALS: 0, WOOL: 0, ORE: 0, NUGGETS: 0 },
-            inventory: { availableStreets: 15, availableSettlements: 5, availableCities: 4 },
+            inventory: { availableStreets: 15, availableHouses: 5, availableFortresses: 4 },
             victoryPoints: 0,
             actionCards: [],
             isInert: false
         })),
         currentTurnIndex: 0,
         gamePhase: 'SETUP_1',
-        setupAction: 'SETTLEMENT',
+        setupAction: 'HOUSE',
         phase: 'ROLL',
         diceRoll: null,
-        logs: ['Game started! Setup Phase 1: Place a settlement and a street.'],
-        settlements: {},
+        logs: ['Game started! Setup Phase 1: Place a house and a street.'],
+        houses: {},
         streets: {},
         actionCardDeck: deck,
         ninjaHexCoords: desertCoords,
@@ -175,24 +175,24 @@ export const createInitialGameState = (lobbyPlayers: PlayerData[], map: MapTempl
     };
 };
 
-export const validateSettlementPlacement = (gameState: GameState, nodeId: string, peerId: string): { valid: boolean, reason?: string } => {
-    if (gameState.settlements[nodeId]) return { valid: false, reason: "Node is already occupied." };
+export const validateHousePlacement = (gameState: GameState, nodeId: string, peerId: string): { valid: boolean, reason?: string } => {
+    if (gameState.houses[nodeId]) return { valid: false, reason: "Node is already occupied." };
 
     const player = gameState.players.find(p => p.peerId === peerId);
-    if (player && player.inventory.availableSettlements <= 0) {
-        return { valid: false, reason: "No settlements left in inventory." };
+    if (player && player.inventory.availableHouses <= 0) {
+        return { valid: false, reason: "No houses left in inventory." };
     }
 
-    const isTooClose = Object.keys(gameState.settlements).some(existingNode => HexMath.areNodesAdjacent(nodeId, existingNode));
-    if (isTooClose) return { valid: false, reason: "Distance Rule: Too close to another settlement." };
+    const isTooClose = Object.keys(gameState.houses).some(existingNode => HexMath.areNodesAdjacent(nodeId, existingNode));
+    if (isTooClose) return { valid: false, reason: "Distance Rule: Too close to another house." };
 
     if (gameState.gamePhase !== 'MAIN_GAME' && gameState.gamePhase !== 'SETUP_1' && gameState.gamePhase !== 'SETUP_2') {
-        return { valid: false, reason: "Cannot build a settlement during this phase." };
+        return { valid: false, reason: "Cannot build a house during this phase." };
     }
 
     if (gameState.gamePhase === 'MAIN_GAME') {
         const player = gameState.players.find(p => p.peerId === peerId);
-        if (player && !canAfford(player.resources, BUILD_COSTS.SETTLEMENT)) {
+        if (player && !canAfford(player.resources, BUILD_COSTS.HOUSE)) {
             return { valid: false, reason: "Not enough resources." };
         }
 
@@ -211,9 +211,9 @@ export const validatestreetPlacement = (gameState: GameState, edgeId: string, pe
     }
 
     if (gameState.gamePhase === 'SETUP_1' || gameState.gamePhase === 'SETUP_2') {
-        if (!gameState.lastBuiltNodeId) return { valid: false, reason: "Must place a settlement first." };
+        if (!gameState.lastBuiltNodeId) return { valid: false, reason: "Must place a house first." };
         if (!HexMath.isEdgeAdjacentToNode(edgeId, gameState.lastBuiltNodeId)) {
-            return { valid: false, reason: "street must connect to your newly placed settlement." };
+            return { valid: false, reason: "street must connect to your newly placed house." };
         }
     } else if (gameState.gamePhase === 'MAIN_GAME' || gameState.gamePhase === 'FREE_STREET_BUILDING') {
         const player = gameState.players.find(p => p.peerId === peerId);
@@ -221,12 +221,12 @@ export const validatestreetPlacement = (gameState: GameState, edgeId: string, pe
             return { valid: false, reason: "Not enough resources." };
         }
 
-        // Check: connects to own settlement/city at one of the two edge endpoints
-        const connectsToOwnSettlement = Object.values(gameState.settlements).some(
+        // Check: connects to own house/fortress at one of the two edge endpoints
+        const connectsToOwnHouse = Object.values(gameState.houses).some(
             s => s.ownerId === peerId && HexMath.isEdgeAdjacentToNode(edgeId, s.nodeId)
         );
 
-        // Check: connects to own street, but NOT if the shared node is blocked by an enemy settlement
+        // Check: connects to own street, but NOT if the shared node is blocked by an enemy house
         const edgeNodes = HexMath.getEdgeNodeIds(edgeId);
         const connectsToOwnStreetUnblocked = Object.values(gameState.streets).some(r => {
             if (r.ownerId !== peerId) return false;
@@ -235,14 +235,14 @@ export const validatestreetPlacement = (gameState: GameState, edgeId: string, pe
             const existingEdgeNodes = HexMath.getEdgeNodeIds(r.edgeId);
             const sharedNode = edgeNodes.find(n => existingEdgeNodes.includes(n));
             if (!sharedNode) return false;
-            // BLOCKED if an enemy settlement/city sits on the shared node
-            const nodeOccupant = gameState.settlements[sharedNode];
+            // BLOCKED if an enemy house/fortress sits on the shared node
+            const nodeOccupant = gameState.houses[sharedNode];
             if (nodeOccupant && nodeOccupant.ownerId !== peerId) return false;
             return true;
         });
 
-        if (!connectsToOwnSettlement && !connectsToOwnStreetUnblocked) {
-            return { valid: false, reason: "street must connect to your own settlement, city, or an unblocked street." };
+        if (!connectsToOwnHouse && !connectsToOwnStreetUnblocked) {
+            return { valid: false, reason: "street must connect to your own house, fortress, or an unblocked street." };
         }
     } else {
         return { valid: false, reason: "Cannot build a street during this phase." };
@@ -265,13 +265,13 @@ export const getValidStreetPlacements = (gameState: GameState, peerId: string, a
 };
 
 /**
- * Returns the Set of node IDs where the current player is allowed to place a settlement.
+ * Returns the Set of node IDs where the current player is allowed to place a house.
  * This is used by the UI to highlight only truly valid nodes.
  */
-export const getValidSettlementPlacements = (gameState: GameState, peerId: string, allNodeIds: string[]): Set<string> => {
+export const getValidHousePlacements = (gameState: GameState, peerId: string, allNodeIds: string[]): Set<string> => {
     const valid = new Set<string>();
     for (const nodeId of allNodeIds) {
-        if (validateSettlementPlacement(gameState, nodeId, peerId).valid) {
+        if (validateHousePlacement(gameState, nodeId, peerId).valid) {
             valid.add(nodeId);
         }
     }
@@ -320,7 +320,7 @@ export const advanceSetupTurn = (gameState: GameState): GameState => {
         ...gameState,
         currentTurnIndex: nextI,
         gamePhase: nextPhase,
-        setupAction: nextPhase !== 'MAIN_GAME' ? 'SETTLEMENT' : undefined,
+        setupAction: nextPhase !== 'MAIN_GAME' ? 'HOUSE' : undefined,
         lastBuiltNodeId: undefined,
         phase: 'ROLL',
         logs: [...gameState.logs, nextPhase === 'MAIN_GAME' ? `Setup complete! It's ${nextPlayer.username}'s turn to roll.` : `It's ${nextPlayer.username}'s setup turn.`]
@@ -334,7 +334,7 @@ export const rollDice = () => {
 };
 
 // Phase 3 placeholder for resource distribution.
-// Real node-checking logic will come in Phase 4 when nodes/settlements exist.
+// Real node-checking logic will come in Phase 4 when nodes/houses exist.
 export const distributeResources = (gameState: GameState, map: MapTemplate, roll: number): GameState => {
     if (roll === 7) {
         const limit = gameState.settings?.discardLimit ?? 7;
@@ -369,11 +369,11 @@ export const distributeResources = (gameState: GameState, map: MapTemplate, roll
 
         const nodeIds = HexMath.getHexNodeIds(hex.coords);
         nodeIds.forEach(nodeId => {
-            const settlement = gameState.settlements[nodeId];
-            if (settlement) {
-                const owner = newPlayers.find(p => p.peerId === settlement.ownerId);
+            const house = gameState.houses[nodeId];
+            if (house) {
+                const owner = newPlayers.find(p => p.peerId === house.ownerId);
                 if (owner && !owner.isInert) {
-                    const amount = settlement.isCity ? 2 : 1;
+                    const amount = house.isFortress ? 2 : 1;
                     owner.resources[hex.resource as keyof ResourceCounts] += amount;
                     logEntries.push(`${owner.username} got ${amount} ${hex.resource}`);
                 }
@@ -409,7 +409,7 @@ export const getLongestStreetForPlayer = (gameState: GameState, peerId: string):
     let maxNodePath = 0;
     const dfsNodes = (currentNode: string, visitedEdges: Set<string>, currentLength: number) => {
         if (currentLength > maxNodePath) maxNodePath = currentLength;
-        const occupant = gameState.settlements[currentNode];
+        const occupant = gameState.houses[currentNode];
         if (occupant && occupant.ownerId !== peerId && currentLength > 0) return;
 
         const neighbors = nodeAdj[currentNode] || [];
@@ -443,9 +443,9 @@ export const calculateScores = (gameState: GameState): GameState => {
         playerBasePoints[p.peerId] = 0;
     });
 
-    Object.values(newState.settlements).forEach(s => {
+    Object.values(newState.houses).forEach(s => {
         if (playerBasePoints[s.ownerId] !== undefined) {
-            playerBasePoints[s.ownerId] += s.isCity ? 2 : 1;
+            playerBasePoints[s.ownerId] += s.isFortress ? 2 : 1;
         }
     });
 
@@ -488,7 +488,7 @@ export const getPlayerTradeRates = (gameState: GameState, map: MapTemplate, peer
     if (!map.ports) return rates;
 
     const playerNodes = new Set<string>();
-    Object.values(gameState.settlements).forEach(s => {
+    Object.values(gameState.houses).forEach(s => {
         if (s.ownerId === peerId) {
             playerNodes.add(s.nodeId);
         }
