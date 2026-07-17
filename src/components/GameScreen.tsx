@@ -3,7 +3,7 @@ import { GameBoard } from './GameBoard';
 import { type MapTemplate } from '../game/mapTemplates';
 import { type PlayerData, PLAYER_COLORS } from '../game/Player';
 import { peerService } from '../network/PeerService';
-import { type GameState, createInitialGameState, rollDice, distributeResources, validateHousePlacement, validatestreetPlacement, getStartingResources, advanceSetupTurn, getValidStreetPlacements, getValidHousePlacements, BUILD_COSTS, canAfford, calculateScores, type ResourceCounts, getLongestStreetForPlayer, type GameSettings, createDiceDeck, getPlayerTradeRates } from '../game/GameState';
+import { type GameState, createInitialGameState, rollDice, distributeResources, validateHousePlacement, validatestreetPlacement, getStartingResources, advanceSetupTurn, getValidStreetPlacements, getValidHousePlacements, BUILD_COSTS, canAfford, calculateScores, type ResourceCounts, getLongestStreetForPlayer, type GameSettings, createDiceDeck } from '../game/GameState';
 import { HexMath } from '../game/HexMath';
 import { TradeModal } from './TradeModal';
 
@@ -56,8 +56,6 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const [abundancePicks, setAbundancePicks] = useState<string[]>([]);
     const [showTradeModal, setShowTradeModal] = useState(false);
     const [tradeModalConfig, setTradeModalConfig] = useState<{
-        initialTab?: 'BANK' | 'PLAYER';
-        initialBankGive?: string;
         initialOffer?: Partial<ResourceCounts>;
     }>({});
     const [showBankPanel, setShowBankPanel] = useState(true);
@@ -422,16 +420,8 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
     const handleResourceClick = (res: string) => {
         if (!myPlayer || isSetupPhase) return;
-
-        const rates = getPlayerTradeRates(gameState, map, myPlayer.peerId);
-        const rate = rates[res as keyof typeof rates] || 4;
-        const count = myPlayer.resources[res as keyof typeof myPlayer.resources] || 0;
-
-        if (count >= rate) {
-            setTradeModalConfig({ initialTab: 'BANK', initialBankGive: res });
-        } else {
-            setTradeModalConfig({ initialTab: 'PLAYER', initialOffer: { [res]: 1 } });
-        }
+        // Pre-fill the offer with 1 unit of the clicked resource
+        setTradeModalConfig({ initialOffer: { [res]: 1 } });
         setShowTradeModal(true);
     };
 
@@ -1358,11 +1348,10 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
                                     {myPlayer.peerId === gameState.tradeProposal.proposerId ? (
                                         <div className="space-y-2">
-                                            <h3 className="text-[9px] font-bold text-slate-300 text-center uppercase tracking-wider">Accepted By</h3>
-                                            {gameState.tradeProposal.acceptedBy.length === 0 ? (
-                                                <p className="text-slate-500 text-center text-[10px] italic">Waiting for responses...</p>
-                                            ) : (
+                                            {/* Accepted players */}
+                                            {gameState.tradeProposal.acceptedBy.length > 0 && (
                                                 <div className="flex flex-col gap-1">
+                                                    <h3 className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider text-center">✓ Accepted</h3>
                                                     {gameState.tradeProposal.acceptedBy.map(pid => {
                                                         const p = gameState.players.find(x => x.peerId === pid);
                                                         return p ? (
@@ -1373,6 +1362,27 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                     })}
                                                 </div>
                                             )}
+
+                                            {/* Declined players */}
+                                            {(gameState.tradeProposal.declinedBy?.length ?? 0) > 0 && (
+                                                <div className="flex flex-col gap-1">
+                                                    <h3 className="text-[9px] font-bold text-red-400 uppercase tracking-wider text-center">✗ Declined</h3>
+                                                    {gameState.tradeProposal.declinedBy!.map(pid => {
+                                                        const p = gameState.players.find(x => x.peerId === pid);
+                                                        return p ? (
+                                                            <div key={pid} className="w-full py-1 px-2 bg-red-900/40 border border-red-800/50 text-[10px] rounded font-bold text-red-300 text-center">
+                                                                {p.username}
+                                                            </div>
+                                                        ) : null;
+                                                    })}
+                                                </div>
+                                            )}
+
+                                            {/* Waiting message if nobody has responded yet */}
+                                            {gameState.tradeProposal.acceptedBy.length === 0 && (gameState.tradeProposal.declinedBy?.length ?? 0) === 0 && (
+                                                <p className="text-slate-500 text-center text-[10px] italic">Waiting for responses...</p>
+                                            )}
+
                                             <button onClick={handleCancelTrade} className="w-full py-1.5 bg-slate-700 hover:bg-slate-600 text-[10px] rounded font-bold transition-colors shadow">Cancel Offer</button>
                                         </div>
                                     ) : (
@@ -1436,8 +1446,6 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                             onBankTrade={handleBankTrade}
                                             onProposeTrade={handleProposeTrade}
                                             canPropose={isMyTurn && gameState.phase !== 'ROLL' && !isSetupPhase}
-                                            initialTab={tradeModalConfig.initialTab}
-                                            initialBankGive={tradeModalConfig.initialBankGive}
                                             initialOffer={tradeModalConfig.initialOffer}
                                         />
                                     </div>
