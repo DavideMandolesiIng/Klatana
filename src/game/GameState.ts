@@ -80,7 +80,7 @@ export interface GameState {
     largestClanHolder: string | null;
     largestClanSize: number;
     longestStreetHolder: string | null;
-    longeststreetLength: number;
+    longestStreetLength: number;
     playedNinjaCards: Record<string, number>;
     winningScore: number;
     diceDeck: { die1: number, die2: number }[];
@@ -166,7 +166,7 @@ export const createInitialGameState = (lobbyPlayers: PlayerData[], map: MapTempl
         largestClanHolder: null,
         largestClanSize: 0,
         longestStreetHolder: null,
-        longeststreetLength: 0,
+        longestStreetLength: 0,
         playedNinjaCards: {},
         winningScore: settings.winPoints,
         diceDeck: settings.trueRoll ? [] : createDiceDeck(),
@@ -436,11 +436,11 @@ export const calculateScores = (gameState: GameState): GameState => {
 
 
     // Calculate Longest street and Base Points
-    const playerstreetLengths: Record<string, number> = {};
+    const playerStreetLengths: Record<string, number> = {};
     const playerBasePoints: Record<string, number> = {};
 
     newState.players.forEach(p => {
-        playerstreetLengths[p.peerId] = getLongestStreetForPlayer(newState, p.peerId);
+        playerStreetLengths[p.peerId] = getLongestStreetForPlayer(newState, p.peerId);
         playerBasePoints[p.peerId] = 0;
     });
 
@@ -452,13 +452,13 @@ export const calculateScores = (gameState: GameState): GameState => {
 
     // Determine Longest street Holder
     newState.players.forEach(p => {
-        const streetLen = playerstreetLengths[p.peerId];
-        if (streetLen >= 5 && streetLen > newState.longeststreetLength) {
+        const streetLen = playerStreetLengths[p.peerId];
+        if (streetLen >= 5 && streetLen > newState.longestStreetLength) {
             if (newState.longestStreetHolder !== p.peerId) {
                 newState.logs.push(`${p.username} took the Longest street award!`);
             }
             newState.longestStreetHolder = p.peerId;
-            newState.longeststreetLength = streetLen;
+            newState.longestStreetLength = streetLen;
         }
     });
 

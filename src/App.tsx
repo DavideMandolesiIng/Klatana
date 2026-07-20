@@ -35,6 +35,8 @@ function App() {
 
   return (
     <div className="App">
+
+
       {gameState === 'menu' && <MainMenu onJoinLobby={() => setGameState('lobby')} onPrivacyPolicy={() => setGameState('privacy')} />}
       {gameState === 'privacy' && <PrivacyPolicy onBack={() => setGameState('menu')} />}
       {gameState === 'lobby' && <Lobby 

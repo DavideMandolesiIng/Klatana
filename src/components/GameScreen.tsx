@@ -59,6 +59,8 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         initialOffer?: Partial<ResourceCounts>;
     }>({});
     const [showBankPanel, setShowBankPanel] = useState(true);
+    const [showBuildCosts, setShowBuildCosts] = useState(false);
+    const [showLogs, setShowLogs] = useState(false);
     const [pendingBuild, setPendingBuild] = useState<{ type: 'HOUSE' | 'street' | 'FORTRESS', id: string, costText: string } | null>(null);
 
     const [recentAnimations, setRecentAnimations] = useState<{ id: string; event: AnimationEvent; diffs: ResourceDiff[] }[]>([]);
@@ -811,10 +813,12 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
         // Pick random resource from target
         const available = Object.entries(targetPlayer.resources).filter(([_, count]) => count > 0).map(([res]) => res);
+        let logMessage = `${myPlayer!.username} stole a resource from ${targetPlayer.username}.`;
         if (available.length > 0) {
             const stolenRes = available[Math.floor(Math.random() * available.length)] as keyof typeof targetPlayer.resources;
             targetPlayer.resources[stolenRes] -= 1;
             updatedMe.resources[stolenRes] += 1;
+            logMessage = `${myPlayer!.username} stole a resource from ${targetPlayer.username}.|STEAL|${myPlayer!.peerId}|${targetPlayer.peerId}|${stolenRes}`;
         }
 
         newPlayers[targetIndex] = targetPlayer;
@@ -824,7 +828,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             ...gameState,
             players: newPlayers,
             gamePhase: 'MAIN_GAME',
-            logs: [...gameState.logs, `${myPlayer!.username} stole a resource from ${targetPlayer.username}.`]
+            logs: [...gameState.logs, logMessage]
         };
         broadcastState(newState);
     };
@@ -868,7 +872,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     };
 
     return (
-        <div className="h-screen bg-slate-900 p-4 flex flex-col font-sans text-slate-200 overflow-hidden">
+        <div className="h-[100dvh] bg-slate-900 p-1 md:p-2 lg:p-4 flex flex-col font-sans text-slate-200 overflow-y-auto md:overflow-hidden">
 
             {/* VICTORY SCREEN */}
             {gameState.gamePhase === 'GAME_OVER' && (
@@ -917,7 +921,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                         <td className="px-3 py-2 font-bold text-yellow-500">{totalVp}</td>
                                                         <td className="px-3 py-2 font-medium">{p.actionCards.length}</td>
                                                         <td className="px-3 py-2 font-medium">{gameState.largestClanHolder === p.peerId ? gameState.largestClanSize : (gameState.playedNinjaCards[p.peerId] || 0)}</td>
-                                                        <td className="px-3 py-2 font-medium">{gameState.longestStreetHolder === p.peerId ? gameState.longeststreetLength : getLongestStreetForPlayer(gameState, p.peerId)}</td>
+                                                        <td className="px-3 py-2 font-medium">{gameState.longestStreetHolder === p.peerId ? gameState.longestStreetLength : getLongestStreetForPlayer(gameState, p.peerId)}</td>
                                                     </tr>
                                                 );
                                             })}
@@ -1156,23 +1160,23 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
 
 
-            <div className="flex-grow flex gap-4 min-h-0 overflow-hidden">
+            <div className="flex-grow flex flex-col md:flex-row gap-2 md:gap-4 min-h-0 overflow-visible md:overflow-hidden">
                 {/* Left Sidebar */}
-                <div className="w-56 flex flex-col gap-4 shrink-0">
-                    <div className="flex-grow flex flex-col gap-4">
+                <div className="w-full md:w-48 lg:w-56 flex flex-col shrink-0">
+                    <div className="flex-grow flex flex-row md:flex-col gap-2 lg:gap-4">
                         {/* Disclaimer */}
-                        <div className="opacity-70 hover:opacity-100 transition-opacity pointer-events-none flex flex-col shrink-0">
+                        <div className="hidden md:flex opacity-70 hover:opacity-100 transition-opacity pointer-events-none flex-col shrink-0">
                             <p className="text-[10px] text-slate-400 max-w-sm leading-tight">
                                 Klatana is a free, open-source fan project.<br />It is not affiliated with, endorsed by, or sponsored by Catan Studio, Asmodee, or any related entities.
                             </p>
                         </div>
 
                         {/* Action Cards Box */}
-                        <div className="bg-slate-800 p-3 rounded-xl border border-slate-700 shadow-lg flex flex-col shrink-0 min-h-0 mt-auto">
-                            <h3 className="font-bold text-slate-300 uppercase text-xs tracking-wider mb-2">Action Cards</h3>
-                            <div className="flex flex-col gap-2 flex-grow">
+                        <div className="flex-1 md:flex-none bg-slate-800 p-1 md:p-3 rounded-lg md:rounded-xl border border-slate-700 shadow-lg flex flex-col shrink-0 min-h-0 mt-0 md:mt-auto">
+                            <h3 className="hidden md:block font-bold text-slate-300 uppercase text-xs tracking-wider mb-2">Action Cards</h3>
+                            <div className="flex flex-row md:flex-col gap-1 md:gap-2 flex-grow overflow-x-auto overflow-y-hidden md:overflow-visible items-center md:items-stretch">
                                 {myPlayer?.actionCards.map((card, i) => (
-                                    <div key={i} className="bg-slate-900 p-2 rounded border border-slate-700 flex justify-between items-center group relative cursor-help">
+                                    <div key={i} className="bg-slate-900 p-1 md:p-2 rounded border border-slate-700 flex gap-2 justify-between items-center group relative cursor-help shrink-0 md:shrink">
                                         <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-48 pointer-events-none z-[60]">
                                             <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Info</span>
                                             <span className="text-[10px] text-slate-300 text-center font-medium">
@@ -1183,12 +1187,12 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                                 card.type === 'RAPID_EXPANSION' ? 'Instantly build 2 streets for free.' : ''}
                                             </span>
                                         </div>
-                                        <span className="text-[10px] font-bold text-slate-300 uppercase truncate pr-1 flex-1">{card.type}</span>
+                                        <span className="text-[9px] md:text-[10px] font-bold text-slate-300 uppercase truncate pr-1 flex-1">{card.type}</span>
                                         {card.type !== 'MONUMENT' && (
                                             <button
                                                 onClick={() => handlePlayCard(i)}
                                                 disabled={!isMyTurn || gameState.phase === 'ROLL' || gameState.activeTurnPlayedCard || card.boughtThisTurn}
-                                                className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 rounded text-[10px] font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed relative z-10"
+                                                className="px-1.5 py-0.5 md:px-2 md:py-1 bg-indigo-600 hover:bg-indigo-500 rounded text-[9px] md:text-[10px] font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed relative z-10 shrink-0"
                                             >
                                                 Play
                                             </button>
@@ -1200,10 +1204,10 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         </div>{/* end Action Cards box */}
 
                         {/* Resources Box */}
-                        <div className="bg-slate-800 p-3 rounded-xl border border-slate-700 shadow-lg flex flex-col shrink-0">
-                            <h3 className="font-bold text-slate-300 uppercase text-xs tracking-wider mb-2">My Resources</h3>
+                        <div className="flex-1 md:flex-none bg-slate-800 p-1 md:p-3 rounded-lg md:rounded-xl border border-slate-700 shadow-lg flex flex-col shrink-0">
+                            <h3 className="hidden md:block font-bold text-slate-300 uppercase text-xs tracking-wider mb-2">My Resources</h3>
                             {myPlayer && (
-                                <div className="grid grid-cols-3 gap-1.5 mb-2">
+                                <div className="flex flex-row md:grid md:grid-cols-3 gap-1 md:gap-1.5 overflow-x-auto md:overflow-visible mb-0 md:mb-2 items-center">
                                     {Object.entries(myPlayer.resources)
                                         .filter(([res]) => res !== 'NUGGETS' || map.hexes.some(h => h.resource === 'NUGGETS'))
                                         .map(([res, count]) => {
@@ -1223,7 +1227,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                 <div
                                                     key={res}
                                                     onClick={() => handleResourceClick(res)}
-                                                    className="relative flex flex-col items-center justify-between p-1.5 rounded-lg border border-black/30 shadow-md overflow-hidden min-h-[70px] transition-transform hover:scale-105 cursor-pointer"
+                                                    className="relative flex flex-row md:flex-col items-center justify-between gap-1 md:gap-0 p-1 md:p-1.5 rounded border border-black/30 shadow-md overflow-hidden min-h-[24px] md:min-h-[70px] transition-transform hover:scale-105 cursor-pointer shrink-0"
                                                     style={{ background: `radial-gradient(circle at center, ${grad.center}, ${grad.edge})` }}
                                                 >
                                                     {RESOURCE_TEXTURES[res] && (
@@ -1232,13 +1236,13 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                             style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }}
                                                         />
                                                     )}
-                                                    <div className="relative z-10 flex flex-col items-center gap-0.5">
-                                                        <img src={RESOURCE_ICONS[res as keyof typeof RESOURCE_ICONS]} alt={res} className="w-6 h-6 drop-shadow-md filter-none" />
-                                                        <span className={`text-[8px] font-bold uppercase tracking-wider ${textClass} text-center leading-tight truncate w-full`}>
+                                                    <div className="relative z-10 flex flex-row md:flex-col items-center gap-1 md:gap-0.5">
+                                                        <img src={RESOURCE_ICONS[res as keyof typeof RESOURCE_ICONS]} alt={res} className="w-4 h-4 md:w-6 md:h-6 drop-shadow-md filter-none" />
+                                                        <span className={`hidden md:block text-[8px] font-bold uppercase tracking-wider ${textClass} text-center leading-tight truncate w-full`}>
                                                             {res}
                                                         </span>
                                                     </div>
-                                                    <div className={`relative z-10 font-black ${numTextClass} ${numBgClass} px-2 py-0.5 rounded text-xs mt-1 w-full text-center shadow-inner`}>
+                                                    <div className={`relative z-10 font-black ${numTextClass} ${numBgClass} px-1.5 py-0.5 md:px-2 md:py-0.5 rounded text-[10px] md:text-xs mt-0 md:mt-1 w-auto md:w-full text-center shadow-inner`}>
                                                         {count}
                                                     </div>
                                                 </div>
@@ -1271,7 +1275,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                     />
 
                     {/* Top-Left Floating Info: Player Identity */}
-                    <div className="absolute top-4 left-4 flex flex-col gap-2 z-10 pointer-events-none">
+                    <div className="absolute top-1 left-1 md:top-2 md:left-2 lg:top-4 lg:left-4 flex flex-col gap-1 lg:gap-2 z-10 pointer-events-none">
                         <div className="px-3 py-1.5 bg-slate-900/80 backdrop-blur rounded-lg text-sm font-bold shadow-lg border border-slate-700">
                             <span className="text-slate-400 mr-2">Playing as:</span>
                             <span className="text-white drop-shadow" style={{ color: myPlayer ? PLAYER_COLORS[myPlayer.color as keyof typeof PLAYER_COLORS].hex : 'white' }}>{myPlayer?.username}</span>
@@ -1284,7 +1288,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                     </div>
 
                     {/* Top-Right Floating Info: Dice Roll, Turn & Phase */}
-                    <div className="absolute top-4 right-4 z-10 pointer-events-none flex flex-col items-end gap-2">
+                    <div className="absolute top-1 right-1 md:top-2 md:right-2 lg:top-4 lg:right-4 z-10 pointer-events-none flex flex-col items-end gap-1 lg:gap-2">
                         <div className="flex gap-2">
                             <div className="px-3 py-1.5 bg-slate-900/80 backdrop-blur rounded-lg text-xs font-bold shadow-lg border border-slate-700">
                                 <span className="text-slate-400 uppercase tracking-wider mr-2">Turn:</span>
@@ -1310,7 +1314,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
                     {/* Bottom-Left Floating Panels: Trade Proposal & Trade Market */}
                     {myPlayer && (
-                        <div className="absolute bottom-0 left-0 z-20 w-90 flex flex-col justify-end gap-2">
+                        <div className="absolute bottom-0 left-0 z-20 w-[90%] md:w-80 lg:w-[360px] max-w-sm flex flex-col justify-end gap-2">
                             {/* P2P Trade Proposal */}
                             {gameState.gamePhase === 'P2P_TRADE_PENDING' && gameState.tradeProposal && (
                                 <div className="bg-slate-800/95 backdrop-blur-md rounded-tr-xl border-t border-r border-slate-600 shadow-2xl p-3 flex flex-col">
@@ -1437,7 +1441,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
                                 {/* Expanded Content */}
                                 {showTradeModal && (
-                                    <div className="bg-slate-800/95 backdrop-blur-md border-r border-t border-slate-600 rounded-tr-xl shadow-2xl p-3">
+                                    <div className="bg-slate-800/95 backdrop-blur-md border-r border-t border-slate-600 rounded-tr-xl shadow-2xl p-2 md:p-3 max-h-[50vh] overflow-y-auto pointer-events-auto">
                                         <TradeModal
                                             gameState={gameState}
                                             myPlayerId={myPlayer.peerId}
@@ -1455,69 +1459,79 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                     )}
 
                     {/* Floating Controls (Roll/Build/End Turn) - Bottom Right inside Main Area */}
-                    <div className="absolute bottom-0 right-0 z-10 flex flex-col items-end gap-2 pb-3 pr-4">
+                    <div className="absolute bottom-[30px] md:bottom-0 right-0 z-10 flex flex-col items-end gap-2 pb-1 pr-1 md:pb-2 md:pr-2 lg:pb-3 lg:pr-4 md:scale-90 lg:scale-100 origin-bottom-right pointer-events-none">
                         {/* Build Costs Legend - sits above action buttons */}
-                        <div className="flex flex-col gap-1 pointer-events-none bg-slate-900/90 backdrop-blur-md p-2.5 rounded-lg border border-slate-700 shadow-xl text-[9px] uppercase font-bold tracking-wider hidden md:flex">
-                            <div className="text-slate-400 border-b border-slate-700 pb-1 mb-0.5 text-center">Build Costs</div>
-                            <div className="flex items-center justify-between gap-4 text-slate-300">
-                                <span>street</span>
-                                <div className="flex gap-1 drop-shadow-sm">
-                                    <img src={RESOURCE_ICONS.OAK} className="w-3 h-3" />
-                                    <img src={RESOURCE_ICONS.CLAY} className="w-3 h-3" />
+                        <div className="flex flex-col gap-2 items-end pointer-events-auto">
+                            <button
+                                onClick={() => setShowBuildCosts(!showBuildCosts)}
+                                className="bg-slate-900/90 hover:bg-slate-800 text-slate-400 border border-slate-700 px-2 py-1 md:px-3 md:py-1.5 rounded md:rounded-lg text-[8px] md:text-[9px] font-bold uppercase tracking-widest shadow-xl backdrop-blur-md transition-colors flex items-center gap-1 md:gap-2"
+                            >
+                                <span>Build Costs</span>
+                                <span>{showBuildCosts ? '▼' : '▲'}</span>
+                            </button>
+                            {showBuildCosts && (
+                                <div className="flex flex-col gap-1 bg-slate-900/90 backdrop-blur-md p-1.5 md:p-2.5 rounded md:rounded-lg border border-slate-700 shadow-xl text-[8px] md:text-[9px] uppercase font-bold tracking-wider mb-1">
+                                    <div className="flex items-center justify-between gap-4 text-slate-300">
+                                        <span>street</span>
+                                        <div className="flex gap-1 drop-shadow-sm">
+                                            <img src={RESOURCE_ICONS.OAK} className="w-2.5 h-2.5 md:w-3 md:h-3" />
+                                            <img src={RESOURCE_ICONS.CLAY} className="w-2.5 h-2.5 md:w-3 md:h-3" />
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-4 text-slate-300">
+                                        <span>House</span>
+                                        <div className="flex gap-1 drop-shadow-sm">
+                                            <img src={RESOURCE_ICONS.OAK} className="w-2.5 h-2.5 md:w-3 md:h-3" />
+                                            <img src={RESOURCE_ICONS.CLAY} className="w-2.5 h-2.5 md:w-3 md:h-3" />
+                                            <img src={RESOURCE_ICONS.CEREALS} className="w-2.5 h-2.5 md:w-3 md:h-3" />
+                                            <img src={RESOURCE_ICONS.WOOL} className="w-2.5 h-2.5 md:w-3 md:h-3" />
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-4 text-slate-300">
+                                        <span>Fortress</span>
+                                        <div className="flex gap-1 drop-shadow-sm">
+                                            <img src={RESOURCE_ICONS.ORE} className="w-2.5 h-2.5 md:w-3 md:h-3" />
+                                            <img src={RESOURCE_ICONS.ORE} className="w-2.5 h-2.5 md:w-3 md:h-3" />
+                                            <img src={RESOURCE_ICONS.ORE} className="w-2.5 h-2.5 md:w-3 md:h-3" />
+                                            <img src={RESOURCE_ICONS.CEREALS} className="w-2.5 h-2.5 md:w-3 md:h-3" />
+                                            <img src={RESOURCE_ICONS.CEREALS} className="w-2.5 h-2.5 md:w-3 md:h-3" />
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-4 text-slate-300">
+                                        <span>Card</span>
+                                        <div className="flex gap-1 drop-shadow-sm">
+                                            <img src={RESOURCE_ICONS.ORE} className="w-2.5 h-2.5 md:w-3 md:h-3" />
+                                            <img src={RESOURCE_ICONS.CEREALS} className="w-2.5 h-2.5 md:w-3 md:h-3" />
+                                            <img src={RESOURCE_ICONS.WOOL} className="w-2.5 h-2.5 md:w-3 md:h-3" />
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="flex items-center justify-between gap-4 text-slate-300">
-                                <span>House</span>
-                                <div className="flex gap-1 drop-shadow-sm">
-                                    <img src={RESOURCE_ICONS.OAK} className="w-3 h-3" />
-                                    <img src={RESOURCE_ICONS.CLAY} className="w-3 h-3" />
-                                    <img src={RESOURCE_ICONS.CEREALS} className="w-3 h-3" />
-                                    <img src={RESOURCE_ICONS.WOOL} className="w-3 h-3" />
-                                </div>
-                            </div>
-                            <div className="flex items-center justify-between gap-4 text-slate-300">
-                                <span>Fortress</span>
-                                <div className="flex gap-1 drop-shadow-sm">
-                                    <img src={RESOURCE_ICONS.ORE} className="w-3 h-3" />
-                                    <img src={RESOURCE_ICONS.ORE} className="w-3 h-3" />
-                                    <img src={RESOURCE_ICONS.ORE} className="w-3 h-3" />
-                                    <img src={RESOURCE_ICONS.CEREALS} className="w-3 h-3" />
-                                    <img src={RESOURCE_ICONS.CEREALS} className="w-3 h-3" />
-                                </div>
-                            </div>
-                            <div className="flex items-center justify-between gap-4 text-slate-300">
-                                <span>Card</span>
-                                <div className="flex gap-1 drop-shadow-sm">
-                                    <img src={RESOURCE_ICONS.ORE} className="w-3 h-3" />
-                                    <img src={RESOURCE_ICONS.CEREALS} className="w-3 h-3" />
-                                    <img src={RESOURCE_ICONS.WOOL} className="w-3 h-3" />
-                                </div>
-                            </div>
+                            )}
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="flex gap-3">
+                        <div className="flex flex-wrap justify-end gap-1.5 md:gap-3 max-w-[240px] md:max-w-[400px] pointer-events-auto">
                             {isMyTurn ? (
                                 isSetupPhase ? (
-                                    <div className="px-6 py-3 bg-indigo-900/90 backdrop-blur-sm rounded-xl text-sm font-bold text-indigo-200 shadow-xl border border-indigo-500 animate-pulse">
+                                    <div className="px-3 py-1.5 md:px-6 md:py-3 bg-indigo-900/90 backdrop-blur-sm rounded-lg md:rounded-xl text-[10px] md:text-sm font-bold text-indigo-200 shadow-xl border border-indigo-500 animate-pulse">
                                         PLACE {gameState.setupAction}
                                     </div>
                                 ) : (
                                     <>
                                         {gameState.phase === 'ROLL' ? (
-                                            <button onClick={handleRollDice} className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold shadow-2xl transition-colors border border-indigo-400 text-sm uppercase tracking-wider">
+                                            <button onClick={handleRollDice} className="px-3 py-1.5 md:px-6 md:py-3 bg-indigo-600 hover:bg-indigo-500 rounded-lg md:rounded-xl font-bold shadow-2xl transition-colors border border-indigo-400 text-[10px] md:text-sm uppercase tracking-wider w-full md:w-auto">
                                                 Roll Dice
                                             </button>
                                         ) : (
                                             <>
                                                 {buildMode !== 'NONE' ? (
-                                                    <button onClick={() => { setBuildMode('NONE'); setPendingBuild(null); }} className="px-6 py-3 bg-slate-700 hover:bg-slate-600 rounded-xl font-bold transition-colors shadow-xl border border-slate-600 text-sm uppercase tracking-wider">
+                                                    <button onClick={() => { setBuildMode('NONE'); setPendingBuild(null); }} className="px-3 py-1.5 md:px-6 md:py-3 bg-slate-700 hover:bg-slate-600 rounded-lg md:rounded-xl font-bold transition-colors shadow-xl border border-slate-600 text-[10px] md:text-sm uppercase tracking-wider w-full md:w-auto">
                                                         Cancel Build
                                                     </button>
                                                 ) : (
                                                     <>
                                                         <div className="relative group flex items-stretch">
-                                                            <button onClick={() => setBuildMode('HOUSE')} disabled={!canAffordHouse || !hasValidHouseSpots} title={canAffordHouse && !hasValidHouseSpots ? "No valid spots available on board" : undefined} className={`px-6 py-3 rounded-xl font-bold transition-colors shadow-xl border text-sm uppercase tracking-wider ${canAffordHouse && hasValidHouseSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : (canAffordHouse && !hasValidHouseSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed')}`}>
+                                                            <button onClick={() => setBuildMode('HOUSE')} disabled={!canAffordHouse || !hasValidHouseSpots} title={canAffordHouse && !hasValidHouseSpots ? "No valid spots available on board" : undefined} className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border text-[9px] md:text-sm uppercase tracking-wider ${canAffordHouse && hasValidHouseSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : (canAffordHouse && !hasValidHouseSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed')}`}>
                                                                 House
                                                             </button>
                                                             <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
@@ -1529,7 +1543,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                             </div>
                                                         </div>
                                                         <div className="relative group flex items-stretch">
-                                                            <button onClick={() => setBuildMode('FORTRESS')} disabled={!canAffordFortress || !hasValidFortressSpots} title={canAffordFortress && !hasValidFortressSpots ? "No valid spots available on board" : undefined} className={`px-6 py-3 rounded-xl font-bold transition-colors shadow-xl border text-sm uppercase tracking-wider ${canAffordFortress && hasValidFortressSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : (canAffordFortress && !hasValidFortressSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed')}`}>
+                                                            <button onClick={() => setBuildMode('FORTRESS')} disabled={!canAffordFortress || !hasValidFortressSpots} title={canAffordFortress && !hasValidFortressSpots ? "No valid spots available on board" : undefined} className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border text-[9px] md:text-sm uppercase tracking-wider ${canAffordFortress && hasValidFortressSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : (canAffordFortress && !hasValidFortressSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed')}`}>
                                                                 Fortress
                                                             </button>
                                                             <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
@@ -1541,7 +1555,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                             </div>
                                                         </div>
                                                         <div className="relative group flex items-stretch">
-                                                            <button onClick={() => setBuildMode('street')} disabled={!canAffordStreet || !hasValidStreetSpots} title={canAffordStreet && !hasValidStreetSpots ? "No valid spots available on board" : undefined} className={`px-6 py-3 rounded-xl font-bold transition-colors shadow-xl border text-sm uppercase tracking-wider ${canAffordStreet && hasValidStreetSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : (canAffordStreet && !hasValidStreetSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed')}`}>
+                                                            <button onClick={() => setBuildMode('street')} disabled={!canAffordStreet || !hasValidStreetSpots} title={canAffordStreet && !hasValidStreetSpots ? "No valid spots available on board" : undefined} className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border text-[9px] md:text-sm uppercase tracking-wider ${canAffordStreet && hasValidStreetSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : (canAffordStreet && !hasValidStreetSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed')}`}>
                                                                 street
                                                             </button>
                                                             <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
@@ -1553,8 +1567,8 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                             </div>
                                                         </div>
                                                         <div className="relative group flex items-stretch">
-                                                            <button onClick={handleBuyCard} disabled={!canAffordCard || gameState.actionCardDeck.length === 0} className={`px-6 py-3 rounded-xl font-bold transition-colors shadow-xl border-2 text-sm uppercase tracking-wider ${canAffordCard && gameState.actionCardDeck.length > 0 ? 'bg-slate-700 hover:bg-slate-600 border-purple-500 text-purple-200' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed'}`}>
-                                                                Buy Card <span className="text-[10px] text-slate-400 font-normal">({gameState.actionCardDeck.length})</span>
+                                                            <button onClick={handleBuyCard} disabled={!canAffordCard || gameState.actionCardDeck.length === 0} className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border-2 text-[9px] md:text-sm uppercase tracking-wider ${canAffordCard && gameState.actionCardDeck.length > 0 ? 'bg-slate-700 hover:bg-slate-600 border-purple-500 text-purple-200' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed'}`}>
+                                                                Buy Card <span className="text-[8px] md:text-[10px] text-slate-400 font-normal">({gameState.actionCardDeck.length})</span>
                                                             </button>
                                                             <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
                                                                 <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
@@ -1570,11 +1584,11 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                     <button onClick={() => {
                                                         broadcastState({ ...gameState, gamePhase: 'MAIN_GAME', freeStreetsLeft: 0 });
                                                         setBuildMode('NONE');
-                                                    }} className="px-6 py-3 rounded-xl font-bold shadow-2xl transition-colors border border-amber-500 bg-amber-600 hover:bg-amber-500 text-sm uppercase tracking-wider">
+                                                    }} className="px-3 py-1.5 md:px-6 md:py-3 rounded-lg md:rounded-xl font-bold shadow-2xl transition-colors border border-amber-500 bg-amber-600 hover:bg-amber-500 text-[10px] md:text-sm uppercase tracking-wider">
                                                         End Free street
                                                     </button>
                                                 ) : (
-                                                    <button onClick={() => handleEndTurn(false)} disabled={gameState.gamePhase !== 'MAIN_GAME'} className={`px-6 py-3 rounded-xl font-bold shadow-2xl transition-colors border text-sm uppercase tracking-wider ${gameState.gamePhase === 'MAIN_GAME' ? 'bg-red-600 hover:bg-red-500 border-red-400' : 'bg-red-800 border-red-700 opacity-50 cursor-not-allowed'}`}>
+                                                    <button onClick={() => handleEndTurn(false)} disabled={gameState.gamePhase !== 'MAIN_GAME'} className={`px-4 py-1.5 md:px-6 md:py-3 rounded-lg md:rounded-xl font-bold shadow-2xl transition-colors border text-[10px] md:text-sm uppercase tracking-wider ${gameState.gamePhase === 'MAIN_GAME' ? 'bg-red-600 hover:bg-red-500 border-red-400' : 'bg-red-800 border-red-700 opacity-50 cursor-not-allowed'}`}>
                                                         End Turn
                                                     </button>
                                                 )}
@@ -1583,7 +1597,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                     </>
                                 )
                             ) : (
-                                <div className="px-5 py-3 bg-slate-900/80 backdrop-blur-sm rounded-xl text-sm font-medium text-slate-400 shadow-xl border border-slate-700">
+                                <div className="px-3 py-2 md:px-5 md:py-3 bg-slate-900/80 backdrop-blur-sm rounded-lg md:rounded-xl text-[10px] md:text-sm font-medium text-slate-400 shadow-xl border border-slate-700">
                                     Waiting for {currentPlayer?.username}...
                                 </div>
                             )}
@@ -1592,92 +1606,115 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                 </main>
 
                 {/* Right Sidebar */}
-                <div className="w-72 flex flex-col gap-4 shrink-0 min-h-0">
-                    {/* Bank Resources Panel */}
-                    {!settings.hideBankResources && (
-                        <div className="bg-slate-800 rounded-xl border border-slate-700 shadow-lg shrink-0 flex flex-col overflow-hidden">
-                            <button
-                                onClick={() => setShowBankPanel(!showBankPanel)}
-                                className="bg-slate-900/50 p-3 border-b border-slate-700 font-bold text-xs uppercase text-slate-300 tracking-wider flex justify-between items-center hover:bg-slate-700 transition"
-                            >
-                                <span>Bank Resources</span>
-                                <span>{showBankPanel ? '▼' : '▲'}</span>
+                <div className="w-full md:w-56 lg:w-72 flex flex-row md:flex-col gap-2 lg:gap-4 shrink-0 min-h-0">
+                    <div className="flex-1 flex flex-col gap-2 lg:gap-4 min-w-0">
+                        {/* Bank Resources Panel */}
+                        {!settings.hideBankResources && (
+                            <div className="bg-slate-800 rounded-xl border border-slate-700 shadow-lg shrink-0 flex flex-col overflow-hidden">
+                                <button
+                                    onClick={() => setShowBankPanel(!showBankPanel)}
+                                    className="bg-slate-900/50 p-2 md:p-3 border-b border-slate-700 font-bold text-[10px] md:text-xs uppercase text-slate-300 tracking-wider flex justify-between items-center hover:bg-slate-700 transition"
+                                >
+                                    <span>Bank Resources</span>
+                                    <span>{showBankPanel ? '▼' : '▲'}</span>
+                                </button>
+                                {showBankPanel && (
+                                    <div className="p-2 md:p-3 flex flex-col md:grid md:grid-cols-2 gap-1.5 md:gap-2 max-h-32 md:max-h-none overflow-y-auto md:overflow-visible">
+                                        {['OAK', 'CLAY', 'CEREALS', 'WOOL', 'ORE'].map(res => {
+                                            const totalInPlay = gameState.players.reduce((sum, p) => sum + (p.resources[res as keyof typeof p.resources] || 0), 0);
+                                            const remaining = Math.max(0, 19 - totalInPlay);
+                                            const grad = RESOURCE_GRADIENTS[res] || { center: '#334155', edge: '#0f172a' };
+                                            let textClass = "text-white drop-shadow-sm";
+                                            let numBgClass = "bg-black/40";
+                                            let numTextClass = "text-white";
+
+                                            if (res === 'CEREALS' || res === 'NUGGETS' || res === 'WOOL') {
+                                                textClass = "text-[#2a1c0d] drop-shadow-none";
+                                                numBgClass = "bg-[#2a1c0d]/20";
+                                                numTextClass = "text-[#2a1c0d]";
+                                            }
+
+                                            return (
+                                                <div
+                                                    key={res}
+                                                    className="relative p-1 md:p-1.5 rounded border border-black/30 flex justify-between items-center shadow-md overflow-hidden shrink-0"
+                                                    style={{ background: `radial-gradient(circle at center, ${grad.center}, ${grad.edge})` }}
+                                                >
+                                                    {RESOURCE_TEXTURES[res] && (
+                                                        <div
+                                                            className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-50 mix-blend-overlay"
+                                                            style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }}
+                                                        />
+                                                    )}
+                                                    <span className={`relative z-10 text-[9px] md:text-[10px] font-bold ${textClass} mr-1`}>{res}</span>
+                                                    <span className={`relative z-10 font-black ${numTextClass} ${numBgClass} px-1.5 rounded text-[10px] md:text-xs`}>{remaining}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Game Log (Top Right) */}
+                        <div className="flex flex-col gap-2 shrink-0 max-h-40 md:h-40">
+                            <button onClick={() => setShowLogs(!showLogs)} className="md:hidden w-full bg-slate-800 p-2 text-[10px] font-bold text-slate-300 uppercase tracking-wider rounded-xl border border-slate-700 shadow-lg flex justify-between items-center shrink-0">
+                                <span>Game Log</span>
+                                <span>{showLogs ? '▼' : '▲'}</span>
                             </button>
-                            {showBankPanel && (
-                                <div className="p-3 grid grid-cols-2 gap-2">
-                                    {['OAK', 'CLAY', 'CEREALS', 'WOOL', 'ORE'].map(res => {
-                                        const totalInPlay = gameState.players.reduce((sum, p) => sum + (p.resources[res as keyof typeof p.resources] || 0), 0);
-                                        const remaining = Math.max(0, 19 - totalInPlay);
-                                        const grad = RESOURCE_GRADIENTS[res] || { center: '#334155', edge: '#0f172a' };
-                                        let textClass = "text-white drop-shadow-sm";
-                                        let numBgClass = "bg-black/40";
-                                        let numTextClass = "text-white";
-
-                                        if (res === 'CEREALS' || res === 'NUGGETS' || res === 'WOOL') {
-                                            textClass = "text-[#2a1c0d] drop-shadow-none";
-                                            numBgClass = "bg-[#2a1c0d]/20";
-                                            numTextClass = "text-[#2a1c0d]";
+                            <div className={`${showLogs ? 'flex' : 'hidden'} md:flex bg-slate-800 rounded-xl border border-slate-700 shadow-lg h-32 md:h-full shrink-0 flex-col overflow-hidden`}>
+                                <div className="hidden md:block bg-slate-900/50 p-2 border-b border-slate-700 font-bold text-[10px] uppercase text-slate-400 tracking-wider shrink-0">
+                                    Game Log
+                                </div>
+                                <div className="p-2 overflow-y-auto flex-grow space-y-1 text-[10px] md:text-xs flex flex-col-reverse">
+                                    {[...gameState.logs].reverse().map((log, i) => {
+                                        if (log.includes('|STEAL|')) {
+                                            const [msg, type, stealerId, targetId, resource] = log.split('|');
+                                            const canSee = myPlayer?.peerId === stealerId || myPlayer?.peerId === targetId;
+                                            return (
+                                                <div key={i} className="text-slate-300 border-b border-slate-700/50 pb-1">
+                                                    {canSee ? msg.replace('a resource', `1 ${resource}`) : msg}
+                                                </div>
+                                            );
                                         }
-
                                         return (
-                                            <div
-                                                key={res}
-                                                className="relative p-1.5 rounded border border-black/30 flex justify-between items-center shadow-md overflow-hidden"
-                                                style={{ background: `radial-gradient(circle at center, ${grad.center}, ${grad.edge})` }}
-                                            >
-                                                {RESOURCE_TEXTURES[res] && (
-                                                    <div
-                                                        className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-50 mix-blend-overlay"
-                                                        style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }}
-                                                    />
-                                                )}
-                                                <span className={`relative z-10 text-[10px] font-bold ${textClass} mr-1`}>{res}</span>
-                                                <span className={`relative z-10 font-black ${numTextClass} ${numBgClass} px-1.5 rounded text-xs`}>{remaining}</span>
-                                            </div>
+                                            <div key={i} className="text-slate-300 border-b border-slate-700/50 pb-1">{log}</div>
                                         );
                                     })}
                                 </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Game Log (Top Right) */}
-                    <div className="bg-slate-800 rounded-xl border border-slate-700 shadow-lg h-40 shrink-0 flex flex-col overflow-hidden">
-                        <div className="bg-slate-900/50 p-2 border-b border-slate-700 font-bold text-[10px] uppercase text-slate-400 tracking-wider shrink-0">
-                            Game Log
-                        </div>
-                        <div className="p-2 overflow-y-auto flex-grow space-y-1 text-xs flex flex-col-reverse">
-                            {[...gameState.logs].reverse().map((log, i) => (
-                                <div key={i} className="text-slate-300 border-b border-slate-700/50 pb-1">{log}</div>
-                            ))}
+                            </div>
                         </div>
                     </div>
 
-                    {/* Players List (Below Log) */}
-                    <div className="flex-grow bg-slate-800 rounded-xl border border-slate-700 shadow-lg p-3 flex flex-col gap-2 overflow-y-auto min-h-0">
-                        <h3 className="font-bold text-slate-300 uppercase text-xs tracking-wider mb-1 shrink-0">Players</h3>
-                        {gameState.players.map(p => (
-                            <div key={p.peerId} className={`p-2 rounded border transition-colors flex flex-col gap-2 shrink-0 ${p.peerId === currentPlayer?.peerId ? 'border-emerald-500 bg-slate-900' : 'border-slate-700 bg-slate-900/50'}`}>
-                                <div className="flex items-center gap-2 truncate">
-                                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: PLAYER_COLORS[p.color as keyof typeof PLAYER_COLORS].hex }}></div>
-                                    <span className="font-bold text-sm truncate">{p.username}</span>
+                    <div className="flex-1 flex flex-col gap-2 lg:gap-4 min-w-0">
+                        {/* Players List (Below Log) */}
+                        <div className="flex-grow bg-slate-800 rounded-xl border border-slate-700 shadow-lg p-2 md:p-3 flex flex-col gap-1 md:gap-2 overflow-y-auto min-h-0">
+                            <h3 className="font-bold text-slate-300 uppercase text-[10px] md:text-xs tracking-wider mb-1 shrink-0">Players</h3>
+                            {gameState.players.map(p => (
+                                <div key={p.peerId} className={`p-1.5 md:p-2 rounded border transition-colors flex flex-col gap-1 md:gap-2 shrink-0 ${p.peerId === currentPlayer?.peerId ? 'border-emerald-500 bg-slate-900' : 'border-slate-700 bg-slate-900/50'}`}>
+                                    <div className="flex items-center gap-1.5 md:gap-2 truncate">
+                                        <div className="w-2 h-2 md:w-2.5 md:h-2.5 rounded-full shrink-0" style={{ backgroundColor: PLAYER_COLORS[p.color as keyof typeof PLAYER_COLORS].hex }}></div>
+                                        <span className="font-bold text-xs md:text-sm truncate">{p.username}</span>
+                                    </div>
+                                    <div className="flex gap-1.5 md:gap-3 text-[10px] md:text-xs items-center mt-0.5 md:mt-1">
+                                        <div className="flex gap-1 md:gap-2">
+                                            <span title="Victory Points" className="bg-slate-800/80 px-1 py-0.5 rounded shadow border border-slate-700">VP: <span className="text-white font-bold">{p.victoryPoints}{p.peerId === myPlayer?.peerId ? <span className="text-emerald-400 font-normal">+{p.actionCards.filter(c => c.type === 'MONUMENT').length}</span> : ''}</span></span>
+                                            <span title="Cards" className="bg-slate-800/80 px-1 py-0.5 rounded shadow border border-slate-700 text-slate-300">🃏 <span className="text-white font-bold">{Object.values(p.resources).reduce((a, b) => a + b, 0)}</span></span>
+                                        </div>
+                                        <div className="flex ml-auto gap-1 md:gap-2">
+                                            <div className={`flex items-center gap-0.5 md:gap-1 px-1 py-0.5 rounded shadow border ${gameState.longestStreetHolder === p.peerId ? 'bg-amber-900 border-amber-500 text-amber-500' : 'bg-slate-800 border-slate-700 text-slate-400'}`} title="Street Length">
+                                                <span className="text-[9px] md:text-[10px]">🚧</span>
+                                                <span className="font-bold">{gameState.longestStreetHolder === p.peerId ? gameState.longestStreetLength : getLongestStreetForPlayer(gameState, p.peerId)}</span>
+                                            </div>
+                                            <div className={`flex items-center gap-0.5 md:gap-1 px-1 py-0.5 rounded shadow border ${gameState.largestClanHolder === p.peerId ? 'bg-red-900 border-red-500 text-red-500' : 'bg-slate-800 border-slate-700 text-slate-400'}`} title="Clan Size">
+                                                <span className="text-[9px] md:text-[10px]">⚔️</span>
+                                                <span className="font-bold">{gameState.largestClanHolder === p.peerId ? gameState.largestClanSize : (gameState.playedNinjaCards[p.peerId] || 0)}</span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="flex gap-3 text-xs items-center mt-1">
-                                    <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded shadow border ${gameState.longestStreetHolder === p.peerId ? 'bg-amber-900 border-amber-500 text-amber-500' : 'bg-slate-800 border-slate-700 text-slate-400'}`} title="street Length">
-                                        <span className="text-[10px]">🛣️</span>
-                                        <span className="font-bold">{gameState.longestStreetHolder === p.peerId ? gameState.longeststreetLength : getLongestStreetForPlayer(gameState, p.peerId)}</span>
-                                    </div>
-                                    <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded shadow border ${gameState.largestClanHolder === p.peerId ? 'bg-red-900 border-red-500 text-red-500' : 'bg-slate-800 border-slate-700 text-slate-400'}`} title="Clan Size">
-                                        <span className="text-[10px]">⚔️</span>
-                                        <span className="font-bold">{gameState.largestClanHolder === p.peerId ? gameState.largestClanSize : (gameState.playedNinjaCards[p.peerId] || 0)}</span>
-                                    </div>
-                                    <div className="ml-auto flex gap-2">
-                                        <span title="Victory Points" className="bg-slate-800/80 px-1.5 py-0.5 rounded shadow border border-slate-700">VP: <span className="text-white font-bold">{p.victoryPoints}{p.peerId === myPlayer?.peerId ? <span className="text-emerald-400 font-normal">+{p.actionCards.filter(c => c.type === 'MONUMENT').length}</span> : ''}</span></span>
-                                        <span title="Cards" className="bg-slate-800/80 px-1.5 py-0.5 rounded shadow border border-slate-700 text-slate-300">🃏 <span className="text-white font-bold">{Object.values(p.resources).reduce((a, b) => a + b, 0)}</span></span>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
                     </div>
                 </div>{/* end Right Sidebar */}
             </div>{/* end flex-grow flex gap-4 */}

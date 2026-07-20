@@ -189,9 +189,9 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
   const getMyPlayer = () => players.find(p => p.peerId === peerService.peerId);
 
   return (
-    <div className="min-h-screen bg-slate-900 p-8 text-slate-100 flex gap-8 w-full max-w-[1600px] mx-auto">
+    <div className="min-h-screen bg-slate-900 p-4 md:p-8 text-slate-100 flex flex-col lg:flex-row gap-4 md:gap-8 w-full max-w-[1600px] mx-auto">
       {/* Left Sidebar */}
-      <div className="w-80 flex flex-col gap-6 flex-shrink-0">
+      <div className="w-full lg:w-80 flex flex-col gap-4 lg:gap-6 flex-shrink-0">
         <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-xl">
           <div className="flex items-center gap-3 mb-4">
             <div className="bg-emerald-500/10 p-2 rounded-lg">
@@ -289,18 +289,18 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
       </div>
 
       {/* Central Area: Game Settings */}
-      <div className="flex-grow bg-slate-800 rounded-xl p-8 border border-slate-700 shadow-xl flex flex-col">
-        <h2 className="text-2xl font-bold mb-6 border-b border-slate-700 pb-4 text-emerald-400">Game Settings</h2>
+      <div className="flex-grow bg-slate-800 rounded-xl p-4 md:p-6 lg:p-8 border border-slate-700 shadow-xl flex flex-col">
+        <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-6 border-b border-slate-700 pb-4 text-emerald-400">Game Settings</h2>
         {peerService.role !== 'host' && (
           <div className="mb-4 text-xs text-amber-400 bg-amber-400/10 border border-amber-700/50 rounded-lg px-3 py-2 text-center">
             Only the host can change settings
           </div>
         )}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
           {/* ── Map Generation ── */}
-          <div className="col-span-2">
-            <h3 className="text-xs uppercase tracking-widest text-slate-500 font-bold mb-3">Map Generation</h3>
+          <div className="col-span-1 md:col-span-2">
+            <h3 className="text-xs uppercase tracking-widest text-slate-500 font-bold mb-1 md:mb-3 mt-2 md:mt-0">Map Generation</h3>
           </div>
           <div className="flex items-start gap-3 bg-slate-900/50 p-4 rounded-xl border border-slate-700">
             <input type="checkbox" id="balanced" checked={settings.balancedResources}
@@ -330,8 +330,8 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
           </div>
 
           {/* ── Victory ── */}
-          <div className="col-span-2 mt-2">
-            <h3 className="text-xs uppercase tracking-widest text-slate-500 font-bold mb-3">Victory &amp; Limits</h3>
+          <div className="col-span-1 md:col-span-2 mt-2">
+            <h3 className="text-xs uppercase tracking-widest text-slate-500 font-bold mb-1 md:mb-3">Victory &amp; Limits</h3>
           </div>
           <div className="flex flex-col gap-3 bg-slate-900/50 p-4 rounded-xl border border-slate-700">
             <div className="flex items-center justify-between">
@@ -382,8 +382,8 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
 
 
           {/* ── Dice & Turns ── */}
-          <div className="col-span-2 mt-2">
-            <h3 className="text-xs uppercase tracking-widest text-slate-500 font-bold mb-3">Dice &amp; Turns</h3>
+          <div className="col-span-1 md:col-span-2 mt-2">
+            <h3 className="text-xs uppercase tracking-widest text-slate-500 font-bold mb-1 md:mb-3">Dice &amp; Turns</h3>
           </div>
           <div className="flex items-start gap-3 bg-slate-900/50 p-4 rounded-xl border border-slate-700">
             <input type="checkbox" id="trueRoll"
@@ -439,7 +439,7 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
       </div>{/* end settings card */}
 
       {/* Right Sidebar: Chat Area */}
-      <div className={`w-80 bg-slate-800 rounded-xl border border-slate-700 shadow-xl flex flex-col overflow-hidden flex-shrink-0 transition-all duration-200 ${isChatOpen ? 'h-full' : 'h-[60px] self-start'}`}>
+      <div className={`w-full lg:w-80 bg-slate-800 rounded-xl border border-slate-700 shadow-xl flex flex-col overflow-hidden flex-shrink-0 transition-all duration-200 ${isChatOpen ? 'h-[500px] lg:h-full' : 'h-[60px] self-stretch lg:self-start'}`}>
         <div
           onClick={() => setIsChatOpen(!isChatOpen)}
           className="bg-slate-800/80 backdrop-blur border-b border-slate-700 p-4 flex justify-between items-center cursor-pointer hover:bg-slate-700 transition h-[60px] shrink-0"
