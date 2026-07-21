@@ -3,7 +3,7 @@ import { GameBoard } from './GameBoard';
 import { type MapTemplate } from '../game/mapTemplates';
 import { type PlayerData, PLAYER_COLORS } from '../game/Player';
 import { peerService } from '../network/PeerService';
-import { type GameState, createInitialGameState, rollDice, distributeResources, validateHousePlacement, validatestreetPlacement, getStartingResources, advanceSetupTurn, getValidStreetPlacements, getValidHousePlacements, BUILD_COSTS, canAfford, calculateScores, type ResourceCounts, getLongestStreetForPlayer, type GameSettings, createDiceDeck } from '../game/GameState';
+import { type GameState, createInitialGameState, rollDice, distributeResources, validateHousePlacement, validatestreetPlacement, getStartingResources, advanceSetupTurn, getValidStreetPlacements, getValidHousePlacements, BUILD_COSTS, canAfford, calculateScores, type ResourceCounts, getLongestStreetForPlayer, type GameSettings, createDiceDeck, getPlayerTradeRates } from '../game/GameState';
 import { HexMath } from '../game/HexMath';
 import { TradeModal } from './TradeModal';
 
@@ -61,10 +61,17 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const [showBankPanel, setShowBankPanel] = useState(true);
     const [showBuildCosts, setShowBuildCosts] = useState(false);
     const [showLogs, setShowLogs] = useState(false);
-    const [pendingBuild, setPendingBuild] = useState<{ type: 'HOUSE' | 'street' | 'FORTRESS', id: string, costText: string } | null>(null);
+    const [pendingBuild, setPendingBuild] = useState<{ type: 'HOUSE' | 'street' | 'FORTRESS' | 'ACTION_CARD', id: string, costText: string } | null>(null);
+    const [dismissedNotificationPhase, setDismissedNotificationPhase] = useState<string | null>(null);
 
     const [recentAnimations, setRecentAnimations] = useState<{ id: string; event: AnimationEvent; diffs: ResourceDiff[] }[]>([]);
     const prevResources = useRef<ResourceCounts | null>(null);
+
+    useEffect(() => {
+        if (dismissedNotificationPhase !== null && gameState.gamePhase !== dismissedNotificationPhase) {
+            setDismissedNotificationPhase(null);
+        }
+    }, [gameState.gamePhase, dismissedNotificationPhase]);
 
     useEffect(() => {
         peerService.onMessage((data, _peerId) => {
@@ -76,8 +83,8 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                             ...nextState,
                             tradeProposal: {
                                 ...nextState.tradeProposal,
-                                acceptedBy: Array.from(new Set([...prev.tradeProposal.acceptedBy, ...nextState.tradeProposal.acceptedBy])),
-                                declinedBy: Array.from(new Set([...(prev.tradeProposal.declinedBy || []), ...(nextState.tradeProposal.declinedBy || [])]))
+                                acceptedBy: prev.tradeProposal.acceptedBy,
+                                declinedBy: prev.tradeProposal.declinedBy
                             }
                         };
                     }
@@ -85,6 +92,30 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                     // Host must re-broadcast state updates from clients to all other clients
                     if (peerService.role === 'host') {
                         setTimeout(() => peerService.broadcast({ type: 'GAME_STATE_UPDATE', state: nextState }), 0);
+                    }
+                    return nextState;
+                });
+            } else if (data.type === 'TRADE_RESPONSE') {
+                setGameState(prev => {
+                    if (!prev.tradeProposal) return prev;
+                    
+                    const acceptedBy = prev.tradeProposal.acceptedBy.filter(id => id !== data.peerId);
+                    const declinedBy = (prev.tradeProposal.declinedBy || []).filter(id => id !== data.peerId);
+                    
+                    if (data.response === 'ACCEPT') acceptedBy.push(data.peerId);
+                    if (data.response === 'REJECT') declinedBy.push(data.peerId);
+                    
+                    const nextState = {
+                        ...prev,
+                        tradeProposal: {
+                            ...prev.tradeProposal,
+                            acceptedBy,
+                            declinedBy
+                        }
+                    };
+                    
+                    if (peerService.role === 'host') {
+                        setTimeout(() => peerService.broadcast(data), 0);
                     }
                     return nextState;
                 });
@@ -248,30 +279,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const handleBuyCard = () => {
         if (!isMyTurn || gameState.phase === 'ROLL' || !canAffordCard || gameState.actionCardDeck.length === 0) return;
 
-        const newPlayers = [...gameState.players];
-        const playerIndex = newPlayers.findIndex(p => p.peerId === myPlayer!.peerId);
-        const updatedPlayer = {
-            ...newPlayers[playerIndex],
-            resources: { ...newPlayers[playerIndex].resources },
-            actionCards: [...newPlayers[playerIndex].actionCards]
-        };
-
-        Object.entries(BUILD_COSTS.ACTION_CARD).forEach(([res, count]) => {
-            updatedPlayer.resources[res as keyof typeof updatedPlayer.resources] -= count;
-        });
-
-        const newDeck = [...gameState.actionCardDeck];
-        const drawnCard = newDeck.pop()!;
-        updatedPlayer.actionCards.push({ type: drawnCard, boughtThisTurn: true });
-
-        newPlayers[playerIndex] = updatedPlayer;
-
-        broadcastState({
-            ...gameState,
-            players: newPlayers,
-            actionCardDeck: newDeck,
-            logs: [...gameState.logs, `${myPlayer!.username} bought an Action Card.`]
-        });
+        setPendingBuild({ type: 'ACTION_CARD', id: 'deck', costText: '1 Ore, 1 Wool, 1 Cereal' });
     };
 
     const handlePlayCard = (cardIndex: number) => {
@@ -358,23 +366,35 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
     const handleAcceptTrade = () => {
         if (!gameState.tradeProposal) return;
-        broadcastState({
-            ...gameState,
-            tradeProposal: {
-                ...gameState.tradeProposal,
-                acceptedBy: [...gameState.tradeProposal.acceptedBy, myPlayer!.peerId]
-            }
+        const msg = { type: 'TRADE_RESPONSE', peerId: myPlayer!.peerId, response: 'ACCEPT' };
+        peerService.broadcast(msg);
+        setGameState(prev => {
+            if (!prev.tradeProposal) return prev;
+            return {
+                ...prev,
+                tradeProposal: {
+                    ...prev.tradeProposal,
+                    acceptedBy: [...prev.tradeProposal.acceptedBy.filter(id => id !== myPlayer!.peerId), myPlayer!.peerId],
+                    declinedBy: (prev.tradeProposal.declinedBy || []).filter(id => id !== myPlayer!.peerId)
+                }
+            };
         });
     };
 
     const handleRejectTrade = () => {
         if (!gameState.tradeProposal) return;
-        broadcastState({
-            ...gameState,
-            tradeProposal: {
-                ...gameState.tradeProposal,
-                declinedBy: [...(gameState.tradeProposal.declinedBy || []), myPlayer!.peerId]
-            }
+        const msg = { type: 'TRADE_RESPONSE', peerId: myPlayer!.peerId, response: 'REJECT' };
+        peerService.broadcast(msg);
+        setGameState(prev => {
+            if (!prev.tradeProposal) return prev;
+            return {
+                ...prev,
+                tradeProposal: {
+                    ...prev.tradeProposal,
+                    acceptedBy: prev.tradeProposal.acceptedBy.filter(id => id !== myPlayer!.peerId),
+                    declinedBy: [...(prev.tradeProposal.declinedBy || []).filter(id => id !== myPlayer!.peerId), myPlayer!.peerId]
+                }
+            };
         });
     };
 
@@ -422,8 +442,18 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
     const handleResourceClick = (res: string) => {
         if (!myPlayer || isSetupPhase) return;
-        // Pre-fill the offer with 1 unit of the clicked resource
-        setTradeModalConfig({ initialOffer: { [res]: 1 } });
+        
+        const rates = getPlayerTradeRates(gameState, map, myPlayer.peerId);
+        const exchangeRateForRes = rates[res as keyof typeof rates] || 4;
+        const playerResCount = myPlayer.resources[res as keyof typeof myPlayer.resources] || 0;
+        
+        let initialAmount = 1;
+        if (playerResCount >= exchangeRateForRes) {
+            initialAmount = exchangeRateForRes;
+        }
+
+        // Pre-fill the offer with the calculated amount of the clicked resource
+        setTradeModalConfig({ initialOffer: { [res]: initialAmount } });
         setShowTradeModal(true);
     };
 
@@ -489,6 +519,35 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
     const handleConfirmBuild = () => {
         if (!pendingBuild || !isMyTurn) return;
+
+        if (pendingBuild.type === 'ACTION_CARD') {
+            const newPlayers = [...gameState.players];
+            const playerIndex = newPlayers.findIndex(p => p.peerId === myPlayer!.peerId);
+            const updatedPlayer = {
+                ...newPlayers[playerIndex],
+                resources: { ...newPlayers[playerIndex].resources },
+                actionCards: [...newPlayers[playerIndex].actionCards]
+            };
+
+            Object.entries(BUILD_COSTS.ACTION_CARD).forEach(([res, count]) => {
+                updatedPlayer.resources[res as keyof typeof updatedPlayer.resources] -= count;
+            });
+
+            const newDeck = [...gameState.actionCardDeck];
+            const drawnCard = newDeck.pop()!;
+            updatedPlayer.actionCards.push({ type: drawnCard, boughtThisTurn: true });
+
+            newPlayers[playerIndex] = updatedPlayer;
+
+            broadcastState({
+                ...gameState,
+                players: newPlayers,
+                actionCardDeck: newDeck,
+                logs: [...gameState.logs, `${myPlayer!.username} bought an Action Card.`]
+            });
+            setPendingBuild(null);
+            return;
+        }
 
         if (pendingBuild.type === 'FORTRESS') {
             const nodeId = pendingBuild.id;
@@ -639,35 +698,8 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         if (activeBuildMode === 'FORTRESS') {
             const house = gameState.houses[nodeId];
             if (!house || house.ownerId !== myPlayer!.peerId || house.isFortress) return;
-
-            const newPlayers = [...gameState.players];
-            const playerIndex = newPlayers.findIndex(p => p.peerId === myPlayer!.peerId);
-            const updatedPlayer = {
-                ...newPlayers[playerIndex],
-                resources: { ...newPlayers[playerIndex].resources },
-                inventory: {
-                    ...newPlayers[playerIndex].inventory,
-                    availableFortresses: newPlayers[playerIndex].inventory.availableFortresses - 1,
-                    availableHouses: newPlayers[playerIndex].inventory.availableHouses + 1
-                }
-            };
-
-            Object.entries(BUILD_COSTS.FORTRESS).forEach(([res, count]) => {
-                updatedPlayer.resources[res as keyof typeof updatedPlayer.resources] -= count;
-            });
-            newPlayers[playerIndex] = updatedPlayer;
-
-            const newState: GameState = {
-                ...gameState,
-                players: newPlayers,
-                houses: {
-                    ...gameState.houses,
-                    [nodeId]: { ...house, isFortress: true }
-                },
-                logs: [...gameState.logs, `${currentPlayer.username} upgraded a house to a Fortress.`]
-            };
-            setBuildMode('NONE');
-            broadcastState(newState);
+            
+            setPendingBuild({ type: 'FORTRESS', id: nodeId, costText: '3 Ore, 2 Cereal' });
             return;
         }
 
@@ -679,49 +711,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             return;
         }
 
-        const newPlayers = [...gameState.players];
-        const playerIndex = newPlayers.findIndex(p => p.peerId === myPlayer!.peerId);
-        const updatedPlayer = {
-            ...newPlayers[playerIndex],
-            resources: { ...newPlayers[playerIndex].resources },
-            inventory: {
-                ...newPlayers[playerIndex].inventory,
-                availableHouses: newPlayers[playerIndex].inventory.availableHouses - 1
-            }
-        };
-
-        if (!isSetupPhase) {
-            Object.entries(BUILD_COSTS.HOUSE).forEach(([res, count]) => {
-                updatedPlayer.resources[res as keyof typeof updatedPlayer.resources] -= count;
-            });
-        }
-        newPlayers[playerIndex] = updatedPlayer;
-
-        const newState: GameState = {
-            ...gameState,
-            players: newPlayers,
-            houses: {
-                ...gameState.houses,
-                [nodeId]: { ownerId: myPlayer!.peerId, isFortress: false, nodeId }
-            },
-            logs: [...gameState.logs, `${currentPlayer.username} placed a house.`]
-        };
-
-        if (isSetupPhase) {
-            newState.lastBuiltNodeId = nodeId;
-            newState.setupAction = 'street';
-            if (gameState.gamePhase === 'SETUP_2') {
-                const gained = getStartingResources(newState, nodeId, map);
-                Object.entries(gained).forEach(([res, count]) => {
-                    newState.players[newState.currentTurnIndex].resources[res as keyof ResourceCounts] += (count || 0);
-                });
-                newState.logs.push(`${currentPlayer.username} received starting resources.`);
-            }
-        } else {
-            setBuildMode('NONE');
-        }
-
-        broadcastState(newState);
+        setPendingBuild({ type: 'HOUSE', id: nodeId, costText: isSetupPhase ? 'Free' : '1 Wood, 1 Clay, 1 Wool, 1 Cereal' });
     };
 
     const handleEdgeClick = (edgeId: string) => {
@@ -733,47 +723,8 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             return;
         }
 
-        const newPlayers = [...gameState.players];
-        const playerIndex = newPlayers.findIndex(p => p.peerId === myPlayer!.peerId);
-        const updatedPlayer = {
-            ...newPlayers[playerIndex],
-            resources: { ...newPlayers[playerIndex].resources },
-            inventory: {
-                ...newPlayers[playerIndex].inventory,
-                availableStreets: newPlayers[playerIndex].inventory.availableStreets - 1
-            }
-        };
-
-        if (!isSetupPhase && gameState.gamePhase !== 'FREE_STREET_BUILDING') {
-            Object.entries(BUILD_COSTS.street).forEach(([res, count]) => {
-                updatedPlayer.resources[res as keyof typeof updatedPlayer.resources] -= count;
-            });
-        }
-        newPlayers[playerIndex] = updatedPlayer;
-
-        let newState: GameState = {
-            ...gameState,
-            players: newPlayers,
-            streets: {
-                ...gameState.streets,
-                [edgeId]: { ownerId: myPlayer!.peerId, edgeId }
-            },
-            logs: [...gameState.logs, `${currentPlayer.username} built a street.`]
-        };
-
-        if (isSetupPhase) {
-            newState = advanceSetupTurn(newState);
-        } else if (gameState.gamePhase === 'FREE_STREET_BUILDING') {
-            newState.freeStreetsLeft -= 1;
-            if (newState.freeStreetsLeft <= 0) {
-                newState.gamePhase = 'MAIN_GAME';
-                setBuildMode('NONE');
-            }
-        } else {
-            setBuildMode('NONE');
-        }
-
-        broadcastState(newState);
+        const costText = (isSetupPhase || gameState.gamePhase === 'FREE_STREET_BUILDING') ? 'Free' : '1 Wood, 1 Clay';
+        setPendingBuild({ type: 'street', id: edgeId, costText });
     };
 
     const handleDiscard = () => {
@@ -993,21 +944,46 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         <h2 className="text-xl font-bold text-white mb-2 text-center uppercase tracking-wider text-red-400">Ninja Attack!</h2>
                         <p className="text-slate-300 text-sm mb-4 text-center">You have more than {gameState.settings?.discardLimit ?? 7} cards. You must discard half (rounded down).</p>
 
-                        <div className="space-y-2 mb-6">
-                            {Object.entries(myPlayer.resources).map(([res, count]) => {
-                                const selected = discardSelection[res as keyof typeof discardSelection] || 0;
-                                return (
-                                    <div key={res} className="flex justify-between items-center bg-slate-900 p-2 rounded border border-slate-700">
-                                        <span className="text-sm font-bold text-slate-300 w-16">{res}</span>
-                                        <span className="text-xs text-slate-500">Available: {count}</span>
-                                        <div className="flex gap-2 items-center">
-                                            <button onClick={() => setDiscardSelection(prev => ({ ...prev, [res]: Math.max(0, (prev[res as keyof typeof prev] || 0) - 1) }))} className="w-8 h-8 bg-slate-700 rounded hover:bg-slate-600 font-bold">-</button>
-                                            <span className="w-4 text-center font-bold">{selected}</span>
-                                            <button onClick={() => setDiscardSelection(prev => ({ ...prev, [res]: Math.min(count, (prev[res as keyof typeof prev] || 0) + 1) }))} className="w-8 h-8 bg-slate-700 rounded hover:bg-slate-600 font-bold">+</button>
+                        <div className="space-y-3 mx-auto px-4 mb-6">
+                            {Object.entries(myPlayer.resources)
+                                .filter(([res]) => res !== 'NUGGETS' || map.hexes.some(h => h.resource === 'NUGGETS'))
+                                .map(([res, count]) => {
+                                    const selected = discardSelection[res as keyof typeof discardSelection] || 0;
+                                    const grad = RESOURCE_GRADIENTS[res] || { center: '#334155', edge: '#0f172a' };
+                                    let textClass = "text-white drop-shadow-sm";
+                                    let numBgClass = "bg-black/40";
+                                    let numTextClass = "text-white";
+
+                                    if (res === 'CEREALS' || res === 'NUGGETS' || res === 'WOOL') {
+                                        textClass = "text-[#2a1c0d] drop-shadow-none";
+                                        numBgClass = "bg-[#2a1c0d]/20";
+                                        numTextClass = "text-[#2a1c0d]";
+                                    }
+
+                                    return (
+                                        <div key={res} className="relative flex justify-between items-center p-2 rounded-lg border border-black/30 shadow-md overflow-hidden min-h-[60px]" style={{ background: `radial-gradient(circle at center, ${grad.center}, ${grad.edge})` }}>
+                                            {RESOURCE_TEXTURES[res] && (
+                                                <div
+                                                    className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-50 mix-blend-overlay"
+                                                    style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }}
+                                                />
+                                            )}
+                                            <div className="relative z-10 flex items-center gap-3 ml-2">
+                                                <img src={RESOURCE_ICONS[res as keyof typeof RESOURCE_ICONS]} alt={res} className="w-8 h-8 drop-shadow-md filter-none" />
+                                                <div className="flex flex-col">
+                                                    <span className={`text-[11px] font-bold uppercase tracking-wider ${textClass} leading-tight`}>{res}</span>
+                                                    <span className={`text-[10px] font-bold ${numTextClass} ${numBgClass} px-1.5 py-0.5 rounded shadow-inner mt-0.5 max-w-fit`}>Available: {count}</span>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="relative z-10 flex gap-2 items-center mr-2">
+                                                <button onClick={() => setDiscardSelection(prev => ({ ...prev, [res]: Math.max(0, (prev[res as keyof typeof prev] || 0) - 1) }))} className="w-8 h-8 bg-black/40 text-white rounded hover:bg-black/60 shadow font-bold transition-colors">-</button>
+                                                <span className={`w-6 text-center font-black ${textClass} text-lg`}>{selected}</span>
+                                                <button onClick={() => setDiscardSelection(prev => ({ ...prev, [res]: Math.min(count, (prev[res as keyof typeof prev] || 0) + 1) }))} className="w-8 h-8 bg-black/40 text-white rounded hover:bg-black/60 shadow font-bold transition-colors">+</button>
+                                            </div>
                                         </div>
-                                    </div>
-                                );
-                            })}
+                                    );
+                                })}
                         </div>
 
                         {(() => {
@@ -1024,6 +1000,42 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                 </button>
                             );
                         })()}
+                    </div>
+                </div>
+            )}
+
+            {/* NON-BLOCKING WAITING NOTIFICATIONS */}
+            {gameState.gamePhase === 'NINJA_DISCARD' && myPlayer && !gameState.playersNeedingToDiscard.includes(myPlayer.peerId) && dismissedNotificationPhase !== 'NINJA_DISCARD' && (
+                <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 pointer-events-auto">
+                    <div className="bg-slate-800/90 p-4 rounded-2xl border border-yellow-500/50 shadow-2xl min-w-[300px] text-center backdrop-blur-md relative">
+                        <button onClick={() => setDismissedNotificationPhase('NINJA_DISCARD')} className="absolute top-2 right-2 text-slate-400 hover:text-white bg-slate-700 hover:bg-slate-600 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold transition-colors">✕</button>
+                        <div className="flex items-center justify-center gap-2 mb-2">
+                            <div className="animate-spin text-xl">⏳</div>
+                            <h2 className="text-sm font-bold text-white uppercase tracking-wider text-yellow-400">Waiting for Discards</h2>
+                        </div>
+                        <div className="flex flex-wrap justify-center gap-2 mt-2">
+                            {gameState.playersNeedingToDiscard.map(id => {
+                                const player = gameState.players.find(p => p.peerId === id);
+                                if (!player) return null;
+                                return (
+                                    <div key={id} className="bg-slate-900/80 px-2 py-1 rounded-md border border-slate-700 flex items-center gap-2 shadow-inner text-xs">
+                                        <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: PLAYER_COLORS[player.color as keyof typeof PLAYER_COLORS]?.hex || '#fff' }}></div>
+                                        <span className="font-bold text-white">{player.username}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {gameState.gamePhase === 'NINJA_MOVE' && !isMyTurn && dismissedNotificationPhase !== 'NINJA_MOVE' && (
+                <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 pointer-events-auto">
+                    <div className="bg-slate-800/90 p-4 rounded-2xl border border-emerald-500/50 shadow-2xl min-w-[300px] text-center backdrop-blur-md relative">
+                        <button onClick={() => setDismissedNotificationPhase('NINJA_MOVE')} className="absolute top-2 right-2 text-slate-400 hover:text-white bg-slate-700 hover:bg-slate-600 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold transition-colors">✕</button>
+                        <div className="flex items-center justify-center gap-2 mb-2">
+                            <h2 className="text-sm font-bold text-white uppercase tracking-wider text-emerald-400">{currentPlayer.username} is moving the Ninja</h2>
+                        </div>
                     </div>
                 </div>
             )}
@@ -1391,31 +1403,24 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                         </div>
                                     ) : (
                                         <div className="space-y-2">
-                                            {gameState.tradeProposal.acceptedBy.includes(myPlayer.peerId) ? (
-                                                <p className="text-emerald-400 font-bold text-center text-[9px]">You accepted this offer. Waiting for proposer...</p>
-                                            ) : gameState.tradeProposal.declinedBy?.includes(myPlayer.peerId) ? (
-                                                <p className="text-red-400 font-bold text-center text-[9px]">You rejected this offer.</p>
-                                            ) : (
-                                                <>
-                                                    <div className="flex gap-2">
-                                                        <button
-                                                            onClick={handleAcceptTrade}
-                                                            disabled={!canAfford(myPlayer.resources, gameState.tradeProposal.request)}
-                                                            className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-[10px] rounded font-bold uppercase tracking-wider transition-colors shadow"
-                                                        >
-                                                            Accept
-                                                        </button>
-                                                        <button
-                                                            onClick={handleRejectTrade}
-                                                            className="flex-1 py-2 bg-red-600 hover:bg-red-500 text-[10px] rounded font-bold uppercase tracking-wider transition-colors shadow"
-                                                        >
-                                                            Reject
-                                                        </button>
-                                                    </div>
-                                                    {!canAfford(myPlayer.resources, gameState.tradeProposal.request) && (
-                                                        <p className="text-red-400 text-[9px] text-center font-bold">You do not have the requested resources.</p>
-                                                    )}
-                                                </>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={handleAcceptTrade}
+                                                    disabled={!canAfford(myPlayer.resources, gameState.tradeProposal.request) || gameState.tradeProposal.acceptedBy.includes(myPlayer.peerId)}
+                                                    className={`flex-1 py-2 ${gameState.tradeProposal.acceptedBy.includes(myPlayer.peerId) ? 'bg-emerald-800 text-emerald-300' : 'bg-emerald-600 hover:bg-emerald-500'} disabled:bg-slate-700 disabled:text-slate-500 text-[10px] rounded font-bold uppercase tracking-wider transition-colors shadow`}
+                                                >
+                                                    {gameState.tradeProposal.acceptedBy.includes(myPlayer.peerId) ? 'Accepted ✓' : 'Accept'}
+                                                </button>
+                                                <button
+                                                    onClick={handleRejectTrade}
+                                                    disabled={gameState.tradeProposal.declinedBy?.includes(myPlayer.peerId)}
+                                                    className={`flex-1 py-2 ${gameState.tradeProposal.declinedBy?.includes(myPlayer.peerId) ? 'bg-red-800 text-red-300 disabled:opacity-100 disabled:cursor-default' : 'bg-red-600 hover:bg-red-500 disabled:bg-slate-700 disabled:text-slate-500'} text-[10px] rounded font-bold uppercase tracking-wider transition-colors shadow`}
+                                                >
+                                                    {gameState.tradeProposal.declinedBy?.includes(myPlayer.peerId) ? 'Rejected ✗' : 'Reject'}
+                                                </button>
+                                            </div>
+                                            {!canAfford(myPlayer.resources, gameState.tradeProposal.request) && (
+                                                <p className="text-red-400 text-[9px] text-center font-bold">You do not have the requested resources.</p>
                                             )}
                                         </div>
                                     )}
@@ -1511,95 +1516,107 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
                         {/* Action Buttons */}
                         <div className="flex flex-wrap justify-end gap-1.5 md:gap-3 max-w-[240px] md:max-w-[400px] pointer-events-auto">
-                            {isMyTurn ? (
-                                isSetupPhase ? (
-                                    <div className="px-3 py-1.5 md:px-6 md:py-3 bg-indigo-900/90 backdrop-blur-sm rounded-lg md:rounded-xl text-[10px] md:text-sm font-bold text-indigo-200 shadow-xl border border-indigo-500 animate-pulse">
-                                        PLACE {gameState.setupAction}
-                                    </div>
-                                ) : (
-                                    <>
-                                        {gameState.phase === 'ROLL' ? (
-                                            <button onClick={handleRollDice} className="px-3 py-1.5 md:px-6 md:py-3 bg-indigo-600 hover:bg-indigo-500 rounded-lg md:rounded-xl font-bold shadow-2xl transition-colors border border-indigo-400 text-[10px] md:text-sm uppercase tracking-wider w-full md:w-auto">
-                                                Roll Dice
-                                            </button>
-                                        ) : (
-                                            <>
-                                                {buildMode !== 'NONE' ? (
-                                                    <button onClick={() => { setBuildMode('NONE'); setPendingBuild(null); }} className="px-3 py-1.5 md:px-6 md:py-3 bg-slate-700 hover:bg-slate-600 rounded-lg md:rounded-xl font-bold transition-colors shadow-xl border border-slate-600 text-[10px] md:text-sm uppercase tracking-wider w-full md:w-auto">
-                                                        Cancel Build
-                                                    </button>
-                                                ) : (
-                                                    <>
-                                                        <div className="relative group flex items-stretch">
-                                                            <button onClick={() => setBuildMode('HOUSE')} disabled={!canAffordHouse || !hasValidHouseSpots} title={canAffordHouse && !hasValidHouseSpots ? "No valid spots available on board" : undefined} className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border text-[9px] md:text-sm uppercase tracking-wider ${canAffordHouse && hasValidHouseSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : (canAffordHouse && !hasValidHouseSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed')}`}>
-                                                                House
-                                                            </button>
-                                                            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
-                                                                <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
-                                                                {Object.entries({ OAK: 1, CLAY: 1, CEREALS: 1, WOOL: 1 }).map(([res, cost]) => {
-                                                                    const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
-                                                                    return <div key={res} className="flex items-center justify-between text-[10px] font-bold mb-1"><div className="flex items-center gap-1.5"><img src={RESOURCE_ICONS[res]} className="w-3.5 h-3.5 drop-shadow-sm filter-none" alt="" /><span className="text-slate-400">{res}</span></div><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                        <div className="relative group flex items-stretch">
-                                                            <button onClick={() => setBuildMode('FORTRESS')} disabled={!canAffordFortress || !hasValidFortressSpots} title={canAffordFortress && !hasValidFortressSpots ? "No valid spots available on board" : undefined} className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border text-[9px] md:text-sm uppercase tracking-wider ${canAffordFortress && hasValidFortressSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : (canAffordFortress && !hasValidFortressSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed')}`}>
-                                                                Fortress
-                                                            </button>
-                                                            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
-                                                                <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
-                                                                {Object.entries({ CEREALS: 2, ORE: 3 }).map(([res, cost]) => {
-                                                                    const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
-                                                                    return <div key={res} className="flex items-center justify-between text-[10px] font-bold mb-1"><div className="flex items-center gap-1.5"><img src={RESOURCE_ICONS[res]} className="w-3.5 h-3.5 drop-shadow-sm filter-none" alt="" /><span className="text-slate-400">{res}</span></div><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                        <div className="relative group flex items-stretch">
-                                                            <button onClick={() => setBuildMode('street')} disabled={!canAffordStreet || !hasValidStreetSpots} title={canAffordStreet && !hasValidStreetSpots ? "No valid spots available on board" : undefined} className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border text-[9px] md:text-sm uppercase tracking-wider ${canAffordStreet && hasValidStreetSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : (canAffordStreet && !hasValidStreetSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed')}`}>
-                                                                street
-                                                            </button>
-                                                            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
-                                                                <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
-                                                                {Object.entries({ OAK: 1, CLAY: 1 }).map(([res, cost]) => {
-                                                                    const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
-                                                                    return <div key={res} className="flex items-center justify-between text-[10px] font-bold mb-1"><div className="flex items-center gap-1.5"><img src={RESOURCE_ICONS[res]} className="w-3.5 h-3.5 drop-shadow-sm filter-none" alt="" /><span className="text-slate-400">{res}</span></div><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                        <div className="relative group flex items-stretch">
-                                                            <button onClick={handleBuyCard} disabled={!canAffordCard || gameState.actionCardDeck.length === 0} className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border-2 text-[9px] md:text-sm uppercase tracking-wider ${canAffordCard && gameState.actionCardDeck.length > 0 ? 'bg-slate-700 hover:bg-slate-600 border-purple-500 text-purple-200' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed'}`}>
-                                                                Buy Card <span className="text-[8px] md:text-[10px] text-slate-400 font-normal">({gameState.actionCardDeck.length})</span>
-                                                            </button>
-                                                            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
-                                                                <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
-                                                                {Object.entries({ CEREALS: 1, WOOL: 1, ORE: 1 }).map(([res, cost]) => {
-                                                                    const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
-                                                                    return <div key={res} className="flex items-center justify-between text-[10px] font-bold mb-1"><div className="flex items-center gap-1.5"><img src={RESOURCE_ICONS[res]} className="w-3.5 h-3.5 drop-shadow-sm filter-none" alt="" /><span className="text-slate-400">{res}</span></div><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                    </>
-                                                )}
-                                                {gameState.gamePhase === 'FREE_STREET_BUILDING' ? (
-                                                    <button onClick={() => {
-                                                        broadcastState({ ...gameState, gamePhase: 'MAIN_GAME', freeStreetsLeft: 0 });
-                                                        setBuildMode('NONE');
-                                                    }} className="px-3 py-1.5 md:px-6 md:py-3 rounded-lg md:rounded-xl font-bold shadow-2xl transition-colors border border-amber-500 bg-amber-600 hover:bg-amber-500 text-[10px] md:text-sm uppercase tracking-wider">
-                                                        End Free street
-                                                    </button>
-                                                ) : (
-                                                    <button onClick={() => handleEndTurn(false)} disabled={gameState.gamePhase !== 'MAIN_GAME'} className={`px-4 py-1.5 md:px-6 md:py-3 rounded-lg md:rounded-xl font-bold shadow-2xl transition-colors border text-[10px] md:text-sm uppercase tracking-wider ${gameState.gamePhase === 'MAIN_GAME' ? 'bg-red-600 hover:bg-red-500 border-red-400' : 'bg-red-800 border-red-700 opacity-50 cursor-not-allowed'}`}>
-                                                        End Turn
-                                                    </button>
-                                                )}
-                                            </>
-                                        )}
-                                    </>
-                                )
-                            ) : (
-                                <div className="px-3 py-2 md:px-5 md:py-3 bg-slate-900/80 backdrop-blur-sm rounded-lg md:rounded-xl text-[10px] md:text-sm font-medium text-slate-400 shadow-xl border border-slate-700">
-                                    Waiting for {currentPlayer?.username}...
+                            {isSetupPhase ? (
+                                <div className="px-3 py-1.5 md:px-6 md:py-3 bg-indigo-900/90 backdrop-blur-sm rounded-lg md:rounded-xl text-[10px] md:text-sm font-bold text-indigo-200 shadow-xl border border-indigo-500 animate-pulse">
+                                    {isMyTurn ? `PLACE ${gameState.setupAction}` : `Waiting for ${currentPlayer?.username}...`}
                                 </div>
+                            ) : (
+                                <>
+                                    {gameState.phase === 'ROLL' && isMyTurn ? (
+                                        <button onClick={handleRollDice} className="px-3 py-1.5 md:px-6 md:py-3 bg-indigo-600 hover:bg-indigo-500 rounded-lg md:rounded-xl font-bold shadow-2xl transition-colors border border-indigo-400 text-[10px] md:text-sm uppercase tracking-wider w-full md:w-auto">
+                                            Roll Dice
+                                        </button>
+                                    ) : (
+                                        <>
+                                            {buildMode !== 'NONE' && isMyTurn ? (
+                                                <button onClick={() => { setBuildMode('NONE'); setPendingBuild(null); }} className="px-3 py-1.5 md:px-6 md:py-3 bg-slate-700 hover:bg-slate-600 rounded-lg md:rounded-xl font-bold transition-colors shadow-xl border border-slate-600 text-[10px] md:text-sm uppercase tracking-wider w-full md:w-auto">
+                                                    Cancel Build
+                                                </button>
+                                            ) : (
+                                                <>
+                                                    <div className="relative group flex items-stretch">
+                                                        <button onClick={() => isMyTurn && setBuildMode('HOUSE')} disabled={!isMyTurn || !canAffordHouse || !hasValidHouseSpots} title={isMyTurn && canAffordHouse && !hasValidHouseSpots ? "No valid spots available on board" : (!isMyTurn ? "Not your turn" : undefined)} className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border text-[9px] md:text-sm uppercase tracking-wider ${isMyTurn && canAffordHouse && hasValidHouseSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : (isMyTurn && canAffordHouse && !hasValidHouseSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed')}`}>
+                                                            House
+                                                        </button>
+                                                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
+                                                            <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
+                                                            {Object.entries({ OAK: 1, CLAY: 1, CEREALS: 1, WOOL: 1 }).map(([res, cost]) => {
+                                                                const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
+                                                                return <div key={res} className="flex items-center justify-between text-[10px] font-bold mb-1"><div className="flex items-center gap-1.5"><img src={RESOURCE_ICONS[res]} className="w-3.5 h-3.5 drop-shadow-sm filter-none" alt="" /><span className="text-slate-400">{res}</span></div><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                    <div className="relative group flex items-stretch">
+                                                        <button onClick={() => isMyTurn && setBuildMode('FORTRESS')} disabled={!isMyTurn || !canAffordFortress || !hasValidFortressSpots} title={isMyTurn && canAffordFortress && !hasValidFortressSpots ? "No valid spots available on board" : (!isMyTurn ? "Not your turn" : undefined)} className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border text-[9px] md:text-sm uppercase tracking-wider ${isMyTurn && canAffordFortress && hasValidFortressSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : (isMyTurn && canAffordFortress && !hasValidFortressSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed')}`}>
+                                                            Fortress
+                                                        </button>
+                                                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
+                                                            <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
+                                                            {Object.entries({ CEREALS: 2, ORE: 3 }).map(([res, cost]) => {
+                                                                const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
+                                                                return <div key={res} className="flex items-center justify-between text-[10px] font-bold mb-1"><div className="flex items-center gap-1.5"><img src={RESOURCE_ICONS[res]} className="w-3.5 h-3.5 drop-shadow-sm filter-none" alt="" /><span className="text-slate-400">{res}</span></div><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                    <div className="relative group flex items-stretch">
+                                                        <button onClick={() => isMyTurn && setBuildMode('street')} disabled={!isMyTurn || !canAffordStreet || !hasValidStreetSpots} title={isMyTurn && canAffordStreet && !hasValidStreetSpots ? "No valid spots available on board" : (!isMyTurn ? "Not your turn" : undefined)} className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border text-[9px] md:text-sm uppercase tracking-wider ${isMyTurn && canAffordStreet && hasValidStreetSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : (isMyTurn && canAffordStreet && !hasValidStreetSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed')}`}>
+                                                            street
+                                                        </button>
+                                                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
+                                                            <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
+                                                            {Object.entries({ OAK: 1, CLAY: 1 }).map(([res, cost]) => {
+                                                                const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
+                                                                return <div key={res} className="flex items-center justify-between text-[10px] font-bold mb-1"><div className="flex items-center gap-1.5"><img src={RESOURCE_ICONS[res]} className="w-3.5 h-3.5 drop-shadow-sm filter-none" alt="" /><span className="text-slate-400">{res}</span></div><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                    <div className="relative group flex items-stretch">
+                                                        <button onClick={() => isMyTurn && handleBuyCard()} disabled={!isMyTurn || !canAffordCard || gameState.actionCardDeck.length === 0} title={!isMyTurn ? "Not your turn" : undefined} className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border-2 text-[9px] md:text-sm uppercase tracking-wider ${isMyTurn && canAffordCard && gameState.actionCardDeck.length > 0 ? 'bg-slate-700 hover:bg-slate-600 border-purple-500 text-purple-200' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed'}`}>
+                                                            Buy Card <span className="text-[8px] md:text-[10px] text-slate-400 font-normal">({gameState.actionCardDeck.length})</span>
+                                                        </button>
+                                                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
+                                                            <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
+                                                            {Object.entries({ CEREALS: 1, WOOL: 1, ORE: 1 }).map(([res, cost]) => {
+                                                                const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
+                                                                return <div key={res} className="flex items-center justify-between text-[10px] font-bold mb-1"><div className="flex items-center gap-1.5"><img src={RESOURCE_ICONS[res]} className="w-3.5 h-3.5 drop-shadow-sm filter-none" alt="" /><span className="text-slate-400">{res}</span></div><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {pendingBuild?.type === 'ACTION_CARD' && (
+                                                        <div className="absolute bottom-16 right-full mr-4 bg-slate-900/95 backdrop-blur-md p-3 rounded-xl border border-indigo-500 shadow-2xl flex flex-col items-center pointer-events-auto w-48 z-50">
+                                                            <span className="text-xs text-slate-200 font-bold mb-2 text-center uppercase tracking-wider">Confirm Purchase?</span>
+                                                            <span className="text-[10px] text-slate-400 font-bold mb-3 text-center">Cost: 1 Ore, 1 Wool, 1 Cereal</span>
+                                                            <div className="flex gap-2 w-full">
+                                                                <button onClick={handleConfirmBuild} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs py-1.5 rounded font-bold cursor-pointer transition-colors shadow-md">✓ Buy</button>
+                                                                <button onClick={handleCancelBuild} className="flex-1 bg-red-600 hover:bg-red-500 text-white text-xs py-1.5 rounded font-bold cursor-pointer transition-colors shadow-md">✗ Cancel</button>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    
+                                                    {isMyTurn ? (
+                                                        gameState.gamePhase === 'FREE_STREET_BUILDING' ? (
+                                                            <button onClick={() => {
+                                                                broadcastState({ ...gameState, gamePhase: 'MAIN_GAME', freeStreetsLeft: 0 });
+                                                                setBuildMode('NONE');
+                                                            }} className="px-3 py-1.5 md:px-6 md:py-3 rounded-lg md:rounded-xl font-bold shadow-2xl transition-colors border border-amber-500 bg-amber-600 hover:bg-amber-500 text-[10px] md:text-sm uppercase tracking-wider">
+                                                                End Free street
+                                                            </button>
+                                                        ) : (
+                                                            <button onClick={() => handleEndTurn(false)} disabled={gameState.gamePhase !== 'MAIN_GAME'} className={`px-4 py-1.5 md:px-6 md:py-3 rounded-lg md:rounded-xl font-bold shadow-2xl transition-colors border text-[10px] md:text-sm uppercase tracking-wider ${gameState.gamePhase === 'MAIN_GAME' ? 'bg-red-600 hover:bg-red-500 border-red-400' : 'bg-red-800 border-red-700 opacity-50 cursor-not-allowed'}`}>
+                                                                End Turn
+                                                            </button>
+                                                        )
+                                                    ) : (
+                                                        <div className="px-3 py-2 md:px-5 md:py-3 bg-slate-900/80 backdrop-blur-sm rounded-lg md:rounded-xl text-[10px] md:text-sm font-medium text-slate-400 shadow-xl border border-slate-700 flex items-center h-full">
+                                                            Waiting for {currentPlayer?.username}...
+                                                        </div>
+                                                    )}
+                                                </>
+                                            )}
+                                        </>
+                                    )}
+                                </>
                             )}
                         </div>{/* end flex gap-3 action buttons */}
                     </div>{/* end absolute bottom-0 right-0 flex-col */}
@@ -1669,7 +1686,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                 <div className="p-2 overflow-y-auto flex-grow space-y-1 text-[10px] md:text-xs flex flex-col-reverse">
                                     {[...gameState.logs].reverse().map((log, i) => {
                                         if (log.includes('|STEAL|')) {
-                                            const [msg, type, stealerId, targetId, resource] = log.split('|');
+                                            const [msg, , stealerId, targetId, resource] = log.split('|');
                                             const canSee = myPlayer?.peerId === stealerId || myPlayer?.peerId === targetId;
                                             return (
                                                 <div key={i} className="text-slate-300 border-b border-slate-700/50 pb-1">
@@ -1698,7 +1715,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                     </div>
                                     <div className="flex gap-1.5 md:gap-3 text-[10px] md:text-xs items-center mt-0.5 md:mt-1">
                                         <div className="flex gap-1 md:gap-2">
-                                            <span title="Victory Points" className="bg-slate-800/80 px-1 py-0.5 rounded shadow border border-slate-700">VP: <span className="text-white font-bold">{p.victoryPoints}{p.peerId === myPlayer?.peerId ? <span className="text-emerald-400 font-normal">+{p.actionCards.filter(c => c.type === 'MONUMENT').length}</span> : ''}</span></span>
+                                            <span title="Victory Points" className="bg-slate-800/80 px-1 py-0.5 rounded shadow border border-slate-700">VP: <span className="text-white font-bold">{p.victoryPoints}{p.peerId === myPlayer?.peerId ? (() => { const monuments = p.actionCards.filter(c => c.type === 'MONUMENT').length; return monuments >= 1 ? <span className="text-emerald-400 font-normal">+{monuments}</span> : ''; })() : ''}</span></span>
                                             <span title="Cards" className="bg-slate-800/80 px-1 py-0.5 rounded shadow border border-slate-700 text-slate-300">🃏 <span className="text-white font-bold">{Object.values(p.resources).reduce((a, b) => a + b, 0)}</span></span>
                                         </div>
                                         <div className="flex ml-auto gap-1 md:gap-2">

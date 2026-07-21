@@ -33,7 +33,7 @@ interface GameBoardProps {
   /** Pre-computed set of valid node IDs for house placement highlighting */
   validHouseNodes?: Set<string>;
   validFortressNodes?: Set<string>;
-  pendingBuild?: { type: 'HOUSE' | 'street' | 'FORTRESS', id: string, costText: string } | null;
+  pendingBuild?: { type: 'HOUSE' | 'street' | 'FORTRESS' | 'ACTION_CARD', id: string, costText: string } | null;
   currentPlayerColor?: string;
   onConfirmBuild?: () => void;
   onCancelBuild?: () => void;
@@ -379,7 +379,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         {uniqueEdges.map(edge => {
           const street = gameState?.streets[edge.id];
           // Only highlight if this specific edge is in the pre-validated set
-          const isValidPlacement = buildMode === 'street' && !street && (validStreetEdges?.has(edge.id) ?? false);
+          const isValidPlacement = buildMode === 'street' && !pendingBuild && !street && (validStreetEdges?.has(edge.id) ?? false);
           const isClickable = isValidPlacement;
           const isPendingEdge = pendingBuild?.type === 'street' && pendingBuild.id === edge.id;
 
@@ -390,18 +390,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               {street ? (
                 <StreetAsset x={edge.x1} y={edge.y1} x2={edge.x2} y2={edge.y2} playerColor={PLAYER_COLORS[gameState!.players.find(p => p.peerId === street.ownerId)?.color as keyof typeof PLAYER_COLORS]?.hex || 'white'} />
               ) : isPendingEdge ? (
-                <g>
-                  <StreetAsset x={edge.x1} y={edge.y1} x2={edge.x2} y2={edge.y2} playerColor={currentPlayerColor} />
-                  <foreignObject x={((edge.x1 + edge.x2) / 2) - 60} y={((edge.y1 + edge.y2) / 2) - 70} width="120" height="90" style={{ pointerEvents: 'none' }}>
-                    <div className="bg-slate-900/90 backdrop-blur-md p-2 rounded-lg border border-indigo-500 shadow-xl flex flex-col items-center pointer-events-auto" style={{ pointerEvents: 'auto' }}>
-                      <span className="text-[10px] text-slate-300 font-bold mb-1 text-center leading-tight">Cost: {pendingBuild.costText}</span>
-                      <div className="flex gap-1 w-full relative z-[100]">
-                        <button onClick={(e) => { e.stopPropagation(); onConfirmBuild?.(); }} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] py-1 rounded font-bold cursor-pointer transition-colors shadow">✓</button>
-                        <button onClick={(e) => { e.stopPropagation(); onCancelBuild?.(); }} className="flex-1 bg-red-600 hover:bg-red-500 text-white text-[10px] py-1 rounded font-bold cursor-pointer transition-colors shadow">✗</button>
-                      </div>
-                    </div>
-                  </foreignObject>
-                </g>
+                <StreetAsset x={edge.x1} y={edge.y1} x2={edge.x2} y2={edge.y2} playerColor={currentPlayerColor} />
               ) : (
                 isValidPlacement && <line x1={edge.x1} y1={edge.y1} x2={edge.x2} y2={edge.y2} stroke="#fbbf24" strokeWidth="10" opacity="0.9" strokeDasharray="8 6" className="animate-pulse" style={{ filter: 'drop-shadow(0px 0px 4px rgba(251, 191, 36, 0.8))' }} />
               )}
@@ -413,8 +402,8 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         {uniqueNodes.map(node => {
           const house = gameState?.houses[node.id];
           // Only highlight if this specific node is in the pre-validated set
-          const isValidPlacement = buildMode === 'HOUSE' && !house && (validHouseNodes?.has(node.id) ?? false);
-          const isValidFortressUpgrade = buildMode === 'FORTRESS' && house && !house.isFortress && (validFortressNodes?.has(node.id) ?? false);
+          const isValidPlacement = buildMode === 'HOUSE' && !pendingBuild && !house && (validHouseNodes?.has(node.id) ?? false);
+          const isValidFortressUpgrade = buildMode === 'FORTRESS' && !pendingBuild && house && !house.isFortress && (validFortressNodes?.has(node.id) ?? false);
           const isClickable = isValidPlacement || isValidFortressUpgrade;
           const isPendingNode = pendingBuild?.id === node.id;
 
@@ -446,20 +435,39 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               {nodeAsset ? nodeAsset : (
                 isValidPlacement && <circle cx={node.x} cy={node.y} r="8" fill="white" opacity="0.6" />
               )}
-              {isPendingNode && (
-                <foreignObject x={node.x - 60} y={node.y - 80} width="120" height="90" style={{ pointerEvents: 'none' }}>
-                  <div className="bg-slate-900/90 backdrop-blur-md p-2 rounded-lg border border-indigo-500 shadow-xl flex flex-col items-center pointer-events-auto" style={{ pointerEvents: 'auto' }}>
-                    <span className="text-[10px] text-slate-300 font-bold mb-1 text-center leading-tight">Cost: {pendingBuild.costText}</span>
-                    <div className="flex gap-1 w-full relative z-[100]">
-                      <button onClick={(e) => { e.stopPropagation(); onConfirmBuild?.(); }} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] py-1 rounded font-bold cursor-pointer transition-colors shadow">✓</button>
-                      <button onClick={(e) => { e.stopPropagation(); onCancelBuild?.(); }} className="flex-1 bg-red-600 hover:bg-red-500 text-white text-[10px] py-1 rounded font-bold cursor-pointer transition-colors shadow">✗</button>
-                    </div>
-                  </div>
-                </foreignObject>
-              )}
             </g>
           );
         })}
+
+        {/* PENDING BUILD CONFIRMATION OVERLAY (Always drawn last for max z-index) */}
+        {pendingBuild && (pendingBuild.type === 'street' || pendingBuild.type === 'HOUSE' || pendingBuild.type === 'FORTRESS') && (() => {
+          let cx = 0, cy = 0;
+          if (pendingBuild.type === 'street') {
+            const edge = uniqueEdges.find(e => e.id === pendingBuild.id);
+            if (!edge) return null;
+            cx = (edge.x1 + edge.x2) / 2;
+            cy = (edge.y1 + edge.y2) / 2;
+          } else {
+            const node = uniqueNodes.find(n => n.id === pendingBuild.id);
+            if (!node) return null;
+            cx = node.x;
+            cy = node.y;
+          }
+
+          return (
+            <foreignObject x={cx - 60} y={cy - (pendingBuild.type === 'street' ? 70 : 80)} width="120" height="90" style={{ pointerEvents: 'none' }}>
+              <div className="bg-slate-900/90 backdrop-blur-md p-2 rounded-lg border border-indigo-500 shadow-xl flex flex-col items-center pointer-events-auto" style={{ pointerEvents: 'auto' }}>
+                <span className="text-[10px] text-slate-300 font-bold mb-1 text-center leading-tight whitespace-nowrap overflow-hidden text-ellipsis max-w-full">
+                  Cost: {pendingBuild.costText}
+                </span>
+                <div className="flex gap-1 w-full relative z-[100]">
+                  <button onClick={(e) => { e.stopPropagation(); onConfirmBuild?.(); }} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] py-1 rounded font-bold cursor-pointer transition-colors shadow">✓</button>
+                  <button onClick={(e) => { e.stopPropagation(); onCancelBuild?.(); }} className="flex-1 bg-red-600 hover:bg-red-500 text-white text-[10px] py-1 rounded font-bold cursor-pointer transition-colors shadow">✗</button>
+                </div>
+              </div>
+            </foreignObject>
+          );
+        })()}
 
       </svg>
     </div>

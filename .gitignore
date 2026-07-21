@@ -33,5 +33,4 @@ dist-ssr
 .continue/
 
 #notes
-notes.md
-GENERATION_CONTEXT.md
+notes.txt
