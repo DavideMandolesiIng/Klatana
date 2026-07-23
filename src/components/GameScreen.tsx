@@ -63,7 +63,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const [showLogs, setShowLogs] = useState(false);
     const [pendingBuild, setPendingBuild] = useState<{ type: 'HOUSE' | 'street' | 'FORTRESS' | 'ACTION_CARD', id: string, costText: string } | null>(null);
     const [dismissedNotificationPhase, setDismissedNotificationPhase] = useState<string | null>(null);
-    const { playRoll, playTurn, playBuild, playTrade, playNinja, playClick, playCard, playDiscard, playCoins } = useSounds();
+    const { playRoll, playTurn, playBuild, playTrade, playNinja, playClick, playCard, playDiscard, playCoins, playCollect } = useSounds();
 
     const [recentAnimations, setRecentAnimations] = useState<{ id: string; event: AnimationEvent; diffs: ResourceDiff[] }[]>([]);
     const prevResources = useRef<ResourceCounts | null>(null);
@@ -199,6 +199,8 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                 const id = Math.random().toString(36).substring(2, 9);
                 if (eventType === 'TRADE') {
                     playCoins();
+                } else if (eventType === 'YIELD') {
+                    playCollect();
                 }
                 setRecentAnimations(prev => [...prev, { id, event: eventType, diffs: changes }]);
                 setTimeout(() => {
@@ -209,15 +211,25 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         prevResources.current = { ...myPlayer.resources };
     }, [myPlayer?.resources]);
 
-    const prevDice = useRef<{die1: number, die2: number, total: number} | null>(null);
+    const prevPhase = useRef(gameState.phase);
     useEffect(() => {
-        if (gameState.diceRoll && gameState.diceRoll !== prevDice.current) {
-            if (gameState.diceRoll.total === 7) {
+        if (prevPhase.current === 'ROLL' && gameState.phase !== 'ROLL') {
+            if (gameState.diceRoll?.total === 7) {
                 playNinja();
             }
-            prevDice.current = gameState.diceRoll;
         }
-    }, [gameState.diceRoll]);
+        prevPhase.current = gameState.phase;
+    }, [gameState.phase, gameState.diceRoll?.total]);
+
+    const prevNinjaCoords = useRef(gameState.ninjaHexCoords);
+    useEffect(() => {
+        if (prevNinjaCoords.current && gameState.ninjaHexCoords) {
+            if (prevNinjaCoords.current.q !== gameState.ninjaHexCoords.q || prevNinjaCoords.current.r !== gameState.ninjaHexCoords.r) {
+                playBuild();
+            }
+        }
+        prevNinjaCoords.current = gameState.ninjaHexCoords;
+    }, [gameState.ninjaHexCoords?.q, gameState.ninjaHexCoords?.r]);
 
     const handleRollDice = () => {
         if (!isMyTurn || gameState.phase !== 'ROLL') return;
@@ -779,7 +791,6 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     };
 
     const handleSteal = (targetPeerId: string) => {
-        playNinja();
         const newPlayers = [...gameState.players];
         const targetIndex = newPlayers.findIndex(p => p.peerId === targetPeerId);
         const myIndex = newPlayers.findIndex(p => p.peerId === myPlayer!.peerId);
