@@ -7,7 +7,7 @@ import { type GameState, createInitialGameState, rollDice, distributeResources, 
 import { HexMath } from '../game/HexMath';
 import { TradeModal } from './TradeModal';
 
-import oreTexture from '../assets/textures/ore-texture.jpeg';
+import tableBg from '../assets/textures/table-background.jpeg';
 import clayTexture from '../assets/textures/clay-texture.jpeg';
 import woodTexture from '../assets/textures/wood-texture-1.jpeg';
 import woolTexture from '../assets/textures/wool-texture.jpeg';
@@ -18,7 +18,6 @@ export const RESOURCE_TEXTURES: Record<string, string> = {
     CLAY: clayTexture,
     CEREALS: wheatTexture,
     WOOL: woolTexture,
-    ORE: oreTexture,
 };
 
 import oakIcon from '../assets/icons/resources/oak_icon.png';
@@ -98,13 +97,13 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             } else if (data.type === 'TRADE_RESPONSE') {
                 setGameState(prev => {
                     if (!prev.tradeProposal) return prev;
-                    
+
                     const acceptedBy = prev.tradeProposal.acceptedBy.filter(id => id !== data.peerId);
                     const declinedBy = (prev.tradeProposal.declinedBy || []).filter(id => id !== data.peerId);
-                    
+
                     if (data.response === 'ACCEPT') acceptedBy.push(data.peerId);
                     if (data.response === 'REJECT') declinedBy.push(data.peerId);
-                    
+
                     const nextState = {
                         ...prev,
                         tradeProposal: {
@@ -113,7 +112,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                             declinedBy
                         }
                     };
-                    
+
                     if (peerService.role === 'host') {
                         setTimeout(() => peerService.broadcast(data), 0);
                     }
@@ -442,11 +441,11 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
     const handleResourceClick = (res: string) => {
         if (!myPlayer || isSetupPhase) return;
-        
+
         const rates = getPlayerTradeRates(gameState, map, myPlayer.peerId);
         const exchangeRateForRes = rates[res as keyof typeof rates] || 4;
         const playerResCount = myPlayer.resources[res as keyof typeof myPlayer.resources] || 0;
-        
+
         let initialAmount = 1;
         if (playerResCount >= exchangeRateForRes) {
             initialAmount = exchangeRateForRes;
@@ -698,7 +697,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         if (activeBuildMode === 'FORTRESS') {
             const house = gameState.houses[nodeId];
             if (!house || house.ownerId !== myPlayer!.peerId || house.isFortress) return;
-            
+
             setPendingBuild({ type: 'FORTRESS', id: nodeId, costText: '3 Ore, 2 Cereal' });
             return;
         }
@@ -823,28 +822,34 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     };
 
     return (
-        <div className="h-[100dvh] bg-slate-900 p-1 md:p-2 lg:p-4 flex flex-col font-sans text-slate-200 overflow-y-auto md:overflow-hidden">
+        <div className="h-[100dvh] p-1 md:p-2 lg:p-4 flex flex-col text-[#2c1d10] overflow-y-auto md:overflow-hidden"
+            style={{
+                backgroundImage: `url(${tableBg})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
+            }}>
 
             {/* VICTORY SCREEN */}
             {gameState.gamePhase === 'GAME_OVER' && (
                 <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center backdrop-blur-md">
-                    <div className="bg-slate-800 p-10 rounded-3xl border border-yellow-500/50 shadow-2xl max-w-lg w-full text-center flex flex-col items-center gap-4">
+                    <div className="bg-[#fcf7ec]/95 backdrop-blur-md p-10 rounded-3xl border-4 border-[#a37941] shadow-[0_15px_40px_rgba(0,0,0,0.6)] max-w-lg w-full text-center flex flex-col items-center gap-4">
                         <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-amber-600 mb-2 drop-shadow-lg">
                             VICTORY!
                         </h1>
                         <div className="w-16 h-16 rounded-full mb-2" style={{ backgroundColor: PLAYER_COLORS[gameState.players.find(p => p.victoryPoints + p.actionCards.filter(c => c.type === 'MONUMENT').length >= gameState.winningScore)?.color as keyof typeof PLAYER_COLORS || 'RED'].hex }}></div>
-                        <h2 className="text-2xl font-bold text-white uppercase tracking-widest">
+                        <h2 className="text-2xl font-bold text-[#2c1d10] uppercase tracking-widest">
                             {gameState.players.find(p => p.victoryPoints + p.actionCards.filter(c => c.type === 'MONUMENT').length >= gameState.winningScore)?.username} Wins!
                         </h2>
-                        <p className="text-slate-300">
+                        <p className="text-[#5c4936]">
                             They reached {gameState.winningScore} Victory Points and conquered Klatana.
                         </p>
 
-                        <div className="w-full mt-6 bg-slate-900 rounded-xl p-4 border border-slate-700">
-                            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3 border-b border-slate-700 pb-2">Final Scores</h3>
+                        <div className="w-full mt-6 bg-[#ebd8b7] shadow-inner rounded-xl p-4 border-2 border-[#d3be9a]">
+                            <h3 className="text-sm font-black text-[#7d6549] uppercase tracking-wider mb-3 border-b border-[#d3be9a] pb-2">Final Scores</h3>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left text-sm text-slate-300">
-                                    <thead className="bg-slate-800 text-xs text-slate-400 font-bold uppercase">
+                                    <thead className="bg-[#dcc9a5] text-xs text-[#7d6549] font-black uppercase">
                                         <tr>
                                             <th className="px-3 py-2">Rank</th>
                                             <th className="px-3 py-2">Player</th>
@@ -861,12 +866,12 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                 const hiddenVp = p.actionCards.filter(c => c.type === 'MONUMENT').length;
                                                 const totalVp = p.victoryPoints + hiddenVp;
                                                 return (
-                                                    <tr key={p.peerId} className="hover:bg-slate-800/50">
-                                                        <td className="px-3 py-2 font-black text-slate-400">#{idx + 1}</td>
+                                                    <tr key={p.peerId} className="hover:bg-[#f0e5ce]/50">
+                                                        <td className="px-3 py-2 font-black text-[#a37941]">#{idx + 1}</td>
                                                         <td className="px-3 py-2">
                                                             <div className="flex items-center gap-2">
                                                                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: PLAYER_COLORS[p.color as keyof typeof PLAYER_COLORS].hex }}></div>
-                                                                <span className="font-bold text-white">{p.username}</span>
+                                                                <span className="font-bold text-[#2c1d10]">{p.username}</span>
                                                             </div>
                                                         </td>
                                                         <td className="px-3 py-2 font-bold text-yellow-500">{totalVp}</td>
@@ -882,7 +887,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         </div>
 
                         {onReturnToLobby && (
-                            <button onClick={onReturnToLobby} className="mt-4 px-8 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold uppercase tracking-widest shadow-lg transition-colors border border-slate-500">
+                            <button onClick={onReturnToLobby} className="mt-4 px-8 py-3 bg-gradient-to-b from-[#3ca956] via-[#2f8a43] to-[#1c552a] hover:from-[#4ac565] text-[#f7efd8] rounded-xl font-bold uppercase tracking-widest shadow-lg transition-colors border-b-4 border-[#113118]">
                                 Return to Lobby
                             </button>
                         )}
@@ -893,19 +898,19 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             {/* PAUSED MODAL */}
             {gameState.isPaused && (
                 <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center backdrop-blur-md">
-                    <div className="bg-slate-800 p-8 rounded-3xl border border-red-500/50 shadow-2xl max-w-md w-full text-center flex flex-col items-center gap-4">
+                    <div className="bg-[#fcf7ec]/95 backdrop-blur-md p-8 rounded-3xl border-4 border-red-500/70 shadow-2xl max-w-md w-full text-center flex flex-col items-center gap-4">
                         <div className="text-5xl font-black text-red-500 mb-2 drop-shadow-lg">⏸️</div>
                         <h2 className="text-2xl font-bold text-white uppercase tracking-widest">
                             Game Paused
                         </h2>
-                        <div className="text-slate-300">
+                        <div className="text-[#5c4936]">
                             Waiting for players to reconnect:
                             <ul className="mt-4 space-y-2">
                                 {gameState.disconnectedPlayers.map(id => {
                                     const p = gameState.players.find(x => (x.playerId || x.peerId) === id);
                                     return (
-                                        <li key={id} className="flex justify-between items-center bg-slate-900 p-3 rounded-lg border border-slate-700">
-                                            <span className="font-bold">{p?.username || 'Unknown Player'}</span>
+                                        <li key={id} className="flex justify-between items-center bg-[#ebd8b7] shadow-inner p-3 rounded-lg border-2 border-[#d3be9a]">
+                                            <span className="font-bold text-[#2c1d10]">{p?.username || 'Unknown Player'}</span>
                                             {peerService.role === 'host' && (
                                                 <button
                                                     onClick={() => {
@@ -940,9 +945,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             {/* NINJA DISCARD MODAL */}
             {gameState.gamePhase === 'NINJA_DISCARD' && myPlayer && gameState.playersNeedingToDiscard.includes(myPlayer.peerId) && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm">
-                    <div className="bg-slate-800 p-6 rounded-2xl border border-slate-600 shadow-2xl max-w-md w-full">
-                        <h2 className="text-xl font-bold text-white mb-2 text-center uppercase tracking-wider text-red-400">Ninja Attack!</h2>
-                        <p className="text-slate-300 text-sm mb-4 text-center">You have more than {gameState.settings?.discardLimit ?? 7} cards. You must discard half (rounded down).</p>
+                    <div className="bg-[#fcf7ec]/95 backdrop-blur-md p-6 rounded-2xl border-4 border-[#a37941] shadow-2xl max-w-md w-full">
+                        <h2 className="text-xl font-black text-[#c0392b] mb-2 text-center uppercase tracking-wider">Ninja Attack!</h2>
+                        <p className="text-[#5c4936] text-sm mb-4 text-center">You have more than {gameState.settings?.discardLimit ?? 7} cards. You must discard half (rounded down).</p>
 
                         <div className="space-y-3 mx-auto px-4 mb-6">
                             {Object.entries(myPlayer.resources)
@@ -975,7 +980,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                     <span className={`text-[10px] font-bold ${numTextClass} ${numBgClass} px-1.5 py-0.5 rounded shadow-inner mt-0.5 max-w-fit`}>Available: {count}</span>
                                                 </div>
                                             </div>
-                                            
+
                                             <div className="relative z-10 flex gap-2 items-center mr-2">
                                                 <button onClick={() => setDiscardSelection(prev => ({ ...prev, [res]: Math.max(0, (prev[res as keyof typeof prev] || 0) - 1) }))} className="w-8 h-8 bg-black/40 text-white rounded hover:bg-black/60 shadow font-bold transition-colors">-</button>
                                                 <span className={`w-6 text-center font-black ${textClass} text-lg`}>{selected}</span>
@@ -1043,9 +1048,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             {/* NINJA STEAL MODAL */}
             {gameState.gamePhase === 'NINJA_STEAL' && isMyTurn && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm">
-                    <div className="bg-slate-800 p-6 rounded-2xl border border-slate-600 shadow-2xl max-w-sm w-full">
-                        <h2 className="text-xl font-bold text-white mb-2 text-center uppercase tracking-wider text-emerald-400">Steal Resource</h2>
-                        <p className="text-slate-300 text-sm mb-6 text-center">Choose an opponent adjacent to the Ninja to steal from.</p>
+                    <div className="bg-[#fcf7ec]/95 backdrop-blur-md p-6 rounded-2xl border-4 border-[#a37941] shadow-2xl max-w-sm w-full">
+                        <h2 className="text-xl font-black text-emerald-700 mb-2 text-center uppercase tracking-wider">Steal Resource</h2>
+                        <p className="text-[#5c4936] text-sm mb-6 text-center">Choose an opponent adjacent to the Ninja to steal from.</p>
                         <div className="space-y-3">
                             {(() => {
                                 const hexNodeIds = HexMath.getHexNodeIds(gameState.ninjaHexCoords);
@@ -1084,9 +1089,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             {/* ACTION CARD MODALS */}
             {activeCardContext === 'MARKET CONTROL' && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm">
-                    <div className="bg-slate-800 p-6 rounded-2xl border border-slate-600 shadow-2xl max-w-sm w-full">
-                        <h2 className="text-xl font-bold text-white mb-2 text-center uppercase tracking-wider text-indigo-400">Market Control</h2>
-                        <p className="text-slate-300 text-sm mb-6 text-center">Choose a resource to steal from all players.</p>
+                    <div className="bg-[#fcf7ec]/95 backdrop-blur-md p-6 rounded-2xl border-4 border-[#a37941] shadow-2xl max-w-sm w-full">
+                        <h2 className="text-xl font-black text-[#5c4936] mb-2 text-center uppercase tracking-wider">Market Control</h2>
+                        <p className="text-[#5c4936] text-sm mb-6 text-center">Choose a resource to steal from all players.</p>
                         <div className="grid grid-cols-2 gap-3">
                             {['OAK', 'CLAY', 'CEREALS', 'WOOL', 'ORE'].map(res => (
                                 <button
@@ -1127,9 +1132,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
             {activeCardContext === 'ABUNDANCE' && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm">
-                    <div className="bg-slate-800 p-6 rounded-2xl border border-slate-600 shadow-2xl max-w-sm w-full">
-                        <h2 className="text-xl font-bold text-white mb-2 text-center uppercase tracking-wider text-indigo-400">Abundance</h2>
-                        <p className="text-slate-300 text-sm mb-6 text-center">Pick {2 - abundancePicks.length} resource(s) from the bank.</p>
+                    <div className="bg-[#fcf7ec]/95 backdrop-blur-md p-6 rounded-2xl border-4 border-[#a37941] shadow-2xl max-w-sm w-full">
+                        <h2 className="text-xl font-black text-[#5c4936] mb-2 text-center uppercase tracking-wider">Abundance</h2>
+                        <p className="text-[#5c4936] text-sm mb-6 text-center">Pick {2 - abundancePicks.length} resource(s) from the bank.</p>
                         <div className="grid grid-cols-2 gap-3">
                             {['OAK', 'CLAY', 'CEREALS', 'WOOL', 'ORE'].map(res => (
                                 <button
@@ -1184,13 +1189,13 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         </div>
 
                         {/* Action Cards Box */}
-                        <div className="flex-1 md:flex-none bg-slate-800 p-1 md:p-3 rounded-lg md:rounded-xl border border-slate-700 shadow-lg flex flex-col shrink-0 min-h-0 mt-0 md:mt-auto">
-                            <h3 className="hidden md:block font-bold text-slate-300 uppercase text-xs tracking-wider mb-2">Action Cards</h3>
+                        <div className="flex-1 md:flex-none bg-[#f4e6cd] p-1 md:p-3 rounded-lg md:rounded-xl border-2 border-[#d3be9a] shadow-lg flex flex-col shrink-0 min-h-0 mt-0 md:mt-auto">
+                            <h3 className="hidden md:block font-black text-[#7d6549] uppercase text-xs tracking-wider mb-2">Action Cards</h3>
                             <div className="flex flex-row md:flex-col gap-1 md:gap-2 flex-grow overflow-x-auto overflow-y-hidden md:overflow-visible items-center md:items-stretch">
                                 {myPlayer?.actionCards.map((card, i) => (
-                                    <div key={i} className="bg-slate-900 p-1 md:p-2 rounded border border-slate-700 flex gap-2 justify-between items-center group relative cursor-help shrink-0 md:shrink">
-                                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-48 pointer-events-none z-[60]">
-                                            <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Info</span>
+                                    <div key={i} className="bg-[#ebd8b7] p-1 md:p-2 rounded border-2 border-[#d3be9a] flex gap-2 justify-between items-center group relative cursor-help shrink-0 md:shrink">
+                                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-[#fcf7ec]/98 backdrop-blur border-2 border-[#d3be9a] rounded-lg p-2 shadow-2xl w-48 pointer-events-none z-[60]">
+                                            <span className="text-[10px] uppercase tracking-widest font-black text-[#7d6549] border-b border-[#d3be9a] pb-1 mb-1 text-center">Info</span>
                                             <span className="text-[10px] text-slate-300 text-center font-medium">
                                                 {card.type === 'NINJA' ? 'Move the Ninja to a new hex and steal 1 resource from an adjacent opponent.' :
                                                     card.type === 'MONUMENT' ? '+1 Victory Point (Hidden from others until the end).' :
@@ -1199,7 +1204,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                                 card.type === 'RAPID_EXPANSION' ? 'Instantly build 2 streets for free.' : ''}
                                             </span>
                                         </div>
-                                        <span className="text-[9px] md:text-[10px] font-bold text-slate-300 uppercase truncate pr-1 flex-1">{card.type}</span>
+                                        <span className="text-[9px] md:text-[10px] font-black text-[#2c1d10] uppercase truncate pr-1 flex-1">{card.type}</span>
                                         {card.type !== 'MONUMENT' && (
                                             <button
                                                 onClick={() => handlePlayCard(i)}
@@ -1216,8 +1221,8 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         </div>{/* end Action Cards box */}
 
                         {/* Resources Box */}
-                        <div className="flex-1 md:flex-none bg-slate-800 p-1 md:p-3 rounded-lg md:rounded-xl border border-slate-700 shadow-lg flex flex-col shrink-0">
-                            <h3 className="hidden md:block font-bold text-slate-300 uppercase text-xs tracking-wider mb-2">My Resources</h3>
+                        <div className="flex-1 md:flex-none bg-[#f4e6cd] p-1 md:p-3 rounded-lg md:rounded-xl border-2 border-[#d3be9a] shadow-lg flex flex-col shrink-0">
+                            <h3 className="hidden md:block font-black text-[#7d6549] uppercase text-xs tracking-wider mb-2">My Resources</h3>
                             {myPlayer && (
                                 <div className="flex flex-row md:grid md:grid-cols-3 gap-1 md:gap-1.5 overflow-x-auto md:overflow-visible mb-0 md:mb-2 items-center">
                                     {Object.entries(myPlayer.resources)
@@ -1268,7 +1273,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
 
                 {/* Main Board Area */}
-                <main className="flex-grow flex flex-col items-center justify-center bg-slate-800 rounded-xl border border-slate-700 shadow-xl relative overflow-hidden min-w-0">
+                <main className="flex-grow flex flex-col items-center justify-center bg-[#2c5f3a]/60 backdrop-blur-sm rounded-xl border-2 border-[#1c3d26] shadow-xl relative overflow-hidden min-w-0">
                     <GameBoard
                         template={map}
                         gameState={gameState}
@@ -1288,12 +1293,12 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
                     {/* Top-Left Floating Info: Player Identity */}
                     <div className="absolute top-1 left-1 md:top-2 md:left-2 lg:top-4 lg:left-4 flex flex-col gap-1 lg:gap-2 z-10 pointer-events-none">
-                        <div className="px-3 py-1.5 bg-slate-900/80 backdrop-blur rounded-lg text-sm font-bold shadow-lg border border-slate-700">
-                            <span className="text-slate-400 mr-2">Playing as:</span>
+                        <div className="px-3 py-1.5 bg-[#fcf7ec]/90 backdrop-blur rounded-lg text-sm font-bold shadow-lg border-2 border-[#d3be9a]">
+                            <span className="text-[#7d6549] mr-2">Playing as:</span>
                             <span className="text-white drop-shadow" style={{ color: myPlayer ? PLAYER_COLORS[myPlayer.color as keyof typeof PLAYER_COLORS].hex : 'white' }}>{myPlayer?.username}</span>
                         </div>
                         {activeBuildMode !== 'NONE' && (
-                            <div className="px-3 py-1.5 bg-indigo-900/80 backdrop-blur rounded-lg text-xs font-bold shadow-lg border border-indigo-500 animate-pulse text-indigo-200">
+                            <div className="px-3 py-1.5 bg-[#2d1b0f]/80 backdrop-blur rounded-lg text-xs font-bold shadow-lg border border-[#a37941] animate-pulse text-amber-300">
                                 BUILDING {activeBuildMode}...
                             </div>
                         )}
@@ -1302,19 +1307,19 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                     {/* Top-Right Floating Info: Dice Roll, Turn & Phase */}
                     <div className="absolute top-1 right-1 md:top-2 md:right-2 lg:top-4 lg:right-4 z-10 pointer-events-none flex flex-col items-end gap-1 lg:gap-2">
                         <div className="flex gap-2">
-                            <div className="px-3 py-1.5 bg-slate-900/80 backdrop-blur rounded-lg text-xs font-bold shadow-lg border border-slate-700">
-                                <span className="text-slate-400 uppercase tracking-wider mr-2">Turn:</span>
+                            <div className="px-3 py-1.5 bg-[#fcf7ec]/90 backdrop-blur rounded-lg text-xs font-bold shadow-lg border-2 border-[#d3be9a]">
+                                <span className="text-[#7d6549] uppercase tracking-wider mr-2">Turn:</span>
                                 <span className="text-white drop-shadow" style={{ color: currentPlayer ? PLAYER_COLORS[currentPlayer.color as keyof typeof PLAYER_COLORS].hex : 'white' }}>{currentPlayer?.username}</span>
                             </div>
-                            <div className="px-3 py-1.5 bg-slate-900/80 backdrop-blur rounded-lg text-xs font-bold shadow-lg border border-slate-700">
-                                <span className="text-slate-400 uppercase tracking-wider mr-2">Phase:</span>
+                            <div className="px-3 py-1.5 bg-[#fcf7ec]/90 backdrop-blur rounded-lg text-xs font-bold shadow-lg border-2 border-[#d3be9a]">
+                                <span className="text-[#7d6549] uppercase tracking-wider mr-2">Phase:</span>
                                 <span className="text-emerald-400 uppercase">{isSetupPhase ? gameState.gamePhase : gameState.phase}</span>
                             </div>
                         </div>
                         {gameState.diceRoll && (
-                            <div className="flex flex-col items-center justify-center bg-slate-900/80 backdrop-blur px-4 py-2 rounded-xl border border-slate-700 shadow-2xl min-w-[120px]">
-                                <span className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1 drop-shadow">Last Roll</span>
-                                <div className="text-4xl font-black text-white leading-none drop-shadow-md mb-1">{gameState.diceRoll.total}</div>
+                            <div className="flex flex-col items-center justify-center bg-[#fcf7ec]/90 backdrop-blur px-4 py-2 rounded-xl border-2 border-[#d3be9a] shadow-2xl min-w-[120px]">
+                                <span className="text-[#9c8466] text-[10px] font-black uppercase tracking-widest mb-1 drop-shadow">Last Roll</span>
+                                <div className="text-4xl font-black text-[#2c1d10] leading-none drop-shadow-md mb-1">{gameState.diceRoll.total}</div>
                                 <div className="flex gap-1 text-slate-400 text-xs font-bold">
                                     <span>{gameState.diceRoll.die1}</span>
                                     <span>+</span>
@@ -1329,10 +1334,10 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         <div className="absolute bottom-0 left-0 z-20 w-[90%] md:w-80 lg:w-[360px] max-w-sm flex flex-col justify-end gap-2">
                             {/* P2P Trade Proposal */}
                             {gameState.gamePhase === 'P2P_TRADE_PENDING' && gameState.tradeProposal && (
-                                <div className="bg-slate-800/95 backdrop-blur-md rounded-tr-xl border-t border-r border-slate-600 shadow-2xl p-3 flex flex-col">
-                                    <h2 className="text-xs font-bold text-white mb-2 text-center uppercase tracking-wider text-purple-400">Trade Proposal</h2>
+                                <div className="bg-[#fcf7ec]/95 backdrop-blur-md rounded-tr-xl border-t-2 border-r-2 border-[#d3be9a] shadow-2xl p-3 flex flex-col">
+                                    <h2 className="text-xs font-black text-[#5c4936] mb-2 text-center uppercase tracking-wider">Trade Proposal</h2>
 
-                                    <div className="flex flex-col gap-2 justify-between bg-slate-900/60 p-2 rounded-lg border border-slate-700 mb-2">
+                                    <div className="flex flex-col gap-2 justify-between bg-[#ebd8b7] shadow-inner p-2 rounded-lg border-2 border-[#d3be9a] mb-2">
                                         <div className="flex flex-col gap-1 items-center">
                                             <span className="text-[9px] font-bold text-slate-400 uppercase">{gameState.players.find(p => p.peerId === gameState.tradeProposal!.proposerId)?.username} gives</span>
                                             <div className="flex gap-1 flex-wrap justify-center">
@@ -1399,7 +1404,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                 <p className="text-slate-500 text-center text-[10px] italic">Waiting for responses...</p>
                                             )}
 
-                                            <button onClick={handleCancelTrade} className="w-full py-1.5 bg-slate-700 hover:bg-slate-600 text-[10px] rounded font-bold transition-colors shadow">Cancel Offer</button>
+                                            <button onClick={handleCancelTrade} className="w-full py-1.5 bg-slate-700 hover:bg-slate-600 text-[10px] text-white rounded font-bold transition-colors shadow">Cancel Offer</button>
                                         </div>
                                     ) : (
                                         <div className="space-y-2">
@@ -1446,7 +1451,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
                                 {/* Expanded Content */}
                                 {showTradeModal && (
-                                    <div className="bg-slate-800/95 backdrop-blur-md border-r border-t border-slate-600 rounded-tr-xl shadow-2xl p-2 md:p-3 max-h-[50vh] overflow-y-auto pointer-events-auto">
+                                    <div className="bg-[#fcf7ec]/95 backdrop-blur-md border-r-2 border-t-2 border-[#d3be9a] rounded-tr-xl shadow-2xl p-2 md:p-3 max-h-[50vh] overflow-y-auto pointer-events-auto">
                                         <TradeModal
                                             gameState={gameState}
                                             myPlayerId={myPlayer.peerId}
@@ -1469,21 +1474,21 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         <div className="flex flex-col gap-2 items-end pointer-events-auto">
                             <button
                                 onClick={() => setShowBuildCosts(!showBuildCosts)}
-                                className="bg-slate-900/90 hover:bg-slate-800 text-slate-400 border border-slate-700 px-2 py-1 md:px-3 md:py-1.5 rounded md:rounded-lg text-[8px] md:text-[9px] font-bold uppercase tracking-widest shadow-xl backdrop-blur-md transition-colors flex items-center gap-1 md:gap-2"
+                                className="bg-[#fcf7ec]/90 hover:bg-[#fff9ea] text-[#7d6549] border-2 border-[#d3be9a] px-2 py-1 md:px-3 md:py-1.5 rounded md:rounded-lg text-[8px] md:text-[9px] font-black uppercase tracking-widest shadow-xl backdrop-blur-md transition-colors flex items-center gap-1 md:gap-2"
                             >
                                 <span>Build Costs</span>
                                 <span>{showBuildCosts ? '▼' : '▲'}</span>
                             </button>
                             {showBuildCosts && (
-                                <div className="flex flex-col gap-1 bg-slate-900/90 backdrop-blur-md p-1.5 md:p-2.5 rounded md:rounded-lg border border-slate-700 shadow-xl text-[8px] md:text-[9px] uppercase font-bold tracking-wider mb-1">
-                                    <div className="flex items-center justify-between gap-4 text-slate-300">
+                                <div className="flex flex-col gap-1 bg-[#fcf7ec]/95 backdrop-blur-md p-1.5 md:p-2.5 rounded md:rounded-lg border-2 border-[#d3be9a] shadow-xl text-[8px] md:text-[9px] uppercase font-black tracking-wider mb-1">
+                                    <div className="flex items-center justify-between gap-4 text-[#5c4936]">
                                         <span>street</span>
                                         <div className="flex gap-1 drop-shadow-sm">
                                             <img src={RESOURCE_ICONS.OAK} className="w-2.5 h-2.5 md:w-3 md:h-3" />
                                             <img src={RESOURCE_ICONS.CLAY} className="w-2.5 h-2.5 md:w-3 md:h-3" />
                                         </div>
                                     </div>
-                                    <div className="flex items-center justify-between gap-4 text-slate-300">
+                                    <div className="flex items-center justify-between gap-4 text-[#5c4936]">
                                         <span>House</span>
                                         <div className="flex gap-1 drop-shadow-sm">
                                             <img src={RESOURCE_ICONS.OAK} className="w-2.5 h-2.5 md:w-3 md:h-3" />
@@ -1492,7 +1497,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                             <img src={RESOURCE_ICONS.WOOL} className="w-2.5 h-2.5 md:w-3 md:h-3" />
                                         </div>
                                     </div>
-                                    <div className="flex items-center justify-between gap-4 text-slate-300">
+                                    <div className="flex items-center justify-between gap-4 text-[#5c4936]">
                                         <span>Fortress</span>
                                         <div className="flex gap-1 drop-shadow-sm">
                                             <img src={RESOURCE_ICONS.ORE} className="w-2.5 h-2.5 md:w-3 md:h-3" />
@@ -1502,7 +1507,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                             <img src={RESOURCE_ICONS.CEREALS} className="w-2.5 h-2.5 md:w-3 md:h-3" />
                                         </div>
                                     </div>
-                                    <div className="flex items-center justify-between gap-4 text-slate-300">
+                                    <div className="flex items-center justify-between gap-4 text-[#5c4936]">
                                         <span>Card</span>
                                         <div className="flex gap-1 drop-shadow-sm">
                                             <img src={RESOURCE_ICONS.ORE} className="w-2.5 h-2.5 md:w-3 md:h-3" />
@@ -1523,19 +1528,19 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                             ) : (
                                 <>
                                     {gameState.phase === 'ROLL' && isMyTurn ? (
-                                        <button onClick={handleRollDice} className="px-3 py-1.5 md:px-6 md:py-3 bg-indigo-600 hover:bg-indigo-500 rounded-lg md:rounded-xl font-bold shadow-2xl transition-colors border border-indigo-400 text-[10px] md:text-sm uppercase tracking-wider w-full md:w-auto">
+                                        <button onClick={handleRollDice} className="px-3 py-1.5 md:px-6 md:py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg md:rounded-xl font-bold shadow-2xl transition-colors border border-indigo-400 text-[10px] md:text-sm uppercase tracking-wider w-full md:w-auto">
                                             Roll Dice
                                         </button>
                                     ) : (
                                         <>
                                             {buildMode !== 'NONE' && isMyTurn ? (
-                                                <button onClick={() => { setBuildMode('NONE'); setPendingBuild(null); }} className="px-3 py-1.5 md:px-6 md:py-3 bg-slate-700 hover:bg-slate-600 rounded-lg md:rounded-xl font-bold transition-colors shadow-xl border border-slate-600 text-[10px] md:text-sm uppercase tracking-wider w-full md:w-auto">
+                                                <button onClick={() => { setBuildMode('NONE'); setPendingBuild(null); }} className="px-3 py-1.5 md:px-6 md:py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg md:rounded-xl font-bold transition-colors shadow-xl border border-slate-600 text-[10px] md:text-sm uppercase tracking-wider w-full md:w-auto">
                                                     Cancel Build
                                                 </button>
                                             ) : (
                                                 <>
                                                     <div className="relative group flex items-stretch">
-                                                        <button onClick={() => isMyTurn && setBuildMode('HOUSE')} disabled={!isMyTurn || !canAffordHouse || !hasValidHouseSpots} title={isMyTurn && canAffordHouse && !hasValidHouseSpots ? "No valid spots available on board" : (!isMyTurn ? "Not your turn" : undefined)} className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border text-[9px] md:text-sm uppercase tracking-wider ${isMyTurn && canAffordHouse && hasValidHouseSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : (isMyTurn && canAffordHouse && !hasValidHouseSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed')}`}>
+                                                        <button onClick={() => isMyTurn && setBuildMode('HOUSE')} disabled={!isMyTurn || !canAffordHouse || !hasValidHouseSpots} title={isMyTurn && canAffordHouse && !hasValidHouseSpots ? "No valid spots available on board" : (!isMyTurn ? "Not your turn" : undefined)} className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border text-[9px] md:text-sm uppercase tracking-wider ${isMyTurn && canAffordHouse && hasValidHouseSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600 text-white' : (isMyTurn && canAffordHouse && !hasValidHouseSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 text-slate-400 opacity-50 cursor-not-allowed')}`}>
                                                             House
                                                         </button>
                                                         <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
@@ -1547,7 +1552,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                         </div>
                                                     </div>
                                                     <div className="relative group flex items-stretch">
-                                                        <button onClick={() => isMyTurn && setBuildMode('FORTRESS')} disabled={!isMyTurn || !canAffordFortress || !hasValidFortressSpots} title={isMyTurn && canAffordFortress && !hasValidFortressSpots ? "No valid spots available on board" : (!isMyTurn ? "Not your turn" : undefined)} className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border text-[9px] md:text-sm uppercase tracking-wider ${isMyTurn && canAffordFortress && hasValidFortressSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : (isMyTurn && canAffordFortress && !hasValidFortressSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed')}`}>
+                                                        <button onClick={() => isMyTurn && setBuildMode('FORTRESS')} disabled={!isMyTurn || !canAffordFortress || !hasValidFortressSpots} title={isMyTurn && canAffordFortress && !hasValidFortressSpots ? "No valid spots available on board" : (!isMyTurn ? "Not your turn" : undefined)} className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border text-[9px] md:text-sm uppercase tracking-wider ${isMyTurn && canAffordFortress && hasValidFortressSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600 text-white' : (isMyTurn && canAffordFortress && !hasValidFortressSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 text-slate-400 opacity-50 cursor-not-allowed')}`}>
                                                             Fortress
                                                         </button>
                                                         <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
@@ -1559,7 +1564,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                         </div>
                                                     </div>
                                                     <div className="relative group flex items-stretch">
-                                                        <button onClick={() => isMyTurn && setBuildMode('street')} disabled={!isMyTurn || !canAffordStreet || !hasValidStreetSpots} title={isMyTurn && canAffordStreet && !hasValidStreetSpots ? "No valid spots available on board" : (!isMyTurn ? "Not your turn" : undefined)} className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border text-[9px] md:text-sm uppercase tracking-wider ${isMyTurn && canAffordStreet && hasValidStreetSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600' : (isMyTurn && canAffordStreet && !hasValidStreetSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed')}`}>
+                                                        <button onClick={() => isMyTurn && setBuildMode('street')} disabled={!isMyTurn || !canAffordStreet || !hasValidStreetSpots} title={isMyTurn && canAffordStreet && !hasValidStreetSpots ? "No valid spots available on board" : (!isMyTurn ? "Not your turn" : undefined)} className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border text-[9px] md:text-sm uppercase tracking-wider ${isMyTurn && canAffordStreet && hasValidStreetSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600 text-white' : (isMyTurn && canAffordStreet && !hasValidStreetSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 text-slate-400 opacity-50 cursor-not-allowed')}`}>
                                                             street
                                                         </button>
                                                         <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
@@ -1571,8 +1576,8 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                         </div>
                                                     </div>
                                                     <div className="relative group flex items-stretch">
-                                                        <button onClick={() => isMyTurn && handleBuyCard()} disabled={!isMyTurn || !canAffordCard || gameState.actionCardDeck.length === 0} title={!isMyTurn ? "Not your turn" : undefined} className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border-2 text-[9px] md:text-sm uppercase tracking-wider ${isMyTurn && canAffordCard && gameState.actionCardDeck.length > 0 ? 'bg-slate-700 hover:bg-slate-600 border-purple-500 text-purple-200' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed'}`}>
-                                                            Buy Card <span className="text-[8px] md:text-[10px] text-slate-400 font-normal">({gameState.actionCardDeck.length})</span>
+                                                        <button onClick={() => isMyTurn && handleBuyCard()} disabled={!isMyTurn || !canAffordCard || gameState.actionCardDeck.length === 0} title={!isMyTurn ? "Not your turn" : undefined} className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border-2 text-[9px] text-white md:text-sm uppercase tracking-wider ${isMyTurn && canAffordCard && gameState.actionCardDeck.length > 0 ? 'bg-slate-700 hover:bg-slate-600 border-purple-500 text-purple-200' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed'}`}>
+                                                            Buy Card <span className="text-[8px] md:text-[10px] text-white font-normal">({gameState.actionCardDeck.length})</span>
                                                         </button>
                                                         <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
                                                             <span className="text-[10px] uppercase tracking-widest font-bold text-slate-300 border-b border-slate-600 pb-1 mb-1 text-center">Cost</span>
@@ -1582,7 +1587,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                             })}
                                                         </div>
                                                     </div>
-                                                    
+
                                                     {pendingBuild?.type === 'ACTION_CARD' && (
                                                         <div className="absolute bottom-16 right-full mr-4 bg-slate-900/95 backdrop-blur-md p-3 rounded-xl border border-indigo-500 shadow-2xl flex flex-col items-center pointer-events-auto w-48 z-50">
                                                             <span className="text-xs text-slate-200 font-bold mb-2 text-center uppercase tracking-wider">Confirm Purchase?</span>
@@ -1593,17 +1598,17 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                             </div>
                                                         </div>
                                                     )}
-                                                    
+
                                                     {isMyTurn ? (
                                                         gameState.gamePhase === 'FREE_STREET_BUILDING' ? (
                                                             <button onClick={() => {
                                                                 broadcastState({ ...gameState, gamePhase: 'MAIN_GAME', freeStreetsLeft: 0 });
                                                                 setBuildMode('NONE');
-                                                            }} className="px-3 py-1.5 md:px-6 md:py-3 rounded-lg md:rounded-xl font-bold shadow-2xl transition-colors border border-amber-500 bg-amber-600 hover:bg-amber-500 text-[10px] md:text-sm uppercase tracking-wider">
+                                                            }} className="px-3 py-1.5 md:px-6 md:py-3 rounded-lg md:rounded-xl font-bold shadow-2xl transition-colors border border-amber-500 bg-amber-600 hover:bg-amber-500 text-white text-[10px] md:text-sm uppercase tracking-wider">
                                                                 End Free street
                                                             </button>
                                                         ) : (
-                                                            <button onClick={() => handleEndTurn(false)} disabled={gameState.gamePhase !== 'MAIN_GAME'} className={`px-4 py-1.5 md:px-6 md:py-3 rounded-lg md:rounded-xl font-bold shadow-2xl transition-colors border text-[10px] md:text-sm uppercase tracking-wider ${gameState.gamePhase === 'MAIN_GAME' ? 'bg-red-600 hover:bg-red-500 border-red-400' : 'bg-red-800 border-red-700 opacity-50 cursor-not-allowed'}`}>
+                                                            <button onClick={() => handleEndTurn(false)} disabled={gameState.gamePhase !== 'MAIN_GAME'} className={`px-4 py-1.5 md:px-6 md:py-3 rounded-lg md:rounded-xl font-bold shadow-2xl transition-colors border text-[10px] md:text-sm uppercase tracking-wider text-white ${gameState.gamePhase === 'MAIN_GAME' ? 'bg-red-600 hover:bg-red-500 border-red-400' : 'bg-red-800 border-red-700 opacity-50 cursor-not-allowed'}`}>
                                                                 End Turn
                                                             </button>
                                                         )
@@ -1627,10 +1632,10 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                     <div className="flex-1 flex flex-col gap-2 lg:gap-4 min-w-0">
                         {/* Bank Resources Panel */}
                         {!settings.hideBankResources && (
-                            <div className="bg-slate-800 rounded-xl border border-slate-700 shadow-lg shrink-0 flex flex-col overflow-hidden">
+                            <div className="bg-[#f4e6cd] rounded-xl border-2 border-[#d3be9a] shadow-lg shrink-0 flex flex-col overflow-hidden">
                                 <button
                                     onClick={() => setShowBankPanel(!showBankPanel)}
-                                    className="bg-slate-900/50 p-2 md:p-3 border-b border-slate-700 font-bold text-[10px] md:text-xs uppercase text-slate-300 tracking-wider flex justify-between items-center hover:bg-slate-700 transition"
+                                    className="bg-[#ebd8b7] shadow-inner p-2 md:p-3 border-b-2 border-[#d3be9a] font-black text-[10px] md:text-xs uppercase text-[#7d6549] tracking-wider flex justify-between items-center hover:bg-[#dcc9a5] transition"
                                 >
                                     <span>Bank Resources</span>
                                     <span>{showBankPanel ? '▼' : '▲'}</span>
@@ -1675,15 +1680,15 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
                         {/* Game Log (Top Right) */}
                         <div className="flex flex-col gap-2 shrink-0 max-h-40 md:h-40">
-                            <button onClick={() => setShowLogs(!showLogs)} className="md:hidden w-full bg-slate-800 p-2 text-[10px] font-bold text-slate-300 uppercase tracking-wider rounded-xl border border-slate-700 shadow-lg flex justify-between items-center shrink-0">
+                            <button onClick={() => setShowLogs(!showLogs)} className="md:hidden w-full bg-[#f4e6cd] p-2 text-[10px] font-black text-[#7d6549] uppercase tracking-wider rounded-xl border-2 border-[#d3be9a] shadow-lg flex justify-between items-center shrink-0">
                                 <span>Game Log</span>
                                 <span>{showLogs ? '▼' : '▲'}</span>
                             </button>
-                            <div className={`${showLogs ? 'flex' : 'hidden'} md:flex bg-slate-800 rounded-xl border border-slate-700 shadow-lg h-32 md:h-full shrink-0 flex-col overflow-hidden`}>
-                                <div className="hidden md:block bg-slate-900/50 p-2 border-b border-slate-700 font-bold text-[10px] uppercase text-slate-400 tracking-wider shrink-0">
+                            <div className={`${showLogs ? 'flex' : 'hidden'} md:flex bg-[#f4e6cd] rounded-xl border-2 border-[#d3be9a] shadow-lg h-32 md:h-full shrink-0 flex-col overflow-hidden`}>
+                                <div className="hidden md:block bg-[#ebd8b7] shadow-inner p-2 border-b-2 border-[#d3be9a] font-black text-[10px] uppercase text-[#7d6549] tracking-wider shrink-0">
                                     Game Log
                                 </div>
-                                <div className="p-2 overflow-y-auto flex-grow space-y-1 text-[10px] md:text-xs flex flex-col-reverse">
+                                <div className="p-2 overflow-y-auto flex-grow space-y-1 text-[10px] md:text-xs flex flex-col-reverse text-[#5c4936]">
                                     {[...gameState.logs].reverse().map((log, i) => {
                                         if (log.includes('|STEAL|')) {
                                             const [msg, , stealerId, targetId, resource] = log.split('|');
@@ -1695,7 +1700,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                             );
                                         }
                                         return (
-                                            <div key={i} className="text-slate-300 border-b border-slate-700/50 pb-1">{log}</div>
+                                            <div key={i} className="text-[#5c4936] border-b border-[#d3be9a]/50 pb-1">{log}</div>
                                         );
                                     })}
                                 </div>
@@ -1705,13 +1710,13 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
                     <div className="flex-1 flex flex-col gap-2 lg:gap-4 min-w-0">
                         {/* Players List (Below Log) */}
-                        <div className="flex-grow bg-slate-800 rounded-xl border border-slate-700 shadow-lg p-2 md:p-3 flex flex-col gap-1 md:gap-2 overflow-y-auto min-h-0">
-                            <h3 className="font-bold text-slate-300 uppercase text-[10px] md:text-xs tracking-wider mb-1 shrink-0">Players</h3>
+                        <div className="flex-grow bg-[#f4e6cd] rounded-xl border-2 border-[#d3be9a] shadow-lg p-2 md:p-3 flex flex-col gap-1 md:gap-2 overflow-y-auto min-h-0">
+                            <h3 className="font-black text-[#7d6549] uppercase text-[10px] md:text-xs tracking-wider mb-1 shrink-0">Players</h3>
                             {gameState.players.map(p => (
-                                <div key={p.peerId} className={`p-1.5 md:p-2 rounded border transition-colors flex flex-col gap-1 md:gap-2 shrink-0 ${p.peerId === currentPlayer?.peerId ? 'border-emerald-500 bg-slate-900' : 'border-slate-700 bg-slate-900/50'}`}>
+                                <div key={p.peerId} className={`p-1.5 md:p-2 rounded border-2 transition-colors flex flex-col gap-1 md:gap-2 shrink-0 ${p.peerId === currentPlayer?.peerId ? 'border-[#2f8a43] bg-[#e0eddf]' : 'border-[#d3be9a] bg-[#f4e6cd]/60'}`}>
                                     <div className="flex items-center gap-1.5 md:gap-2 truncate">
                                         <div className="w-2 h-2 md:w-2.5 md:h-2.5 rounded-full shrink-0" style={{ backgroundColor: PLAYER_COLORS[p.color as keyof typeof PLAYER_COLORS].hex }}></div>
-                                        <span className="font-bold text-xs md:text-sm truncate">{p.username}</span>
+                                        <span className="font-bold text-xs md:text-sm truncate text-[#2c1d10]">{p.username}</span>
                                     </div>
                                     <div className="flex gap-1.5 md:gap-3 text-[10px] md:text-xs items-center mt-0.5 md:mt-1">
                                         <div className="flex gap-1 md:gap-2">
@@ -1751,7 +1756,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                 }
 
                 return (
-                    <div key={anim.id} className={`fixed z-[200] ${positionClass} animate-float-up pointer-events-none flex flex-wrap gap-4 drop-shadow-2xl font-black bg-slate-900/60 backdrop-blur-md px-6 py-3 rounded-2xl border border-slate-600/50 block w-max`}>
+                    <div key={anim.id} className={`fixed z-[200] ${positionClass} animate-float-up pointer-events-none flex flex-wrap gap-4 drop-shadow-2xl font-black bg-[#2c1d10]/80 backdrop-blur-md px-6 py-3 rounded-2xl border border-[#a37941]/50 block w-max`}>
                         {anim.diffs.map((d, i) => (
                             <div key={i} className={`flex items-center gap-2 text-2xl ${d.diff > 0 ? 'text-emerald-400' : 'text-red-500'}`} style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
                                 {d.diff > 0 ? '+' : ''}{d.diff}
@@ -1764,4 +1769,3 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         </div>
     );
 };
-
