@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { peerService } from '../network/PeerService';
 import { Plus } from 'lucide-react';
+import { useSounds } from '../context/SoundContext';
 
 import wavesBg from '../assets/textures/waves-background.jpeg';
 import angle1 from '../assets/UI/Angle1.webp';
@@ -13,6 +14,7 @@ interface MainMenuProps {
 }
 
 export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby, onPrivacyPolicy }) => {
+  const { playClick } = useSounds();
   const [joinCode, setJoinCode] = useState('');
   const [username, setUsername] = useState(localStorage.getItem('klatana_username') || '');
   const [isCreating, setIsCreating] = useState(false);
@@ -48,6 +50,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby, onPrivacyPolicy
   };
 
   const handleCreateRoom = async () => {
+    playClick();
     if (!username.trim()) { setError('Please enter a username'); return; }
     localStorage.setItem('klatana_username', username.trim());
     try {
@@ -67,6 +70,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby, onPrivacyPolicy
 
   const handleJoinRoom = async (e: React.FormEvent) => {
     e.preventDefault();
+    playClick();
     if (!username.trim()) { setError('Please enter a username'); return; }
     if (!joinCode || joinCode.length !== 4) {
       setError('Please enter a valid 4-letter code');

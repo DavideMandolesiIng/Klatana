@@ -1,5 +1,5 @@
 import Peer, { type DataConnection } from 'peerjs';
-import { registerRoomCode, getRoomInfo, setRoomStatus } from './firebase';
+import { registerRoomCode, getRoomInfo, setRoomStatus, removeRoom } from './firebase';
 
 export type NetworkRole = 'host' | 'client' | 'none';
 
@@ -15,6 +15,7 @@ export class PeerService {
   public knownPlayers: Set<string> = new Set();
   public playerId: string = '';
   public username: string = '';
+  private _beforeUnloadHandler: (() => void) | null = null;
   
   // Connections (for Host: multiple clients. For Client: only the host)
   private connections: Map<string, DataConnection> = new Map();
@@ -53,6 +54,11 @@ export class PeerService {
       // Snapshot all currently connected peers as valid players
       this.connections.forEach((_v, k) => this.knownPlayers.add(k));
       await setRoomStatus(this.roomCode, 'IN_PROGRESS');
+      // Game is running: stop watching for lobby-cleanup on unload
+      if (this._beforeUnloadHandler) {
+        window.removeEventListener('beforeunload', this._beforeUnloadHandler);
+        this._beforeUnloadHandler = null;
+      }
     }
   }
 
@@ -78,6 +84,21 @@ export class PeerService {
         this.roomCode = code;
         localStorage.setItem('klatana_peer_id', id);
         localStorage.setItem('klatana_room_code', code);
+
+        // Best-effort: remove room from Firebase when host closes the tab/window.
+        // fetch with keepalive:true survives beforeunload in all modern browsers.
+        // This is a fallback for when onDisconnect() doesn't fire (browser killed).
+        this._beforeUnloadHandler = () => {
+          if (this.role === 'host' && this.gameStatus === 'LOBBY' && this.roomCode) {
+            const dbUrl = import.meta.env.VITE_FIREBASE_DATABASE_URL.replace(/\/$/, '');
+            fetch(`${dbUrl}/rooms/${this.roomCode}.json`, {
+              method: 'DELETE',
+              keepalive: true,
+            });
+          }
+        };
+        window.addEventListener('beforeunload', this._beforeUnloadHandler);
+
         resolve(code);
       });
 
@@ -199,6 +220,14 @@ export class PeerService {
   }
 
   public destroy() {
+    if (this._beforeUnloadHandler) {
+      window.removeEventListener('beforeunload', this._beforeUnloadHandler);
+      this._beforeUnloadHandler = null;
+    }
+    // Explicitly remove the Firebase room if host leaves the lobby cleanly
+    if (this.role === 'host' && this.gameStatus === 'LOBBY' && this.roomCode) {
+      removeRoom(this.roomCode);
+    }
     if (this.peer) {
       this.peer.destroy();
       this.peer = null;

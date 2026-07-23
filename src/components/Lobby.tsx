@@ -5,12 +5,14 @@ import { generateStandardMap } from '../game/MapGenerator';
 import { type MapTemplate } from '../game/mapTemplates';
 import { type PlayerData, type PlayerColor, PLAYER_COLORS } from '../game/Player';
 import { type GameSettings, type GameState, createInitialGameState } from '../game/GameState';
+import { useSounds } from '../context/SoundContext';
 
 import tableBg from '../assets/textures/table-background.jpeg';
 import angle1 from '../assets/UI/Angle1.webp';
 import angle2 from '../assets/UI/Angle2.webp';
 
 export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map: MapTemplate, players: PlayerData[], settings: GameSettings, resumingState?: GameState) => void }> = ({ initialSettings, onStartGame }) => {
+  const { playClick, playConnect, playStart } = useSounds();
   const [messages, setMessages] = useState<{ senderId: string; text: string }[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isChatOpen, setIsChatOpen] = useState(true);
@@ -133,6 +135,7 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
 
             const next = [...prev, { peerId: incomingPeerId, playerId: data.playerId, username: data.username, color: assigned, isHost: false }];
             setMessages(m => [...m, { senderId: 'SYSTEM', text: `${data.username} joined the lobby` }]);
+            playConnect();
             setTimeout(() => {
               peerService.broadcast({ type: 'LOBBY_STATE', players: next });
               peerService.broadcast({ type: 'LOBBY_SETTINGS', settings: settingsRef.current });
@@ -167,6 +170,7 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
 
   const updateSettings = (updates: Partial<GameSettings>) => {
     if (peerService.role !== 'host') return;
+    playClick();
     const newSettings = { ...settings, ...updates };
     setSettings(newSettings);
     settingsRef.current = newSettings;
@@ -175,6 +179,7 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
 
   const handleStartGameClick = async () => {
     if (peerService.role === 'host') {
+      playStart();
       const newMap = generateStandardMap(settingsRef.current.balancedResources);
       try {
         await peerService.setGameStarted();
@@ -197,6 +202,7 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
   };
 
   const handleColorSelect = (color: PlayerColor) => {
+    playClick();
     if (players.some(p => p.color === color)) return; // Color taken
     if (peerService.role === 'host') {
       setPlayers(prev => {

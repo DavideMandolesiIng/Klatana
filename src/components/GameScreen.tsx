@@ -6,6 +6,7 @@ import { peerService } from '../network/PeerService';
 import { type GameState, createInitialGameState, rollDice, distributeResources, validateHousePlacement, validatestreetPlacement, getStartingResources, advanceSetupTurn, getValidStreetPlacements, getValidHousePlacements, BUILD_COSTS, canAfford, calculateScores, type ResourceCounts, getLongestStreetForPlayer, type GameSettings, createDiceDeck, getPlayerTradeRates } from '../game/GameState';
 import { HexMath } from '../game/HexMath';
 import { TradeModal } from './TradeModal';
+import { useSounds } from '../context/SoundContext';
 
 import tableBg from '../assets/textures/table-background.jpeg';
 import clayTexture from '../assets/textures/clay-texture.jpeg';
@@ -62,6 +63,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const [showLogs, setShowLogs] = useState(false);
     const [pendingBuild, setPendingBuild] = useState<{ type: 'HOUSE' | 'street' | 'FORTRESS' | 'ACTION_CARD', id: string, costText: string } | null>(null);
     const [dismissedNotificationPhase, setDismissedNotificationPhase] = useState<string | null>(null);
+    const { playRoll, playTurn, playBuild, playTrade, playNinja, playClick, playCard, playDiscard, playCoins } = useSounds();
 
     const [recentAnimations, setRecentAnimations] = useState<{ id: string; event: AnimationEvent; diffs: ResourceDiff[] }[]>([]);
     const prevResources = useRef<ResourceCounts | null>(null);
@@ -195,6 +197,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                 else if (hasPositive && !hasNegative) eventType = 'YIELD';
 
                 const id = Math.random().toString(36).substring(2, 9);
+                if (eventType === 'TRADE') {
+                    playCoins();
+                }
                 setRecentAnimations(prev => [...prev, { id, event: eventType, diffs: changes }]);
                 setTimeout(() => {
                     setRecentAnimations(prev => prev.filter(anim => anim.id !== id));
@@ -204,8 +209,19 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         prevResources.current = { ...myPlayer.resources };
     }, [myPlayer?.resources]);
 
+    const prevDice = useRef<{die1: number, die2: number, total: number} | null>(null);
+    useEffect(() => {
+        if (gameState.diceRoll && gameState.diceRoll !== prevDice.current) {
+            if (gameState.diceRoll.total === 7) {
+                playNinja();
+            }
+            prevDice.current = gameState.diceRoll;
+        }
+    }, [gameState.diceRoll]);
+
     const handleRollDice = () => {
         if (!isMyTurn || gameState.phase !== 'ROLL') return;
+        playRoll();
 
         let roll;
         let newDeck = [...gameState.diceDeck];
@@ -235,6 +251,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         if (!forceHostSkip) {
             if (!isMyTurn || gameState.phase === 'ROLL' || gameState.gamePhase !== 'MAIN_GAME') return;
         }
+        playTurn();
 
         let nextIndex = (gameState.currentTurnIndex + 1) % gameState.players.length;
         let loops = 0;
@@ -350,6 +367,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     };
 
     const handleProposeTrade = (offer: Partial<ResourceCounts>, request: Partial<ResourceCounts>) => {
+        playTrade();
         broadcastState({
             ...gameState,
             gamePhase: 'P2P_TRADE_PENDING',
@@ -520,6 +538,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         if (!pendingBuild || !isMyTurn) return;
 
         if (pendingBuild.type === 'ACTION_CARD') {
+            playCard();
             const newPlayers = [...gameState.players];
             const playerIndex = newPlayers.findIndex(p => p.peerId === myPlayer!.peerId);
             const updatedPlayer = {
@@ -549,6 +568,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         }
 
         if (pendingBuild.type === 'FORTRESS') {
+            playBuild();
             const nodeId = pendingBuild.id;
             const house = gameState.houses[nodeId];
             if (!house || house.ownerId !== myPlayer!.peerId || house.isFortress) return;
@@ -586,6 +606,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         }
 
         if (pendingBuild.type === 'HOUSE') {
+            playBuild();
             const nodeId = pendingBuild.id;
             const validation = validateHousePlacement(gameState, nodeId, myPlayer!.peerId);
             if (!validation.valid) return;
@@ -638,6 +659,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         }
 
         if (pendingBuild.type === 'street') {
+            playBuild();
             const edgeId = pendingBuild.id;
             const validation = validatestreetPlacement(gameState, edgeId, myPlayer!.peerId);
             if (!validation.valid) return;
@@ -732,6 +754,8 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         const required = Math.floor(totalCards / 2);
         const selected = Object.values(discardSelection).reduce((a, b) => (a || 0) + (b || 0), 0);
         if (selected !== required) return;
+        
+        playDiscard();
 
         const newPlayers = [...gameState.players];
         const playerIndex = newPlayers.findIndex(p => p.peerId === myPlayer.peerId);
@@ -755,6 +779,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     };
 
     const handleSteal = (targetPeerId: string) => {
+        playNinja();
         const newPlayers = [...gameState.players];
         const targetIndex = newPlayers.findIndex(p => p.peerId === targetPeerId);
         const myIndex = newPlayers.findIndex(p => p.peerId === myPlayer!.peerId);
@@ -1243,7 +1268,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                             return (
                                                 <div
                                                     key={res}
-                                                    onClick={() => handleResourceClick(res)}
+                                                    onClick={() => { playClick(); handleResourceClick(res); }}
                                                     className="relative flex flex-row md:flex-col items-center justify-between gap-1 md:gap-0 p-1 md:p-1.5 rounded border border-black/30 shadow-md overflow-hidden min-h-[24px] md:min-h-[70px] transition-transform hover:scale-105 cursor-pointer shrink-0"
                                                     style={{ background: `radial-gradient(circle at center, ${grad.center}, ${grad.edge})` }}
                                                 >
@@ -1436,7 +1461,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                             <div className="relative">
                                 {/* Toggle Tab */}
                                 <button
-                                    onClick={() => setShowTradeModal(prev => !prev)}
+                                    onClick={() => { playClick(); setShowTradeModal(prev => !prev); }}
                                     disabled={isSetupPhase}
                                     className={`w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-tr-xl border-r border-t border-slate-600 shadow-xl transition-colors ${isSetupPhase
                                         ? 'bg-slate-800/80 text-slate-600 cursor-not-allowed'
@@ -1473,7 +1498,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         {/* Build Costs Legend - sits above action buttons */}
                         <div className="flex flex-col gap-2 items-end pointer-events-auto">
                             <button
-                                onClick={() => setShowBuildCosts(!showBuildCosts)}
+                                onClick={() => { playClick(); setShowBuildCosts(!showBuildCosts); }}
                                 className="bg-[#fcf7ec]/90 hover:bg-[#fff9ea] text-[#7d6549] border-2 border-[#d3be9a] px-2 py-1 md:px-3 md:py-1.5 rounded md:rounded-lg text-[8px] md:text-[9px] font-black uppercase tracking-widest shadow-xl backdrop-blur-md transition-colors flex items-center gap-1 md:gap-2"
                             >
                                 <span>Build Costs</span>
@@ -1634,7 +1659,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         {!settings.hideBankResources && (
                             <div className="bg-[#f4e6cd] rounded-xl border-2 border-[#d3be9a] shadow-lg shrink-0 flex flex-col overflow-hidden">
                                 <button
-                                    onClick={() => setShowBankPanel(!showBankPanel)}
+                                    onClick={() => { playClick(); setShowBankPanel(!showBankPanel); }}
                                     className="bg-[#ebd8b7] shadow-inner p-2 md:p-3 border-b-2 border-[#d3be9a] font-black text-[10px] md:text-xs uppercase text-[#7d6549] tracking-wider flex justify-between items-center hover:bg-[#dcc9a5] transition"
                                 >
                                     <span>Bank Resources</span>
@@ -1680,7 +1705,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
                         {/* Game Log (Top Right) */}
                         <div className="flex flex-col gap-2 shrink-0 max-h-40 md:h-40">
-                            <button onClick={() => setShowLogs(!showLogs)} className="md:hidden w-full bg-[#f4e6cd] p-2 text-[10px] font-black text-[#7d6549] uppercase tracking-wider rounded-xl border-2 border-[#d3be9a] shadow-lg flex justify-between items-center shrink-0">
+                            <button onClick={() => { playClick(); setShowLogs(!showLogs); }} className="md:hidden w-full bg-[#f4e6cd] p-2 text-[10px] font-black text-[#7d6549] uppercase tracking-wider rounded-xl border-2 border-[#d3be9a] shadow-lg flex justify-between items-center shrink-0">
                                 <span>Game Log</span>
                                 <span>{showLogs ? '▼' : '▲'}</span>
                             </button>
