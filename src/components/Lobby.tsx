@@ -12,7 +12,7 @@ import angle1 from '../assets/UI/Angle1.webp';
 import angle2 from '../assets/UI/Angle2.webp';
 
 export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map: MapTemplate, players: PlayerData[], settings: GameSettings, resumingState?: GameState) => void }> = ({ initialSettings, onStartGame }) => {
-  const { playClick, playConnect, playStart } = useSounds();
+  const { playClick, playConnect, playStart, playDisconnect } = useSounds();
   const [messages, setMessages] = useState<{ senderId: string; text: string }[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isChatOpen, setIsChatOpen] = useState(true);
@@ -50,6 +50,16 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const prevPlayersCount = React.useRef(players.length);
+  useEffect(() => {
+    if (players.length < prevPlayersCount.current) {
+      playDisconnect();
+    } else if (players.length > prevPlayersCount.current && prevPlayersCount.current > 0) {
+      playConnect();
+    }
+    prevPlayersCount.current = players.length;
+  }, [players.length, playDisconnect, playConnect]);
 
   // Automatically executed when component mounts
   useEffect(() => {
@@ -98,6 +108,7 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
         setMessages((prev) => [...prev, { senderId: incomingPeerId, text: data.message }]);
       }
       else if (data.type === 'startGame') {
+        playStart();
         peerService.gameStatus = 'IN_PROGRESS';
         onStartGame(data.map, data.players, data.settings, data.state);
       }
@@ -135,7 +146,6 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
 
             const next = [...prev, { peerId: incomingPeerId, playerId: data.playerId, username: data.username, color: assigned, isHost: false }];
             setMessages(m => [...m, { senderId: 'SYSTEM', text: `${data.username} joined the lobby` }]);
-            playConnect();
             setTimeout(() => {
               peerService.broadcast({ type: 'LOBBY_STATE', players: next });
               peerService.broadcast({ type: 'LOBBY_SETTINGS', settings: settingsRef.current });

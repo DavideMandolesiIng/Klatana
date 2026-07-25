@@ -456,8 +456,8 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
           return (
             <foreignObject x={cx - 60} y={cy - (pendingBuild.type === 'street' ? 70 : 80)} width="120" height="90" style={{ pointerEvents: 'none' }}>
-              <div className="bg-slate-900/90 backdrop-blur-md p-2 rounded-lg border border-indigo-500 shadow-xl flex flex-col items-center pointer-events-auto" style={{ pointerEvents: 'auto' }}>
-                <span className="text-[10px] text-slate-300 font-bold mb-1 text-center leading-tight whitespace-nowrap overflow-hidden text-ellipsis max-w-full">
+              <div className="bg-[#f4e6cd] backdrop-blur-md p-2 rounded-lg border-2 border-[#7d6549] shadow-xl flex flex-col items-center pointer-events-auto" style={{ pointerEvents: 'auto' }}>
+                <span className="text-[10px] text-[#7d6549] font-bold mb-1 text-center leading-tight whitespace-nowrap overflow-hidden text-ellipsis max-w-full">
                   Cost: {pendingBuild.costText}
                 </span>
                 <div className="flex gap-1 w-full relative z-[100]">

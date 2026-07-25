@@ -11,6 +11,7 @@ interface SoundContextType {
   playTrade: () => void;
   playTurn: () => void;
   playWin: () => void;
+  playLose: () => void;
   playNinja: () => void;
   playStart: () => void;
   playCoins: () => void;
@@ -60,6 +61,7 @@ export const SoundProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const playTrade = () => getSound('/sounds/trade.mp3', 0.7).play();
   const playTurn = () => getSound('/sounds/turn.mp3', 0.5).play();
   const playWin = () => getSound('/sounds/win.mp3', 0.8).play();
+  const playLose = () => getSound('/sounds/lose.mp3', 0.8).play();
   const playNinja = () => getSound('/sounds/ninja.mp3', 1.0).play();
   const playStart = () => getSound('/sounds/start.mp3', 0.7).play();
   const playCoins = () => getSound('/sounds/coins.mp3', 0.7).play();
@@ -78,6 +80,7 @@ export const SoundProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     playTrade,
     playTurn,
     playWin,
+    playLose,
     playNinja,
     playStart,
     playCoins,

@@ -125,7 +125,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
         <div className="w-full text-slate-200 space-y-2">
 
             {/* ── Bank Rates Legend ── */}
-            <div className="bg-slate-900/70 border border-slate-700 rounded-lg p-2">
+            <div className="bg-[#ebd8b7] border border-slate-700 rounded-lg p-2">
                 <div className="text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1.5 text-center">
                     Your Bank Rates
                 </div>
@@ -159,7 +159,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
             <div className="grid grid-cols-2 gap-2">
 
                 {/* Give column */}
-                <div className="bg-slate-900/60 p-2 rounded-lg border border-red-900/50">
+                <div className="bg-[#ebd8b7] p-2 rounded-lg border border-red-900/50">
                     <h3 className="text-[9px] font-bold text-red-400 uppercase tracking-wider mb-1.5 text-center">Give</h3>
                     <div className="space-y-1">
                         {RESOURCES.map(res => {
@@ -207,7 +207,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
                 </div>
 
                 {/* Get column */}
-                <div className="bg-slate-900/60 p-2 rounded-lg border border-emerald-900/50">
+                <div className="bg-[#ebd8b7] p-2 rounded-lg border border-emerald-900/50">
                     <h3 className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider mb-1.5 text-center">Get</h3>
                     <div className="space-y-1">
                         {RESOURCES.map(res => {
