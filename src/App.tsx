@@ -53,6 +53,10 @@ function App() {
       {gameState === 'privacy' && <PrivacyPolicy onBack={() => setGameState('menu')} />}
       {gameState === 'lobby' && <Lobby 
           initialSettings={gameSettings} 
+          onDisconnect={() => {
+              peerService.destroy();
+              setGameState('menu');
+          }}
           onStartGame={(map: MapTemplate, players: PlayerData[], settings: GameSettings, resumingState?: GameState) => { 
               setGameMap(map); 
               setGamePlayers(players); 
@@ -61,7 +65,7 @@ function App() {
               setGameState('playing'); 
           }} 
       />}
-      {gameState === 'playing' && gameMap && <GameScreen map={gameMap} initialPlayers={gamePlayers} settings={gameSettings!} initialGameState={resumeGameState || undefined} onReturnToLobby={() => setGameState('lobby')} />}
+      {gameState === 'playing' && gameMap && <GameScreen map={gameMap} initialPlayers={gamePlayers} settings={gameSettings!} initialGameState={resumeGameState || undefined} onReturnToLobby={() => setGameState('lobby')} onDisconnect={() => { peerService.destroy(); setGameState('menu'); }} />}
     </div>
   );
 }

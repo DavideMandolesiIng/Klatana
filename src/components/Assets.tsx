@@ -1,7 +1,7 @@
 import React from 'react';
-import houseIcon from '../assets/icons/builds/house_icon.png';
-import fortressIcon from '../assets/icons/builds/fortress_icon.png';
-import streetIcon from '../assets/icons/builds/street_icon.png';
+import houseIcon from '/assets/icons/builds/house_icon.webp?url';
+import fortressIcon from '/assets/icons/builds/fortress_icon.webp?url';
+import streetIcon from '/assets/icons/builds/street_icon.webp?url';
 
 export interface AssetProps {
   x: number;

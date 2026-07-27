@@ -1,17 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { peerService } from '../network/PeerService';
-import { Send, Users, Wifi } from 'lucide-react';
+import { Send, Users, Wifi, LogOut } from 'lucide-react';
 import { generateStandardMap } from '../game/MapGenerator';
 import { type MapTemplate } from '../game/mapTemplates';
 import { type PlayerData, type PlayerColor, PLAYER_COLORS } from '../game/Player';
 import { type GameSettings, type GameState, createInitialGameState } from '../game/GameState';
 import { useSounds } from '../context/SoundContext';
 
-import tableBg from '../assets/textures/table-background.jpeg';
-import angle1 from '../assets/UI/Angle1.webp';
-import angle2 from '../assets/UI/Angle2.webp';
+import tableBg from '/assets/textures/table-background.webp?url';
+import angle1 from '/assets/UI/Angle1.webp?url';
+import angle2 from '/assets/UI/Angle2.webp?url';
 
-export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map: MapTemplate, players: PlayerData[], settings: GameSettings, resumingState?: GameState) => void }> = ({ initialSettings, onStartGame }) => {
+export const Lobby: React.FC<{ initialSettings?: GameSettings, onDisconnect: () => void, onStartGame: (map: MapTemplate, players: PlayerData[], settings: GameSettings, resumingState?: GameState) => void }> = ({ initialSettings, onDisconnect, onStartGame }) => {
   const { playClick, playConnect, playStart, playDisconnect } = useSounds();
   const [messages, setMessages] = useState<{ senderId: string; text: string }[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -29,8 +29,20 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
     safeNinja: false
   });
   const settingsRef = React.useRef<GameSettings>(settings);
-  const [players, setPlayers] = useState<PlayerData[]>([]);
+  const playersRef = React.useRef<PlayerData[]>([]);
+  const [players, _setPlayers] = useState<PlayerData[]>([]);
   const [uiScale, setUiScale] = useState(1);
+  // Ref imperativo per deduplicare i JOIN_LOBBY (evita race condition con lo stato React)
+  const joinedPeers = React.useRef<Set<string>>(new Set());
+
+  // Wrapper che aggiorna sia lo stato che il ref speculare
+  const setPlayers = React.useCallback((value: PlayerData[] | ((prev: PlayerData[]) => PlayerData[])) => {
+    _setPlayers(prev => {
+      const next = typeof value === 'function' ? (value as (p: PlayerData[]) => PlayerData[])(prev) : value;
+      playersRef.current = next;
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     const handleResize = () => {
@@ -92,15 +104,19 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
     });
 
     peerService.onPeerDisconnect((disconnectedPeerId) => {
-      setPlayers(prev => {
-        const next = prev.filter(p => p.peerId !== disconnectedPeerId);
-        // Host broadcasts the new list if someone leaves
-        if (peerService.role === 'host') {
-          peerService.broadcast({ type: 'LOBBY_STATE', players: next });
-        }
-        return next;
-      });
-      setMessages((prev) => [...prev, { senderId: 'SYSTEM', text: `Peer disconnected: ${disconnectedPeerId.substring(0, 6)}...` }]);
+      joinedPeers.current.delete(disconnectedPeerId);
+
+      const leaving = playersRef.current.find(p => p.peerId === disconnectedPeerId);
+      const leaveText = leaving ? `${leaving.username} left the lobby` : `Peer ${disconnectedPeerId.substring(0, 6)}... disconnected`;
+      const nextPlayers = playersRef.current.filter(p => p.peerId !== disconnectedPeerId);
+
+      setPlayers(nextPlayers);
+      setMessages(m => [...m, { senderId: 'SYSTEM', text: leaveText }]);
+
+      if (peerService.role === 'host') {
+        peerService.broadcast({ type: 'LOBBY_STATE', players: nextPlayers });
+        peerService.broadcast({ type: 'LOBBY_MSG', text: leaveText });
+      }
     });
 
     peerService.onMessage((data: any, incomingPeerId: string) => {
@@ -120,6 +136,10 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
         // Client receives master lobby state from Host
         setPlayers(data.players);
       }
+      else if (data.type === 'LOBBY_MSG') {
+        // System message broadcast from Host to all clients
+        setMessages(m => [...m, { senderId: 'SYSTEM', text: data.text }]);
+      }
       else if (data.type === 'LOBBY_SETTINGS') {
         if (data.settings) {
           setSettings(data.settings);
@@ -135,23 +155,26 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
       else if (peerService.role === 'host') {
         // HOST ONLY ACTIONS
         if (data.type === 'JOIN_LOBBY') {
-          setPlayers(prev => {
-            // Prevent duplicates (e.g. from React strict mode executing UI effects twice)
-            if (prev.some(p => p.peerId === incomingPeerId)) return prev;
+          // Guard imperativo: evita doppio processing
+          if (joinedPeers.current.has(incomingPeerId)) return;
+          joinedPeers.current.add(incomingPeerId);
 
-            // Assign them a generic grey/null color or the first available
-            const usedColors = prev.map(p => p.color).filter(c => c !== null);
-            const available = (Object.keys(PLAYER_COLORS) as PlayerColor[]).filter(c => !usedColors.includes(c));
-            const assigned = available.length > 0 ? available[0] : null;
+          const joinText = `${data.username} joined the lobby`;
 
-            const next = [...prev, { peerId: incomingPeerId, playerId: data.playerId, username: data.username, color: assigned, isHost: false }];
-            setMessages(m => [...m, { senderId: 'SYSTEM', text: `${data.username} joined the lobby` }]);
-            setTimeout(() => {
-              peerService.broadcast({ type: 'LOBBY_STATE', players: next });
-              peerService.broadcast({ type: 'LOBBY_SETTINGS', settings: settingsRef.current });
-            }, 100);
-            return next;
-          });
+          // Calcola il nuovo stato in modo imperativo usando il ref
+          const usedColors = playersRef.current.map(p => p.color).filter(c => c !== null);
+          const available = (Object.keys(PLAYER_COLORS) as PlayerColor[]).filter(c => !usedColors.includes(c));
+          const assigned = available.length > 0 ? available[0] : null;
+          const nextPlayers = [...playersRef.current, { peerId: incomingPeerId, playerId: data.playerId, username: data.username, color: assigned, isHost: false }];
+
+          setPlayers(nextPlayers);
+          setMessages(m => [...m, { senderId: 'SYSTEM', text: joinText }]);
+
+          setTimeout(() => {
+            peerService.broadcast({ type: 'LOBBY_STATE', players: playersRef.current });
+            peerService.broadcast({ type: 'LOBBY_SETTINGS', settings: settingsRef.current });
+            peerService.broadcast({ type: 'LOBBY_MSG', text: joinText });
+          }, 100);
         }
         else if (data.type === 'SELECT_COLOR') {
           setPlayers(prev => {
@@ -239,7 +262,7 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
 
       {/* Main Container */}
       <div
-        className="relative lg:absolute lg:left-1/2 lg:top-1/2 w-full max-w-[95%] lg:max-w-[1300px] bg-gradient-to-br from-[#fcf7ec] to-[#e4cdad] rounded-[16px] shadow-[0_15px_40px_rgba(0,0,0,0.6),inset_0_0_20px_rgba(255,255,255,0.4)] border-4 border-[#a37941] z-10 transition-transform duration-100 ease-out flex flex-col h-auto lg:h-[750px] p-2 md:p-4 my-8 mx-auto lg:my-0 lg:mx-0"
+        className="relative lg:absolute lg:left-1/2 lg:top-1/2 w-full max-w-[95%] lg:max-w-[1300px] bg-gradient-to-br from-[#f4e6cd] to-[#e4cdad] rounded-[16px] shadow-[0_15px_40px_rgba(0,0,0,0.6),inset_0_0_20px_rgba(255,255,255,0.4)] border-4 border-[#a37941] z-10 transition-transform duration-100 ease-out flex flex-col h-auto lg:h-[750px] p-2 md:p-4 my-8 mx-auto lg:my-0 lg:mx-0"
         style={window.innerWidth >= 1024 ? { transform: `translate(-50%, -50%) scale(${uiScale})`, transformOrigin: 'center' } : {}}
       >
         {/* Corners UI Images */}
@@ -253,16 +276,25 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
           {/* Left Sidebar */}
           <div className="w-full lg:w-[20%] flex flex-col gap-4 flex-shrink-0 max-h-full overflow-y-auto pr-1">
             <div className="bg-[#f4e6cd] border-2 border-[#d3be9a] rounded-xl p-5 shadow-[inset_0_2px_4px_rgba(0,0,0,0.05),0_4px_10px_rgba(0,0,0,0.1)]">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="bg-[#ebd5ad] border border-[#d3be9a] shadow-inner p-2 rounded-lg">
-                  <Wifi className="w-6 h-6 text-[#1e582d]" />
+              <div className="flex items-center justify-between mb-4 gap-2">
+                <div className="flex items-center gap-3">
+                  <div className="bg-[#ebd5ad] border border-[#d3be9a] shadow-inner p-2 rounded-lg shrink-0">
+                    <Wifi className="w-6 h-6 text-[#1e582d]" />
+                  </div>
+                  <div>
+                    <h2 className="text-xs text-[#7d6549] font-bold uppercase tracking-wider drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]">Room Code</h2>
+                    <p className="text-3xl font-bold tracking-widest text-[#2c1d10] leading-none drop-shadow-[0_1px_1px_rgba(255,255,255,1)]">
+                      {peerService.roomCode}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-xs text-[#7d6549] font-bold uppercase tracking-wider drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]">Room Code</h2>
-                  <p className="text-3xl font-bold tracking-widest text-[#2c1d10] leading-none drop-shadow-[0_1px_1px_rgba(255,255,255,1)]">
-                    {peerService.roomCode}
-                  </p>
-                </div>
+                <button
+                  onClick={() => { playDisconnect(); onDisconnect(); }}
+                  className="bg-[#d15431] text-[#fdf7e1] p-2 rounded-lg border-2 border-[#5e1e0c] shadow-[inset_0_2px_4px_rgba(255,255,255,0.3),0_2px_4px_rgba(0,0,0,0.4)] hover:bg-[#e05b36] hover:scale-105 active:scale-95 transition-all shrink-0 self-start"
+                  title="Disconnect & Return to Menu"
+                >
+                  <LogOut className="w-5 h-5 drop-shadow-md" />
+                </button>
               </div>
               <div className="text-sm font-semibold text-[#8f7457]">
                 Role: <span className="text-[#2c1d10] capitalize">{peerService.role}</span>
@@ -280,7 +312,7 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
                   <li key={i} className="flex items-center justify-between gap-3 bg-[#fbf7ee] p-2.5 rounded-lg border-2 border-[#e6d9b9] shadow-inner">
                     <div className="flex items-center gap-3">
                       <div
-                        className="w-5 h-5 rounded-full shadow-[inset_0_2px_4px_rgba(0,0,0,0.3),0_1px_2px_rgba(255,255,255,1)] border border-[#a37941]"
+                        className="w-5 h-5 min-w-5 rounded-full flex-shrink-0 shadow-[inset_0_2px_4px_rgba(0,0,0,0.3),0_1px_2px_rgba(255,255,255,1)] border border-[#a37941]"
                         style={{ backgroundColor: p.color ? PLAYER_COLORS[p.color].hex : '#94a3b8' }}
                       ></div>
                       <span className="font-bold text-[#3b2a1a]">
@@ -478,10 +510,11 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
                       disabled={peerService.role !== 'host'}
                       className={`bg-[#f0e3cc] border-2 border-[#dec49a] text-[#3b2a1a] font-bold text-sm rounded-lg px-3 py-2 mt-1 shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)] outline-none ${peerService.role !== 'host' ? 'opacity-50 cursor-not-allowed' : 'focus:ring-2 focus:ring-[#865913] cursor-pointer'}`}>
                       <option value="off">Casual (No Limit)</option>
-                      <option value="30">Blitz (30s)</option>
+                      <option value="30">Flash (30s)</option>
                       <option value="60">Fast (60s)</option>
-                      <option value="90">Standard (90s)</option>
                       <option value="120">Relaxed (120s)</option>
+                      <option value="240">Slow (240s)</option>
+                      <option value="300">Sloth (300s)</option>
                     </select>
                     <span className="text-xs text-[#7d6549] font-medium leading-tight mt-1">Automatically ends a player's turn when time expires.</span>
                   </div>
@@ -551,18 +584,18 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onStartGame: (map
             )}
 
             {isChatOpen && (
-              <form onSubmit={handleSendMessage} className="p-3 bg-[#f0e3cc] border-t-2 border-[#d3be9a] flex gap-2 shrink-0">
+              <form onSubmit={handleSendMessage} className="p-3 bg-[#f0e3cc] border-t-2 border-[#d3be9a] flex gap-2 shrink-0 overflow-hidden">
                 <input
                   type="text"
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   placeholder="Drop a message..."
-                  className="flex-grow bg-[#fcf7ec] border-2 border-[#d3be9a] rounded-lg px-3 py-2 text-sm text-[#3b2a1a] font-medium placeholder-[#af977a] outline-none focus:ring-2 focus:ring-[#865913] shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)]"
+                  className="min-w-0 flex-grow bg-[#f4e6cd] border-2 border-[#d3be9a] rounded-lg px-3 py-2 text-sm text-[#3b2a1a] font-medium placeholder-[#af977a] outline-none focus:ring-2 focus:ring-[#865913] shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)]"
                 />
                 <button
                   type="submit"
                   disabled={!inputValue.trim()}
-                  className="bg-gradient-to-b from-[#b16a41] to-[#804626] hover:from-[#c27548] hover:to-[#91502b] disabled:opacity-50 disabled:grayscale text-[#fdf7e1] p-3 rounded-lg shadow-[0_4px_6px_rgba(0,0,0,0.2),inset_0_2px_3px_rgba(255,255,255,0.3)] transition-transform active:translate-y-1 flex items-center justify-center border-b-4 border-[#522b16]"
+                  className="flex-shrink-0 bg-gradient-to-b from-[#b16a41] to-[#804626] hover:from-[#c27548] hover:to-[#91502b] disabled:opacity-50 disabled:grayscale text-[#fdf7e1] p-3 rounded-lg shadow-[0_4px_6px_rgba(0,0,0,0.2),inset_0_2px_3px_rgba(255,255,255,0.3)] transition-transform active:translate-y-1 flex items-center justify-center border-b-4 border-[#522b16]"
                 >
                   <Send className="w-4 h-4 drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" strokeWidth={3} />
                 </button>

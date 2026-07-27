@@ -22,13 +22,13 @@ function loadEnv() {
         const [key, ...rest] = trimmed.split('=');
         process.env[key.trim()] = rest.join('=').trim();
       }
-      console.log(`✅ ${filename} caricato\n`);
+      console.log(`${filename} caricato\n`);
       return;
     } catch {
       // try next file
     }
   }
-  console.warn('⚠️  Nessun file .env trovato, uso variabili d\'ambiente di sistema\n');
+  console.warn('Nessun file .env trovato, uso variabili d\'ambiente di sistema\n');
 }
 
 loadEnv();
@@ -84,7 +84,7 @@ async function listRooms() {
     console.log('Esempio: $env:DELETE_STALE=1; node scripts/check-db.mjs\n');
 
     if (process.env.DELETE_STALE === '1') {
-      console.log('🗑️  Eliminazione in corso...');
+      console.log('Eliminazione in corso...');
       for (const [code] of stale) {
         await remove(ref(db, `rooms/${code}`));
         console.log(`   Eliminata: ${code}`);

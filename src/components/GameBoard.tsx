@@ -5,24 +5,24 @@ import { type GameState } from '../game/GameState';
 import { PLAYER_COLORS } from '../game/Player';
 import { HouseAsset, StreetAsset, FortressAsset } from './Assets';
 
-import desertTexture from '../assets/textures/desert-texture.jpeg';
-import wavesBackground from '../assets/textures/waves-background.jpeg';
+import desertTexture from '/assets/textures/desert-texture.webp?url';
+import wavesBackground from '/assets/textures/waves-background.webp?url';
 
-import lighthouseIcon from '../assets/icons/lighthouse_icon.png';
+import lighthouseIcon from '/assets/icons/lighthouse_icon.webp?url';
 
-import oreTexture from '../assets/textures/ore-texture.jpeg';
-import clayTexture from '../assets/textures/clay-texture.jpeg';
-import woodTexture from '../assets/textures/wood-texture-1.jpeg';
-import woolTexture from '../assets/textures/wool-texture.jpeg';
-import wheatTexture from '../assets/textures/wheat-texture-1.jpeg';
+import oreTexture from '/assets/textures/ore-texture.webp?url';
+import clayTexture from '/assets/textures/clay-texture.webp?url';
+import woodTexture from '/assets/textures/wood-texture-1.webp?url';
+import woolTexture from '/assets/textures/wool-texture.webp?url';
+import wheatTexture from '/assets/textures/wheat-texture-1.webp?url';
 
-import oakIcon from '../assets/icons/resources/oak_icon.png';
-import clayIcon from '../assets/icons/resources/clay_icon.png';
-import oreIcon from '../assets/icons/resources/ore_icon.png';
-import woolIcon from '../assets/icons/resources/wool_icon.png';
-import cerealIcon from '../assets/icons/resources/cereal_icon.png';
-import nuggetsIcon from '../assets/icons/resources/nuggets_icon.png';
-import ninjaIcon from '../assets/icons/ninja_icon.png';
+import oakIcon from '/assets/icons/resources/oak_icon.webp?url';
+import clayIcon from '/assets/icons/resources/clay_icon.webp?url';
+import oreIcon from '/assets/icons/resources/ore_icon.webp?url';
+import woolIcon from '/assets/icons/resources/wool_icon.webp?url';
+import cerealIcon from '/assets/icons/resources/cereal_icon.webp?url';
+import nuggetsIcon from '/assets/icons/resources/nuggets_icon.webp?url';
+import ninjaIcon from '/assets/icons/ninja_icon.webp?url';
 
 interface GameBoardProps {
   template: MapTemplate;

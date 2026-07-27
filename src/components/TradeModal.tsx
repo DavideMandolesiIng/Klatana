@@ -24,7 +24,7 @@ const RESOURCES: Exclude<ResourceType, 'DESERT'>[] = ['OAK', 'CLAY', 'CEREALS', 
 const rateColor = (rate: number) => {
     if (rate === 2) return 'text-emerald-400';
     if (rate === 3) return 'text-amber-400';
-    return 'text-slate-400';
+    return 'text-white';
 };
 
 export const TradeModal: React.FC<TradeModalProps> = ({
@@ -126,7 +126,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
 
             {/* ── Bank Rates Legend ── */}
             <div className="bg-[#ebd8b7] border border-slate-700 rounded-lg p-2">
-                <div className="text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1.5 text-center">
+                <div className="text-[8px] font-bold uppercase tracking-widest text-black mb-1.5 text-center">
                     Your Bank Rates
                 </div>
                 <div className="grid grid-cols-5 gap-1">
@@ -146,7 +146,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
                                     />
                                 )}
                                 <span className="relative z-10 text-[7px] font-bold text-white drop-shadow-sm leading-tight">{res}</span>
-                                <span className={`relative z-10 text-[11px] font-black drop-shadow-md ${rateColor(rate)}`}>
+                                <span className={`relative z-10 text-[11px] font-black text-white drop-shadow-md ${rateColor(rate)}`}>
                                     {rate}:1
                                 </span>
                             </div>
@@ -251,7 +251,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
                 if (giveLots > 0 || getSlots > 0) {
                     const mismatch = giveLots !== getSlots;
                     return (
-                        <div className={`text-[8px] text-center font-bold ${mismatch ? 'text-amber-400' : 'text-emerald-400'}`}>
+                        <div className={`text-[8px] text-center font-bold ${mismatch ? 'text-[#7d6549]' : 'text-emerald-400'}`}>
                             {mismatch
                                 ? `Bank: ${giveLots} lot${giveLots !== 1 ? 's' : ''} offered → ${getSlots} resource${getSlots !== 1 ? 's' : ''} requested (need equal amounts)`
                                 : `Bank trade ready: ${giveLots} → ${getSlots} ✓`}

@@ -8,25 +8,27 @@ import { HexMath } from '../game/HexMath';
 import { TradeModal } from './TradeModal';
 import { useSounds } from '../context/SoundContext';
 
-import tableBg from '../assets/textures/table-background.jpeg';
-import clayTexture from '../assets/textures/clay-texture.jpeg';
-import woodTexture from '../assets/textures/wood-texture-1.jpeg';
-import woolTexture from '../assets/textures/wool-texture.jpeg';
-import wheatTexture from '../assets/textures/wheat-texture-1.jpeg';
+import tableBg from '/assets/textures/table-background.webp?url';
+import clayTexture from '/assets/textures/clay-texture.webp?url';
+import woodTexture from '/assets/textures/wood-texture-1.webp?url';
+import woolTexture from '/assets/textures/wool-texture.webp?url';
+import wheatTexture from '/assets/textures/wheat-texture-1.webp?url';
+import oreTexture from '/assets/textures/ore-texture.webp?url';
 
 export const RESOURCE_TEXTURES: Record<string, string> = {
     OAK: woodTexture,
     CLAY: clayTexture,
     CEREALS: wheatTexture,
     WOOL: woolTexture,
+    ORE: oreTexture,
 };
 
-import oakIcon from '../assets/icons/resources/oak_icon.png';
-import clayIcon from '../assets/icons/resources/clay_icon.png';
-import oreIcon from '../assets/icons/resources/ore_icon.png';
-import woolIcon from '../assets/icons/resources/wool_icon.png';
-import cerealIcon from '../assets/icons/resources/cereal_icon.png';
-import nuggetsIcon from '../assets/icons/resources/nuggets_icon.png';
+import oakIcon from '/assets/icons/resources/oak_icon.webp?url';
+import clayIcon from '/assets/icons/resources/clay_icon.webp?url';
+import oreIcon from '/assets/icons/resources/ore_icon.webp?url';
+import woolIcon from '/assets/icons/resources/wool_icon.webp?url';
+import cerealIcon from '/assets/icons/resources/cereal_icon.webp?url';
+import nuggetsIcon from '/assets/icons/resources/nuggets_icon.webp?url';
 
 const RESOURCE_ICONS: Record<string, string> = {
     OAK: oakIcon,
@@ -49,7 +51,7 @@ export const RESOURCE_GRADIENTS: Record<string, { center: string, edge: string }
 export type AnimationEvent = 'TRADE' | 'BUILD' | 'YIELD';
 export type ResourceDiff = { res: string; diff: number };
 
-export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData[], settings: GameSettings, initialGameState?: GameState, onReturnToLobby?: () => void }> = ({ map, initialPlayers, settings, initialGameState, onReturnToLobby }) => {
+export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData[], settings: GameSettings, initialGameState?: GameState, onReturnToLobby?: () => void, onDisconnect?: () => void }> = ({ map, initialPlayers, settings, initialGameState, onReturnToLobby, onDisconnect }) => {
     const [gameState, setGameState] = useState<GameState>(() => initialGameState || createInitialGameState(initialPlayers, map, settings));
     const [buildMode, setBuildMode] = useState<'NONE' | 'HOUSE' | 'street' | 'FORTRESS'>('NONE');
     const [discardSelection, setDiscardSelection] = useState<Partial<Record<string, number>>>({});
@@ -63,6 +65,8 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const [showLogs, setShowLogs] = useState(false);
     const [pendingBuild, setPendingBuild] = useState<{ type: 'HOUSE' | 'street' | 'FORTRESS' | 'ACTION_CARD', id: string, costText: string } | null>(null);
     const [dismissedNotificationPhase, setDismissedNotificationPhase] = useState<string | null>(null);
+    const [showActionCardModal, setShowActionCardModal] = useState(true);
+    const [showRoomCode, setShowRoomCode] = useState(false);
     const { playRoll, playTurn, playBuild, playTrade, playWin, playLose, playNinja, playClick, playCard, playDiscard, playCoins, playCollect, playDisconnect, playConnect } = useSounds();
 
     const [recentAnimations, setRecentAnimations] = useState<{ id: string; event: AnimationEvent; diffs: ResourceDiff[] }[]>([]);
@@ -388,6 +392,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             broadcastState(newState);
         } else if (card.type === 'MARKET CONTROL' || card.type === 'ABUNDANCE') {
             setActiveCardContext(card.type);
+            setShowActionCardModal(true);
             broadcastState(newState);
         }
     };
@@ -899,7 +904,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             {/* VICTORY SCREEN */}
             {gameState.gamePhase === 'GAME_OVER' && (
                 <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center backdrop-blur-md">
-                    <div className="bg-[#fcf7ec]/95 backdrop-blur-md p-10 rounded-3xl border-4 border-[#a37941] shadow-[0_15px_40px_rgba(0,0,0,0.6)] max-w-lg w-full text-center flex flex-col items-center gap-4">
+                    <div className="bg-[#f4e6cd]/95 backdrop-blur-md p-10 rounded-3xl border-4 border-[#a37941] shadow-[0_15px_40px_rgba(0,0,0,0.6)] max-w-lg w-full text-center flex flex-col items-center gap-4">
                         {(() => {
                             const sortedPlayers = gameState.players.slice().sort((a, b) => (b.victoryPoints + b.actionCards.filter(c => c.type === 'MONUMENT').length) - (a.victoryPoints + a.actionCards.filter(c => c.type === 'MONUMENT').length));
                             const myRankIndex = sortedPlayers.findIndex(p => p.peerId === myPlayer?.peerId);
@@ -978,7 +983,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             {/* PAUSED MODAL */}
             {gameState.isPaused && (
                 <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center backdrop-blur-md">
-                    <div className="bg-[#fcf7ec]/95 backdrop-blur-md p-8 rounded-3xl border-4 border-red-500/70 shadow-2xl max-w-md w-full text-center flex flex-col items-center gap-4">
+                    <div className="bg-[#f4e6cd]/95 backdrop-blur-md p-8 rounded-3xl border-4 border-red-500/70 shadow-2xl max-w-md w-full text-center flex flex-col items-center gap-4">
                         <div className="text-5xl font-black text-red-500 mb-2 drop-shadow-lg">⏸️</div>
                         <h2 className="text-2xl font-bold text-white uppercase tracking-widest">
                             Game Paused
@@ -1025,7 +1030,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             {/* NINJA DISCARD MODAL */}
             {gameState.gamePhase === 'NINJA_DISCARD' && myPlayer && gameState.playersNeedingToDiscard.includes(myPlayer.peerId) && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm">
-                    <div className="bg-[#fcf7ec]/95 backdrop-blur-md p-6 rounded-2xl border-4 border-[#a37941] shadow-2xl max-w-md w-full">
+                    <div className="bg-[#f4e6cd]/95 backdrop-blur-md p-6 rounded-2xl border-4 border-[#a37941] shadow-2xl max-w-md w-full">
                         <h2 className="text-xl font-black text-[#c0392b] mb-2 text-center uppercase tracking-wider">Ninja Attack!</h2>
                         <p className="text-[#5c4936] text-sm mb-4 text-center">You have more than {gameState.settings?.discardLimit ?? 7} cards. You must discard half (rounded down).</p>
 
@@ -1093,7 +1098,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             {gameState.gamePhase === 'NINJA_DISCARD' && myPlayer && !gameState.playersNeedingToDiscard.includes(myPlayer.peerId) && dismissedNotificationPhase !== 'NINJA_DISCARD' && (
                 <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 pointer-events-auto">
                     <div className="bg-[#f4e6cd] p-4 rounded-2xl border-2 border-[#7d6549]  shadow-2xl min-w-[300px] text-center backdrop-blur-md relative">
-                        <button onClick={() => setDismissedNotificationPhase('NINJA_DISCARD')} className="absolute top-2 right-2 text-slate-400 hover:text-white bg-slate-700 hover:bg-slate-600 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold transition-colors">✕</button>
+                        <button onClick={() => setDismissedNotificationPhase('NINJA_DISCARD')} className="absolute top-2 right-2 text-white bg-[#7d6549] hover:bg-yellow-600 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold transition-colors">✕</button>
                         <div className="flex items-center justify-center gap-2 mb-2">
                             <div className="animate-spin text-xl">⏳</div>
                             <h2 className="text-sm font-bold text-white uppercase tracking-wider text-yellow-600">Waiting for Discards</h2>
@@ -1103,7 +1108,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                 const player = gameState.players.find(p => p.peerId === id);
                                 if (!player) return null;
                                 return (
-                                    <div key={id} className="bg-slate-900/80 px-2 py-1 rounded-md border border-slate-700 flex items-center gap-2 shadow-inner text-xs">
+                                    <div key={id} className="bg-[#7d6549]/80 px-2 py-1 rounded-md border border-slate-700 flex items-center gap-2 shadow-inner text-xs">
                                         <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: PLAYER_COLORS[player.color as keyof typeof PLAYER_COLORS]?.hex || '#fff' }}></div>
                                         <span className="font-bold text-white">{player.username}</span>
                                     </div>
@@ -1117,9 +1122,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             {gameState.gamePhase === 'NINJA_MOVE' && !isMyTurn && dismissedNotificationPhase !== 'NINJA_MOVE' && (
                 <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 pointer-events-auto">
                     <div className="bg-[#f4e6cd] p-4 rounded-2xl border border-emerald-500/50 shadow-2xl min-w-[300px] text-center backdrop-blur-md relative">
-                        <button onClick={() => setDismissedNotificationPhase('NINJA_MOVE')} className="absolute top-2 right-2 text-slate-400 hover:text-white bg-slate-700 hover:bg-slate-600 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold transition-colors">✕</button>
+                        <button onClick={() => setDismissedNotificationPhase('NINJA_MOVE')} className="absolute top-2 right-2 text-white bg-[#7d6549] hover:bg-yellow-600 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold transition-colors">✕</button>
                         <div className="flex items-center justify-center gap-2 mb-2">
-                            <h2 className="text-sm font-bold text-white uppercase tracking-wider text-emerald-400">{currentPlayer.username} is moving the Ninja</h2>
+                            <h2 className="text-sm font-bold text-[#7d6549] uppercase tracking-wider">{currentPlayer.username} is moving the Ninja</h2>
                         </div>
                     </div>
                 </div>
@@ -1128,7 +1133,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             {/* NINJA STEAL MODAL */}
             {gameState.gamePhase === 'NINJA_STEAL' && isMyTurn && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm">
-                    <div className="bg-[#fcf7ec]/95 backdrop-blur-md p-6 rounded-2xl border-4 border-[#a37941] shadow-2xl max-w-sm w-full">
+                    <div className="bg-[#f4e6cd]/95 backdrop-blur-md p-6 rounded-2xl border-4 border-[#a37941] shadow-2xl max-w-sm w-full">
                         <h2 className="text-xl font-black text-emerald-700 mb-2 text-center uppercase tracking-wider">Steal Resource</h2>
                         <p className="text-[#5c4936] text-sm mb-6 text-center">Choose an opponent adjacent to the Ninja to steal from.</p>
                         <div className="space-y-3">
@@ -1167,91 +1172,110 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             )}
 
             {/* ACTION CARD MODALS */}
-            {activeCardContext === 'MARKET CONTROL' && (
-                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm">
-                    <div className="bg-[#fcf7ec]/95 backdrop-blur-md p-6 rounded-2xl border-4 border-[#a37941] shadow-2xl max-w-sm w-full">
-                        <h2 className="text-xl font-black text-[#5c4936] mb-2 text-center uppercase tracking-wider">Market Control</h2>
-                        <p className="text-[#5c4936] text-sm mb-6 text-center">Choose a resource to steal from all players.</p>
-                        <div className="grid grid-cols-2 gap-3">
-                            {['OAK', 'CLAY', 'CEREALS', 'WOOL', 'ORE'].map(res => (
-                                <button
-                                    key={res}
-                                    onClick={() => {
-                                        const newPlayers = [...gameState.players];
-                                        let totalStolen = 0;
-                                        newPlayers.forEach((p, idx) => {
-                                            if (p.peerId !== myPlayer!.peerId) {
-                                                const amount = p.resources[res as keyof typeof p.resources];
-                                                totalStolen += amount;
-                                                newPlayers[idx] = { ...p, resources: { ...p.resources, [res]: 0 } };
-                                            }
-                                        });
-                                        const myIndex = newPlayers.findIndex(p => p.peerId === myPlayer!.peerId);
-                                        const myRes = newPlayers[myIndex].resources;
-                                        const resKey = res as keyof typeof myRes;
-                                        newPlayers[myIndex] = {
-                                            ...newPlayers[myIndex],
-                                            resources: { ...myRes, [resKey]: myRes[resKey] + totalStolen }
-                                        };
-                                        broadcastState({
-                                            ...gameState,
-                                            players: newPlayers,
-                                            logs: [...gameState.logs, `${myPlayer!.username} played Market Control and took ${totalStolen} ${res}!`]
-                                        });
-                                        setActiveCardContext(null);
-                                    }}
-                                    className="py-3 px-4 rounded-xl font-bold border transition-colors bg-slate-700 hover:bg-slate-600 border-slate-500 text-white"
-                                >
-                                    {res}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
+            {(activeCardContext === 'MARKET CONTROL' || activeCardContext === 'ABUNDANCE') && (
+                <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[70] flex flex-col items-center pointer-events-none">
+                    <button
+                        onClick={() => setShowActionCardModal(!showActionCardModal)}
+                        className={`bg-[#f4e6cd] px-6 py-2 border-4 ${showActionCardModal ? 'border-[#d3be9a]' : 'border-yellow-400 animate-pulse drop-shadow-[0_0_15px_rgba(250,204,21,0.8)]'} rounded-full shadow-2xl font-black text-sm uppercase tracking-widest text-[#7d6549] hover:bg-[#ebd8b7] transition-all flex items-center justify-center gap-3 mb-2 pointer-events-auto min-w-[320px]`}
+                    >
+                        <span>★ {activeCardContext} ACTION</span>
+                        <span className="text-xl leading-none text-[#5c4936]">{showActionCardModal ? '▲' : '▼'}</span>
+                    </button>
 
-            {activeCardContext === 'ABUNDANCE' && (
-                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm">
-                    <div className="bg-[#fcf7ec]/95 backdrop-blur-md p-6 rounded-2xl border-4 border-[#a37941] shadow-2xl max-w-sm w-full">
-                        <h2 className="text-xl font-black text-[#5c4936] mb-2 text-center uppercase tracking-wider">Abundance</h2>
-                        <p className="text-[#5c4936] text-sm mb-6 text-center">Pick {2 - abundancePicks.length} resource(s) from the bank.</p>
-                        <div className="grid grid-cols-2 gap-3">
-                            {['OAK', 'CLAY', 'CEREALS', 'WOOL', 'ORE'].map(res => (
-                                <button
-                                    key={res}
-                                    onClick={() => {
-                                        const newPicks = [...abundancePicks, res];
-                                        if (newPicks.length === 2) {
-                                            const newPlayers = [...gameState.players];
-                                            const myIndex = newPlayers.findIndex(p => p.peerId === myPlayer!.peerId);
-                                            const updatedMe = { ...newPlayers[myIndex], resources: { ...newPlayers[myIndex].resources } };
-                                            newPicks.forEach(r => { updatedMe.resources[r as keyof typeof updatedMe.resources] += 1; });
-                                            newPlayers[myIndex] = updatedMe;
-                                            broadcastState({
-                                                ...gameState,
-                                                players: newPlayers,
-                                                logs: [...gameState.logs, `${myPlayer!.username} played Abundance and took 2 resources.`]
-                                            });
-                                            setActiveCardContext(null);
-                                            setAbundancePicks([]);
-                                        } else {
-                                            setAbundancePicks(newPicks);
-                                        }
-                                    }}
-                                    className="py-3 px-4 rounded-xl font-bold border transition-colors shadow-md overflow-hidden relative border-black/30 text-white"
-                                    style={{ background: `radial-gradient(circle at center, ${RESOURCE_GRADIENTS[res]?.center || '#334155'}, ${RESOURCE_GRADIENTS[res]?.edge || '#0f172a'})` }}
-                                >
-                                    {RESOURCE_TEXTURES[res] && (
-                                        <div
-                                            className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-50 mix-blend-overlay"
-                                            style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }}
-                                        />
-                                    )}
-                                    <span className="relative z-10 drop-shadow-sm">{res}</span>
-                                </button>
-                            ))}
+                    {showActionCardModal && (
+                        <div className="bg-[#f4e6cd]/95 backdrop-blur-md p-6 rounded-3xl border-4 border-[#a37941] shadow-[0_20px_50px_rgba(0,0,0,0.7)] max-w-sm w-[340px] pointer-events-auto mt-2 transition-transform transform origin-top">
+                            {activeCardContext === 'MARKET CONTROL' && (
+                                <>
+                                    <h2 className="text-xl font-black text-[#5c4936] mb-2 text-center uppercase tracking-wider border-b-2 border-[#d3be9a] pb-2">Market Control</h2>
+                                    <p className="text-[#5c4936] text-sm font-bold mb-5 text-center">Steal a resource from all opponents.</p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {['OAK', 'CLAY', 'CEREALS', 'WOOL', 'ORE'].map(res => (
+                                            <button
+                                                key={res}
+                                                onClick={() => {
+                                                    const newPlayers = [...gameState.players];
+                                                    let totalStolen = 0;
+                                                    newPlayers.forEach((p, idx) => {
+                                                        if (p.peerId !== myPlayer!.peerId) {
+                                                            const amount = p.resources[res as keyof typeof p.resources];
+                                                            totalStolen += amount;
+                                                            newPlayers[idx] = { ...p, resources: { ...p.resources, [res]: 0 } };
+                                                        }
+                                                    });
+                                                    const myIndex = newPlayers.findIndex(p => p.peerId === myPlayer!.peerId);
+                                                    const myRes = newPlayers[myIndex].resources;
+                                                    const resKey = res as keyof typeof myRes;
+                                                    newPlayers[myIndex] = {
+                                                        ...newPlayers[myIndex],
+                                                        resources: { ...myRes, [resKey]: myRes[resKey] + totalStolen }
+                                                    };
+                                                    broadcastState({
+                                                        ...gameState,
+                                                        players: newPlayers,
+                                                        logs: [...gameState.logs, `${myPlayer!.username} played Market Control and took ${totalStolen} ${res}!`]
+                                                    });
+                                                    setActiveCardContext(null);
+                                                }}
+                                                className="py-3 px-2 rounded-xl font-black border-2 border-black/30 transition-transform hover:scale-105 shadow-lg overflow-hidden relative text-white"
+                                                style={{ background: `radial-gradient(circle at center, ${RESOURCE_GRADIENTS[res]?.center || '#334155'}, ${RESOURCE_GRADIENTS[res]?.edge || '#0f172a'})` }}
+                                            >
+                                                {RESOURCE_TEXTURES[res] && (
+                                                    <div
+                                                        className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-50 mix-blend-overlay"
+                                                        style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }}
+                                                    />
+                                                )}
+                                                <span className="relative z-10 drop-shadow-sm text-xs tracking-wider">{res}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+
+                            {activeCardContext === 'ABUNDANCE' && (
+                                <>
+                                    <h2 className="text-xl font-black text-[#5c4936] mb-2 text-center uppercase tracking-wider border-b-2 border-[#d3be9a] pb-2">Abundance</h2>
+                                    <p className="text-[#5c4936] text-sm font-bold mb-5 text-center">Pick {2 - abundancePicks.length} resource(s) from the bank.</p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {['OAK', 'CLAY', 'CEREALS', 'WOOL', 'ORE'].map(res => (
+                                            <button
+                                                key={res}
+                                                onClick={() => {
+                                                    const newPicks = [...abundancePicks, res];
+                                                    if (newPicks.length === 2) {
+                                                        const newPlayers = [...gameState.players];
+                                                        const myIndex = newPlayers.findIndex(p => p.peerId === myPlayer!.peerId);
+                                                        const updatedMe = { ...newPlayers[myIndex], resources: { ...newPlayers[myIndex].resources } };
+                                                        newPicks.forEach(r => { updatedMe.resources[r as keyof typeof updatedMe.resources] += 1; });
+                                                        newPlayers[myIndex] = updatedMe;
+                                                        broadcastState({
+                                                            ...gameState,
+                                                            players: newPlayers,
+                                                            logs: [...gameState.logs, `${myPlayer!.username} played Abundance and took 2 resources.`]
+                                                        });
+                                                        setActiveCardContext(null);
+                                                        setAbundancePicks([]);
+                                                    } else {
+                                                        setAbundancePicks(newPicks);
+                                                    }
+                                                }}
+                                                className="py-3 px-2 rounded-xl font-black border-2 border-black/30 transition-transform hover:scale-105 shadow-lg overflow-hidden relative text-white"
+                                                style={{ background: `radial-gradient(circle at center, ${RESOURCE_GRADIENTS[res]?.center || '#334155'}, ${RESOURCE_GRADIENTS[res]?.edge || '#0f172a'})` }}
+                                            >
+                                                {RESOURCE_TEXTURES[res] && (
+                                                    <div
+                                                        className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-50 mix-blend-overlay"
+                                                        style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }}
+                                                    />
+                                                )}
+                                                <span className="relative z-10 drop-shadow-sm text-xs tracking-wider">{res}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
                         </div>
-                    </div>
+                    )}
                 </div>
             )}
 
@@ -1274,7 +1298,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                             <div className="flex flex-row md:flex-col gap-1 md:gap-2 flex-grow overflow-x-auto overflow-y-hidden md:overflow-visible items-center md:items-stretch">
                                 {myPlayer?.actionCards.map((card, i) => (
                                     <div key={i} className="bg-[#ebd8b7] p-1 md:p-2 rounded border-2 border-[#d3be9a] flex gap-2 justify-between items-center group relative cursor-help shrink-0 md:shrink">
-                                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-[#fcf7ec]/98 backdrop-blur border-2 border-[#d3be9a] rounded-lg p-2 shadow-2xl w-48 pointer-events-none z-[60]">
+                                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-[#f4e6cd]/98 backdrop-blur border-2 border-[#d3be9a] rounded-lg p-2 shadow-2xl w-48 pointer-events-none z-[60]">
                                             <span className="text-[10px] uppercase tracking-widest font-black text-[#7d6549] border-b border-[#d3be9a] pb-1 mb-1 text-center">Info</span>
                                             <span className="text-[10px] text-black text-center font-medium">
                                                 {card.type === 'NINJA' ? 'Move the Ninja to a new hex and steal 1 resource from an adjacent opponent.' :
@@ -1373,12 +1397,33 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
                     {/* Top-Left Floating Info: Player Identity */}
                     <div className="absolute top-1 left-1 md:top-2 md:left-2 lg:top-4 lg:left-4 flex flex-col gap-1 lg:gap-2 z-10 pointer-events-none">
-                        <div className="px-3 py-1.5 bg-[#fcf7ec]/90 backdrop-blur rounded-lg text-sm font-bold shadow-lg border-2 border-[#d3be9a]">
-                            <span className="text-[#7d6549] mr-2">Playing as:</span>
-                            <span className="text-white drop-shadow" style={{ color: myPlayer ? PLAYER_COLORS[myPlayer.color as keyof typeof PLAYER_COLORS].hex : 'white' }}>{myPlayer?.username}</span>
+                        <div className="flex gap-2">
+                            <div className="px-3 py-1.5 bg-[#f4e6cd]/90 backdrop-blur rounded-lg text-sm font-bold shadow-lg border-2 border-[#d3be9a] pointer-events-auto shrink-0 flex items-center">
+                                <span className="text-[#7d6549] mr-2">Playing as:</span>
+                                <span className="text-white drop-shadow" style={{ color: myPlayer ? PLAYER_COLORS[myPlayer.color as keyof typeof PLAYER_COLORS].hex : 'white' }}>{myPlayer?.username}</span>
+                            </div>
+                            <div className="flex flex-col gap-1 pointer-events-auto">
+                                <div className="flex gap-1 h-full">
+                                    <div className="relative">
+                                        <button onClick={() => { playClick(); setShowRoomCode(!showRoomCode); }} className="px-2 py-1 h-full bg-[#ebd8b7] hover:bg-[#d3be9a] text-black font-bold uppercase tracking-wider rounded-lg shadow-lg border border-slate-700 text-[10px] transition-colors shrink-0">
+                                            Room Code {showRoomCode ? '▲' : '▼'}
+                                        </button>
+                                        {showRoomCode && (
+                                            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-[#f4e6cd]/95 backdrop-blur rounded-lg border-2 border-[#d3be9a] shadow-xl p-2 min-w-max text-center pointer-events-auto z-50 cursor-text">
+                                                <span className="text-lg font-bold tracking-widest text-[#2c1d10] leading-none m-1.5 block select-all">{peerService.roomCode}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {onDisconnect && (
+                                        <button onClick={() => { playDisconnect(); onDisconnect(); }} className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white font-bold uppercase tracking-wider rounded-lg shadow-lg border border-red-700 text-[10px] transition-colors shrink-0">
+                                            Log Out
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                         {activeBuildMode !== 'NONE' && (
-                            <div className="px-3 py-1.5 bg-[#2d1b0f]/80 backdrop-blur rounded-lg text-xs font-bold shadow-lg border border-[#a37941] animate-pulse text-amber-300">
+                            <div className="px-3 py-1.5 bg-[#2d1b0f]/80 backdrop-blur rounded-lg text-xs font-bold shadow-lg border border-[#a37941] animate-pulse text-amber-300 w-max pointer-events-auto mt-1">
                                 BUILDING {activeBuildMode}...
                             </div>
                         )}
@@ -1387,17 +1432,17 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                     {/* Top-Right Floating Info: Dice Roll, Turn & Phase */}
                     <div className="absolute top-1 right-1 md:top-2 md:right-2 lg:top-4 lg:right-4 z-10 pointer-events-none flex flex-col items-end gap-1 lg:gap-2">
                         <div className="flex gap-2">
-                            <div className="px-3 py-1.5 bg-[#fcf7ec]/90 backdrop-blur rounded-lg text-xs font-bold shadow-lg border-2 border-[#d3be9a]">
+                            <div className="px-3 py-1.5 bg-[#f4e6cd]/90 backdrop-blur rounded-lg text-xs font-bold shadow-lg border-2 border-[#d3be9a]">
                                 <span className="text-[#7d6549] uppercase tracking-wider mr-2">Turn:</span>
                                 <span className="text-white drop-shadow" style={{ color: currentPlayer ? PLAYER_COLORS[currentPlayer.color as keyof typeof PLAYER_COLORS].hex : 'white' }}>{currentPlayer?.username}</span>
                             </div>
-                            <div className="px-3 py-1.5 bg-[#fcf7ec]/90 backdrop-blur rounded-lg text-xs font-bold shadow-lg border-2 border-[#d3be9a]">
+                            <div className="px-3 py-1.5 bg-[#f4e6cd]/90 backdrop-blur rounded-lg text-xs font-bold shadow-lg border-2 border-[#d3be9a]">
                                 <span className="text-[#7d6549] uppercase tracking-wider mr-2">Phase:</span>
                                 <span className="text-emerald-400 uppercase">{isSetupPhase ? gameState.gamePhase : gameState.phase}</span>
                             </div>
                         </div>
                         {gameState.diceRoll && (
-                            <div className="flex flex-col items-center justify-center bg-[#fcf7ec]/90 backdrop-blur px-4 py-2 rounded-xl border-2 border-[#d3be9a] shadow-2xl min-w-[120px]">
+                            <div className="flex flex-col items-center justify-center bg-[#f4e6cd]/90 backdrop-blur px-4 py-2 rounded-xl border-2 border-[#d3be9a] shadow-2xl min-w-[120px]">
                                 <span className="text-[#9c8466] text-[10px] font-black uppercase tracking-widest mb-1 drop-shadow">Last Roll</span>
                                 <div className="text-4xl font-black text-[#2c1d10] leading-none drop-shadow-md mb-1">{gameState.diceRoll.total}</div>
                                 <div className="flex gap-1 text-slate-400 text-xs font-bold">
@@ -1414,7 +1459,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         <div className="absolute bottom-0 left-0 z-20 w-[90%] md:w-80 lg:w-[360px] max-w-sm flex flex-col justify-end gap-2">
                             {/* P2P Trade Proposal */}
                             {gameState.gamePhase === 'P2P_TRADE_PENDING' && gameState.tradeProposal && (
-                                <div className="bg-[#fcf7ec]/95 backdrop-blur-md rounded-tr-xl border-t-2 border-r-2 border-[#d3be9a] shadow-2xl p-3 flex flex-col">
+                                <div className="bg-[#f4e6cd]/95 backdrop-blur-md rounded-tr-xl border-t-2 border-r-2 border-[#d3be9a] shadow-2xl p-3 flex flex-col">
                                     <h2 className="text-xs font-black text-[#5c4936] mb-2 text-center uppercase tracking-wider">Trade Proposal</h2>
 
                                     <div className="flex flex-col gap-2 justify-between bg-[#ebd8b7] shadow-inner p-2 rounded-lg border-2 border-[#d3be9a] mb-2">
@@ -1519,10 +1564,10 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                     onClick={() => { playClick(); setShowTradeModal(prev => !prev); }}
                                     disabled={isSetupPhase}
                                     className={`w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-tr-xl border-r border-t border-slate-600 shadow-xl transition-colors ${isSetupPhase
-                                        ? 'bg-slate-800/80 text-slate-600 cursor-not-allowed'
+                                        ? 'bg-[#f4e6cd]/80 text-slate-600 cursor-not-allowed'
                                         : showTradeModal
-                                            ? 'bg-slate-800/95 text-blue-400 border-blue-700'
-                                            : 'bg-slate-800/80 text-slate-400 hover:text-blue-400 hover:border-blue-700'
+                                            ? 'bg-[#f4e6cd]/95 text-black border border-[#d3be9a] hover:border-blue-700'
+                                            : 'bg-[#f4e6cd]/80 text-black hover:text-blue-400 hover:border-blue-700'
                                         }`}
                                 >
                                     <span>⚖ Trade Market</span>
@@ -1531,7 +1576,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
                                 {/* Expanded Content */}
                                 {showTradeModal && (
-                                    <div className="bg-[#fcf7ec]/95 backdrop-blur-md border-r-2 border-t-2 border-[#d3be9a] rounded-tr-xl shadow-2xl p-2 md:p-3 max-h-[50vh] overflow-y-auto pointer-events-auto">
+                                    <div className="bg-[#f4e6cd]/95 backdrop-blur-md border-r-2 border-t-2 border-[#d3be9a] rounded-tr-xl shadow-2xl p-2 md:p-3 max-h-[50vh] overflow-y-auto pointer-events-auto">
                                         <TradeModal
                                             gameState={gameState}
                                             myPlayerId={myPlayer.peerId}
@@ -1554,13 +1599,13 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         <div className="flex flex-col gap-2 items-end pointer-events-auto">
                             <button
                                 onClick={() => { playClick(); setShowBuildCosts(!showBuildCosts); }}
-                                className="bg-[#fcf7ec]/90 hover:bg-[#fff9ea] text-[#7d6549] border-2 border-[#d3be9a] px-2 py-1 md:px-3 md:py-1.5 rounded md:rounded-lg text-[8px] md:text-[9px] font-black uppercase tracking-widest shadow-xl backdrop-blur-md transition-colors flex items-center gap-1 md:gap-2"
+                                className="bg-[#f4e6cd]/90 hover:bg-[#fff9ea] text-[#7d6549] border-2 border-[#d3be9a] px-2 py-1 md:px-3 md:py-1.5 rounded md:rounded-lg text-[8px] md:text-[9px] font-black uppercase tracking-widest shadow-xl backdrop-blur-md transition-colors flex items-center gap-1 md:gap-2"
                             >
                                 <span>Build Costs</span>
                                 <span>{showBuildCosts ? '▼' : '▲'}</span>
                             </button>
                             {showBuildCosts && (
-                                <div className="flex flex-col gap-1 bg-[#fcf7ec]/95 backdrop-blur-md p-1.5 md:p-2.5 rounded md:rounded-lg border-2 border-[#d3be9a] shadow-xl text-[8px] md:text-[9px] uppercase font-black tracking-wider mb-1">
+                                <div className="flex flex-col gap-1 bg-[#f4e6cd]/95 backdrop-blur-md p-1.5 md:p-2.5 rounded md:rounded-lg border-2 border-[#d3be9a] shadow-xl text-[8px] md:text-[9px] uppercase font-black tracking-wider mb-1">
                                     <div className="flex items-center justify-between gap-4 text-[#5c4936]">
                                         <span>street</span>
                                         <div className="flex gap-1 drop-shadow-sm">
@@ -1793,22 +1838,22 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         <div className="flex-grow bg-[#f4e6cd] rounded-xl border-2 border-[#d3be9a] shadow-lg p-2 md:p-3 flex flex-col gap-1 md:gap-2 overflow-y-auto min-h-0">
                             <h3 className="font-black text-[#7d6549] uppercase text-[10px] md:text-xs tracking-wider mb-1 shrink-0">Players</h3>
                             {gameState.players.map(p => (
-                                <div key={p.peerId} className={`p-1.5 md:p-2 rounded border-2 transition-colors flex flex-col gap-1 md:gap-2 shrink-0 ${p.peerId === currentPlayer?.peerId ? 'border-[#2f8a43] bg-[#e0eddf]' : 'border-[#d3be9a] bg-[#f4e6cd]/60'}`}>
+                                <div key={p.peerId} className={`p-1.5 md:p-2 rounded border-2 transition-colors flex flex-col gap-1 md:gap-2 shrink-0 ${p.peerId === currentPlayer?.peerId ? 'border-[#2f8a43] bg-[#e0eddf]' : 'border-[#d3be9a] bg-[#ebd8b7]/60'}`}>
                                     <div className="flex items-center gap-1.5 md:gap-2 truncate">
                                         <div className="w-2 h-2 md:w-2.5 md:h-2.5 rounded-full shrink-0" style={{ backgroundColor: PLAYER_COLORS[p.color as keyof typeof PLAYER_COLORS].hex }}></div>
                                         <span className="font-bold text-xs md:text-sm truncate text-[#2c1d10]">{p.username}</span>
                                     </div>
                                     <div className="flex gap-1.5 md:gap-3 text-[10px] md:text-xs items-center mt-0.5 md:mt-1">
                                         <div className="flex gap-1 md:gap-2">
-                                            <span title="Victory Points" className="bg-slate-800/80 px-1 py-0.5 rounded shadow border border-slate-700">VP: <span className="text-white font-bold">{p.victoryPoints}{p.peerId === myPlayer?.peerId ? (() => { const monuments = p.actionCards.filter(c => c.type === 'MONUMENT').length; return monuments >= 1 ? <span className="text-emerald-400 font-normal">+{monuments}</span> : ''; })() : ''}</span></span>
-                                            <span title="Cards" className="bg-slate-800/80 px-1 py-0.5 rounded shadow border border-slate-700 text-slate-300">🃏 <span className="text-white font-bold">{Object.values(p.resources).reduce((a, b) => a + b, 0)}</span></span>
+                                            <span title="Victory Points" className="bg-yellow-500/80 px-1 py-0.5 rounded shadow border border-slate-700">VP: <span className="text-black font-bold">{p.victoryPoints}{p.peerId === myPlayer?.peerId ? (() => { const monuments = p.actionCards.filter(c => c.type === 'MONUMENT').length; return monuments >= 1 ? <span className="text-emerald-400 font-normal">+{monuments}</span> : ''; })() : ''}</span></span>
+                                            <span title="Cards" className="bg-[#ebd8b7] px-1 py-0.5 rounded shadow border border-slate-700 text-slate-300">🃏 <span className="text-black font-bold">{Object.values(p.resources).reduce((a, b) => a + b, 0)}</span></span>
                                         </div>
                                         <div className="flex ml-auto gap-1 md:gap-2">
-                                            <div className={`flex items-center gap-0.5 md:gap-1 px-1 py-0.5 rounded shadow border ${gameState.longestStreetHolder === p.peerId ? 'bg-amber-900 border-amber-500 text-amber-500' : 'bg-slate-800 border-slate-700 text-slate-400'}`} title="Street Length">
+                                            <div className={`flex items-center gap-0.5 md:gap-1 px-1 py-0.5 rounded shadow border ${gameState.longestStreetHolder === p.peerId ? 'bg-amber-900 border-amber-500 text-amber-500' : 'bg-[#ebd8b7] border-slate-700 text-black'}`} title="Street Length">
                                                 <span className="text-[9px] md:text-[10px]">🚧</span>
                                                 <span className="font-bold">{gameState.longestStreetHolder === p.peerId ? gameState.longestStreetLength : getLongestStreetForPlayer(gameState, p.peerId)}</span>
                                             </div>
-                                            <div className={`flex items-center gap-0.5 md:gap-1 px-1 py-0.5 rounded shadow border ${gameState.largestClanHolder === p.peerId ? 'bg-red-900 border-red-500 text-red-500' : 'bg-slate-800 border-slate-700 text-slate-400'}`} title="Clan Size">
+                                            <div className={`flex items-center gap-0.5 md:gap-1 px-1 py-0.5 rounded shadow border ${gameState.largestClanHolder === p.peerId ? 'bg-red-900 border-red-500 text-red-500' : 'bg-[#ebd8b7] border-slate-700 text-black'}`} title="Clan Size">
                                                 <span className="text-[9px] md:text-[10px]">⚔️</span>
                                                 <span className="font-bold">{gameState.largestClanHolder === p.peerId ? gameState.largestClanSize : (gameState.playedNinjaCards[p.peerId] || 0)}</span>
                                             </div>

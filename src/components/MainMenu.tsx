@@ -3,9 +3,9 @@ import { peerService } from '../network/PeerService';
 import { Plus } from 'lucide-react';
 import { useSounds } from '../context/SoundContext';
 
-import wavesBg from '../assets/textures/waves-background.jpeg';
-import angle1 from '../assets/UI/Angle1.webp';
-import angle2 from '../assets/UI/Angle2.webp';
+import wavesBg from '/assets/textures/waves-background.webp?url';
+import angle1 from '/assets/UI/Angle1.webp?url';
+import angle2 from '/assets/UI/Angle2.webp?url';
 
 
 interface MainMenuProps {
@@ -26,7 +26,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby, onPrivacyPolicy
     const handleResize = () => {
       const height = window.innerHeight;
       const baseUiHeight = 850; // Approximated height of the UI + overflowing logo/angles 
-      
+
       // If screen is shorter than the UI, scale down dynamically
       if (height < baseUiHeight) {
         setUiScale(Math.max(0.35, height / baseUiHeight));
@@ -34,7 +34,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby, onPrivacyPolicy
         setUiScale(1);
       }
     };
-    
+
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -116,8 +116,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby, onPrivacyPolicy
         backgroundRepeat: 'no-repeat',
       }}>
 
-      <div 
-        className="absolute left-1/2 top-1/2 w-full max-w-[95%] sm:max-w-md bg-gradient-to-br from-[#fcf7ec] to-[#e4cdad] rounded-[16px] shadow-[0_15px_40px_rgba(0,0,0,0.6),inset_0_0_20px_rgba(255,255,255,0.4)] border-4 border-[#a37941] overflow-visible text-[#5c4936] z-10 transition-transform duration-100 ease-out"
+      <div
+        className="absolute left-1/2 top-1/2 w-full max-w-[95%] sm:max-w-md bg-gradient-to-br from-[#f4e6cd] to-[#e4cdad] rounded-[16px] shadow-[0_15px_40px_rgba(0,0,0,0.6),inset_0_0_20px_rgba(255,255,255,0.4)] border-4 border-[#a37941] overflow-visible text-[#5c4936] z-10 transition-transform duration-100 ease-out"
         style={{ transform: `translate(-50%, -50%) scale(${uiScale})`, transformOrigin: 'center' }}
       >
 
