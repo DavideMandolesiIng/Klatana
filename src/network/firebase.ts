@@ -1,5 +1,7 @@
 import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, set, get, onDisconnect } from 'firebase/database';
+import { getDatabase, ref, set, get, remove, onDisconnect } from 'firebase/database';
+
+const ROOM_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 // TODO: Replace with your actual Firebase config
 const firebaseConfig = {
@@ -24,9 +26,10 @@ export const registerRoomCode = async (roomCode: string, peerId: string): Promis
   if (snapshot.exists()) {
     return false; // Room already exists
   }
-  await set(roomRef, { hostPeerId: peerId, status: 'LOBBY', createdAt: Date.now() });
-  
-  // Cleanup if host disconnects from Firebase
+  const now = Date.now();
+  await set(roomRef, { hostPeerId: peerId, status: 'LOBBY', createdAt: now, expiresAt: now + ROOM_TTL_MS });
+
+  // Best-effort cleanup if the Firebase WebSocket detects a disconnect
   onDisconnect(roomRef).remove();
   return true;
 };
@@ -39,8 +42,24 @@ export const setRoomStatus = async (roomCode: string, status: string): Promise<v
 export const getRoomInfo = async (roomCode: string): Promise<{ hostPeerId: string, status: string } | null> => {
   const roomRef = ref(db, `rooms/${roomCode}`);
   const snapshot = await get(roomRef);
-  if (snapshot.exists()) {
-    return snapshot.val();
+  if (!snapshot.exists()) return null;
+
+  const data = snapshot.val();
+
+  // Auto-cleanup: remove expired rooms (TTL exceeded)
+  if (data.expiresAt && Date.now() > data.expiresAt) {
+    await remove(roomRef);
+    return null;
   }
-  return null;
+
+  return data;
+};
+
+/**
+ * Explicitly removes the room from Firebase.
+ * Call this when the host intentionally leaves the lobby.
+ */
+export const removeRoom = async (roomCode: string): Promise<void> => {
+  if (!roomCode) return;
+  await remove(ref(db, `rooms/${roomCode}`));
 };
