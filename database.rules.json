@@ -1,9 +1,11 @@
 {
   "rules": {
     "rooms": {
+      ".read": true,
+      ".indexOn": ["createdAt"],
       "$roomCode": {
         ".read": true,
-        ".write": "!data.exists() && newData.exists()",
+        ".write": "!data.exists() || !newData.exists()",
         ".validate": "$roomCode.matches(/^[A-Z0-9]{4}$/) && newData.hasChildren(['hostPeerId', 'status', 'createdAt']) && newData.child('hostPeerId').isString() && newData.child('hostPeerId').val().length > 0 && newData.child('status').val() === 'LOBBY' && newData.child('createdAt').isNumber()",
         "status": {
           ".write": "data.parent().exists()",

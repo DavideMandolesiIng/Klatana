@@ -54,7 +54,7 @@ function App() {
       {gameState === 'lobby' && <Lobby 
           initialSettings={gameSettings} 
           onDisconnect={() => {
-              peerService.destroy();
+              peerService.destroy(true);
               setGameState('menu');
           }}
           onStartGame={(map: MapTemplate, players: PlayerData[], settings: GameSettings, resumingState?: GameState) => { 
@@ -65,7 +65,7 @@ function App() {
               setGameState('playing'); 
           }} 
       />}
-      {gameState === 'playing' && gameMap && <GameScreen map={gameMap} initialPlayers={gamePlayers} settings={gameSettings!} initialGameState={resumeGameState || undefined} onReturnToLobby={() => setGameState('lobby')} onDisconnect={() => { peerService.destroy(); setGameState('menu'); }} />}
+      {gameState === 'playing' && gameMap && <GameScreen map={gameMap} initialPlayers={gamePlayers} settings={gameSettings!} initialGameState={resumeGameState || undefined} onReturnToLobby={() => setGameState('lobby')} onDisconnect={() => { peerService.destroy(true); setGameState('menu'); }} />}
     </div>
   );
 }

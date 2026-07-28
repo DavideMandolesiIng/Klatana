@@ -1,5 +1,5 @@
 import Peer, { type DataConnection } from 'peerjs';
-import { registerRoomCode, getRoomInfo, setRoomStatus, removeRoom } from './firebase';
+import { registerRoomCode, getRoomInfo, setRoomStatus, removeRoom, cancelRoomAutoRemove, cleanupAllExpiredRooms } from './firebase';
 
 export type NetworkRole = 'host' | 'client' | 'none';
 
@@ -54,7 +54,9 @@ export class PeerService {
       // Snapshot all currently connected peers as valid players
       this.connections.forEach((_v, k) => this.knownPlayers.add(k));
       await setRoomStatus(this.roomCode, 'IN_PROGRESS');
-      // Game is running: stop watching for lobby-cleanup on unload
+      // Game is running: cancel auto-cleanup on disconnect (players may need to reconnect)
+      await cancelRoomAutoRemove(this.roomCode);
+      // Also remove the beforeunload handler — room should persist for reconnection
       if (this._beforeUnloadHandler) {
         window.removeEventListener('beforeunload', this._beforeUnloadHandler);
         this._beforeUnloadHandler = null;
@@ -73,6 +75,9 @@ export class PeerService {
         this.role = 'host';
         this.peerId = id;
         
+        // Fire and forget global cleanup
+        cleanupAllExpiredRooms();
+        
         // Generate random 4-letter code
         let code = '';
         let registered = false;
@@ -85,16 +90,12 @@ export class PeerService {
         localStorage.setItem('klatana_peer_id', id);
         localStorage.setItem('klatana_room_code', code);
 
-        // Best-effort: remove room from Firebase when host closes the tab/window.
-        // fetch with keepalive:true survives beforeunload in all modern browsers.
-        // This is a fallback for when onDisconnect() doesn't fire (browser killed).
+        // Fallback cleanup: if the tab/window is closed, try to remove the room.
+        // This fires synchronously — removeRoom returns a Promise we can't await,
+        // but the Firebase SDK will attempt delivery before the page is torn down.
         this._beforeUnloadHandler = () => {
           if (this.role === 'host' && this.gameStatus === 'LOBBY' && this.roomCode) {
-            const dbUrl = import.meta.env.VITE_FIREBASE_DATABASE_URL.replace(/\/$/, '');
-            fetch(`${dbUrl}/rooms/${this.roomCode}.json`, {
-              method: 'DELETE',
-              keepalive: true,
-            });
+            removeRoom(this.roomCode);
           }
         };
         window.addEventListener('beforeunload', this._beforeUnloadHandler);
@@ -128,6 +129,9 @@ export class PeerService {
    * Initializes as Client and connects to a Room via code.
    */
   public async joinRoom(code: string, peerIdOverride?: string): Promise<boolean> {
+    // Fire and forget global cleanup
+    cleanupAllExpiredRooms();
+
     const codeUpper = code.toUpperCase();
     const roomInfo = await getRoomInfo(codeUpper);
     if (!roomInfo) {
@@ -219,15 +223,18 @@ export class PeerService {
     }
   }
 
-  public destroy() {
+  public destroy(isIntentional: boolean = false) {
+    // 1. Remove the beforeunload listener (we're doing explicit cleanup)
     if (this._beforeUnloadHandler) {
       window.removeEventListener('beforeunload', this._beforeUnloadHandler);
       this._beforeUnloadHandler = null;
     }
-    // Explicitly remove the Firebase room if host leaves the lobby cleanly
-    if (this.role === 'host' && this.gameStatus === 'LOBBY' && this.roomCode) {
-      removeRoom(this.roomCode);
+    // 2. If we're the host, remove the room from Firebase.
+    //    We remove it if we are still in LOBBY, OR if the disconnect was intentional (user clicked exit).
+    if (this.role === 'host' && this.roomCode && (this.gameStatus === 'LOBBY' || isIntentional)) {
+      removeRoom(this.roomCode).catch(console.error);
     }
+    // 3. Tear down PeerJS
     if (this.peer) {
       this.peer.destroy();
       this.peer = null;
