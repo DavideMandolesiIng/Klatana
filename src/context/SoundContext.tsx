@@ -3,6 +3,8 @@ import { Howl, Howler } from 'howler';
 
 interface SoundContextType {
   isMuted: boolean;
+  volume: number;
+  setVolume: (v: number) => void;
   toggleMute: () => void;
   playClick: () => void;
   playConnect: () => void;
@@ -37,10 +39,20 @@ export const SoundProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return saved === 'true';
   });
 
+  const [volume, setVolume] = useState(() => {
+    const saved = localStorage.getItem('klatana_volume');
+    return saved ? parseFloat(saved) : 1.0;
+  });
+
   useEffect(() => {
     Howler.mute(isMuted);
     localStorage.setItem('klatana_muted', String(isMuted));
   }, [isMuted]);
+
+  useEffect(() => {
+    Howler.volume(volume);
+    localStorage.setItem('klatana_volume', String(volume));
+  }, [volume]);
 
   const toggleMute = () => setIsMuted((prev) => !prev);
 
@@ -57,7 +69,7 @@ export const SoundProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const playClick = () => getSound('/sounds/click.mp3', 0.5).play();
   const playConnect = () => getSound('/sounds/connect.mp3', 0.6).play();
   const playRoll = () => getSound('/sounds/roll.mp3', 0.8).play();
-  const playBuild = () => getSound('/sounds/build.ogg', 0.7).play();
+  const playBuild = () => getSound('/sounds/build.mp3', 0.7).play();
   const playTrade = () => getSound('/sounds/trade.mp3', 0.7).play();
   const playTurn = () => getSound('/sounds/turn.mp3', 0.5).play();
   const playWin = () => getSound('/sounds/win.mp3', 0.8).play();
@@ -72,6 +84,8 @@ export const SoundProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const value = {
     isMuted,
+    volume,
+    setVolume,
     toggleMute,
     playClick,
     playConnect,

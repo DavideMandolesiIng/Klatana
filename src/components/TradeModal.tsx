@@ -77,7 +77,8 @@ export const TradeModal: React.FC<TradeModalProps> = ({
             return sum + Math.floor(qty / rate);
         }, 0);
         const totalGetSlots = RESOURCES.reduce((sum, res) => sum + (request[res] || 0), 0);
-        return totalGiveLots > 0 && totalGetSlots > 0;
+        const givesSame = RESOURCES.some(res => (offer[res] || 0) > 0 && (request[res] || 0) > 0);
+        return totalGiveLots > 0 && totalGetSlots > 0 && totalGiveLots === totalGetSlots && !givesSame;
     };
 
     const handleBankTrade = () => {
@@ -112,7 +113,8 @@ export const TradeModal: React.FC<TradeModalProps> = ({
     const handleProposeTrade = () => {
         const totalOffer = Object.values(offer).reduce((a, b) => a + (b || 0), 0);
         const totalReq = Object.values(request).reduce((a, b) => a + (b || 0), 0);
-        if (totalOffer > 0 && totalReq > 0) {
+        const givesSame = RESOURCES.some(res => (offer[res] || 0) > 0 && (request[res] || 0) > 0);
+        if (totalOffer > 0 && totalReq > 0 && !givesSame) {
             onProposeTrade(offer, request);
             onClose();
         }
@@ -120,6 +122,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
 
     const totalOfferQty = Object.values(offer).reduce((a, b) => a + (b || 0), 0);
     const totalReqQty = Object.values(request).reduce((a, b) => a + (b || 0), 0);
+    const givesSame = RESOURCES.some(res => (offer[res] || 0) > 0 && (request[res] || 0) > 0);
 
     return (
         <div className="w-full text-slate-200 space-y-2">
@@ -249,6 +252,13 @@ export const TradeModal: React.FC<TradeModalProps> = ({
                 const giveLots = RESOURCES.reduce((sum, res) => sum + Math.floor((offer[res] || 0) / rates[res]), 0);
                 const getSlots = RESOURCES.reduce((sum, res) => sum + (request[res] || 0), 0);
                 if (giveLots > 0 || getSlots > 0) {
+                    if (givesSame) {
+                        return (
+                            <div className="text-[8px] text-center font-bold text-red-500">
+                                Cannot trade a resource for the same resource
+                            </div>
+                        );
+                    }
                     const mismatch = giveLots !== getSlots;
                     return (
                         <div className={`text-[8px] text-center font-bold ${mismatch ? 'text-[#7d6549]' : 'text-emerald-400'}`}>
@@ -266,7 +276,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
                 {/* Propose to Players */}
                 <button
                     onClick={handleProposeTrade}
-                    disabled={!canPropose || totalOfferQty === 0 || totalReqQty === 0}
+                    disabled={!canPropose || totalOfferQty === 0 || totalReqQty === 0 || givesSame}
                     className="flex-1 py-1.5 bg-purple-700 hover:bg-purple-600 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed rounded-lg font-bold uppercase tracking-wider text-[9px] transition-colors shadow"
                 >
                     👥 Propose to Players

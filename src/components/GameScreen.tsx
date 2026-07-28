@@ -63,7 +63,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const [showBankPanel, setShowBankPanel] = useState(true);
     const [showBuildCosts, setShowBuildCosts] = useState(false);
     const [showLogs, setShowLogs] = useState(false);
-    const [pendingBuild, setPendingBuild] = useState<{ type: 'HOUSE' | 'street' | 'FORTRESS' | 'ACTION_CARD', id: string, costText: string } | null>(null);
+    const [pendingBuild, setPendingBuild] = useState<{ type: 'HOUSE' | 'street' | 'FORTRESS' | 'ACTION_CARD' | 'NINJA', id: string, costText: string, metadata?: any } | null>(null);
     const [dismissedNotificationPhase, setDismissedNotificationPhase] = useState<string | null>(null);
     const [showActionCardModal, setShowActionCardModal] = useState(true);
     const [showRoomCode, setShowRoomCode] = useState(false);
@@ -614,6 +614,43 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             return;
         }
 
+        if (pendingBuild.type === 'NINJA') {
+            const { q, r } = pendingBuild.metadata;
+            const hexNodeIds = HexMath.getHexNodeIds({ q, r });
+            const adjacentOpponents = new Set<string>();
+            hexNodeIds.forEach(nId => {
+                const s = gameState.houses[nId];
+                if (s && s.ownerId !== myPlayer!.peerId) {
+                    const opp = gameState.players.find(p => p.peerId === s.ownerId);
+                    if (opp && gameState.settings?.safeNinja && opp.victoryPoints <= 2) return;
+                    adjacentOpponents.add(s.ownerId);
+                }
+            });
+
+            let newState = {
+                ...gameState,
+                ninjaHexCoords: { q, r },
+                logs: [...gameState.logs, `${currentPlayer.username} moved the Ninja.`]
+            };
+
+            const hasTargetableOpponents = Array.from(adjacentOpponents).some(oppId => {
+                const opp = gameState.players.find(p => p.peerId === oppId);
+                if (!opp) return false;
+                return Object.values(opp.resources).reduce((a, b) => a + b, 0) > 0;
+            });
+
+            if (hasTargetableOpponents) {
+                newState.gamePhase = 'NINJA_STEAL';
+            } else {
+                newState.gamePhase = 'MAIN_GAME';
+                newState.logs.push(`No targetable opponents adjacent to the Ninja.`);
+            }
+
+            setPendingBuild(null);
+            broadcastState(newState);
+            return;
+        }
+
         if (pendingBuild.type === 'FORTRESS') {
             playBuild();
             const nodeId = pendingBuild.id;
@@ -857,39 +894,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const handleHexClick = (q: number, r: number) => {
         if (gameState.gamePhase !== 'NINJA_MOVE' || !isMyTurn) return;
 
-        // Find adjacent houses
-        const hexNodeIds = HexMath.getHexNodeIds({ q, r });
-        const adjacentOpponents = new Set<string>();
-        hexNodeIds.forEach(nId => {
-            const s = gameState.houses[nId];
-            if (s && s.ownerId !== myPlayer!.peerId) {
-                const opp = gameState.players.find(p => p.peerId === s.ownerId);
-                // Safe Ninja: skip opponents with ≤2 VP
-                if (opp && gameState.settings?.safeNinja && opp.victoryPoints <= 2) return;
-                adjacentOpponents.add(s.ownerId);
-            }
-        });
-
-        let newState = {
-            ...gameState,
-            ninjaHexCoords: { q, r },
-            logs: [...gameState.logs, `${currentPlayer.username} moved the Ninja.`]
-        };
-
-        const hasTargetableOpponents = Array.from(adjacentOpponents).some(oppId => {
-            const opp = gameState.players.find(p => p.peerId === oppId);
-            if (!opp) return false;
-            return Object.values(opp.resources).reduce((a, b) => a + b, 0) > 0;
-        });
-
-        if (hasTargetableOpponents) {
-            newState.gamePhase = 'NINJA_STEAL';
-        } else {
-            newState.gamePhase = 'MAIN_GAME';
-            newState.logs.push(`No targetable opponents adjacent to the Ninja.`);
-        }
-
-        broadcastState(newState);
+        setPendingBuild({ type: 'NINJA', id: `${q},${r}`, costText: 'Move Ninja', metadata: { q, r } });
     };
 
     return (
@@ -1711,18 +1716,17 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                                 return <div key={res} className="flex items-center justify-between text-[10px] font-bold mb-1"><div className="flex items-center gap-1.5"><img src={RESOURCE_ICONS[res]} className="w-3.5 h-3.5 drop-shadow-sm filter-none" alt="" /><span className="text-black">{res}</span></div><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
                                                             })}
                                                         </div>
-                                                    </div>
-
-                                                    {pendingBuild?.type === 'ACTION_CARD' && (
-                                                        <div className="absolute bottom-16 right-full mr-4 bg-[#f4e6cd] backdrop-blur-md p-3 rounded-xl border-2 border-[#7d6549] shadow-2xl flex flex-col items-center pointer-events-auto w-48 z-50">
-                                                            <span className="text-xs text-[#7d6549] font-bold mb-2 text-center uppercase tracking-wider">Confirm Purchase?</span>
-                                                            <span className="text-[10px] text-black font-bold mb-3 text-center">Cost: 1 Ore, 1 Wool, 1 Cereal</span>
-                                                            <div className="flex gap-2 w-full">
-                                                                <button onClick={handleConfirmBuild} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs py-1.5 rounded font-bold cursor-pointer transition-colors shadow-md">✓ Buy</button>
-                                                                <button onClick={handleCancelBuild} className="flex-1 bg-red-600 hover:bg-red-500 text-white text-xs py-1.5 rounded font-bold cursor-pointer transition-colors shadow-md">✗ Cancel</button>
+                                                        {pendingBuild?.type === 'ACTION_CARD' && (
+                                                            <div className="absolute bottom-full mb-2 right-0 bg-[#f4e6cd] backdrop-blur-md p-3 rounded-xl border-2 border-[#7d6549] shadow-2xl flex flex-col items-center pointer-events-auto w-48 z-50">
+                                                                <span className="text-xs text-[#7d6549] font-bold mb-2 text-center uppercase tracking-wider">Confirm Purchase?</span>
+                                                                <span className="text-[10px] text-black font-bold mb-3 text-center">Cost: 1 Ore, 1 Wool, 1 Cereal</span>
+                                                                <div className="flex gap-2 w-full">
+                                                                    <button onClick={handleConfirmBuild} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs py-1.5 rounded font-bold cursor-pointer transition-colors shadow-md">✓ Buy</button>
+                                                                    <button onClick={handleCancelBuild} className="flex-1 bg-red-600 hover:bg-red-500 text-white text-xs py-1.5 rounded font-bold cursor-pointer transition-colors shadow-md">✗ Cancel</button>
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    )}
+                                                        )}
+                                                    </div>
 
                                                     {isMyTurn ? (
                                                         gameState.gamePhase === 'FREE_STREET_BUILDING' ? (

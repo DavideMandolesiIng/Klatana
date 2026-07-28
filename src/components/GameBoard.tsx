@@ -33,7 +33,7 @@ interface GameBoardProps {
   /** Pre-computed set of valid node IDs for house placement highlighting */
   validHouseNodes?: Set<string>;
   validFortressNodes?: Set<string>;
-  pendingBuild?: { type: 'HOUSE' | 'street' | 'FORTRESS' | 'ACTION_CARD', id: string, costText: string } | null;
+  pendingBuild?: { type: 'HOUSE' | 'street' | 'FORTRESS' | 'ACTION_CARD' | 'NINJA', id: string, costText: string, metadata?: any } | null;
   currentPlayerColor?: string;
   onConfirmBuild?: () => void;
   onCancelBuild?: () => void;
@@ -440,13 +440,17 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         })}
 
         {/* PENDING BUILD CONFIRMATION OVERLAY (Always drawn last for max z-index) */}
-        {pendingBuild && (pendingBuild.type === 'street' || pendingBuild.type === 'HOUSE' || pendingBuild.type === 'FORTRESS') && (() => {
+        {pendingBuild && (pendingBuild.type === 'street' || pendingBuild.type === 'HOUSE' || pendingBuild.type === 'FORTRESS' || pendingBuild.type === 'NINJA') && (() => {
           let cx = 0, cy = 0;
           if (pendingBuild.type === 'street') {
             const edge = uniqueEdges.find(e => e.id === pendingBuild.id);
             if (!edge) return null;
             cx = (edge.x1 + edge.x2) / 2;
             cy = (edge.y1 + edge.y2) / 2;
+          } else if (pendingBuild.type === 'NINJA') {
+            const center = HexMath.hexToPixel({ q: pendingBuild.metadata.q, r: pendingBuild.metadata.r }, hexSize);
+            cx = center.x;
+            cy = center.y;
           } else {
             const node = uniqueNodes.find(n => n.id === pendingBuild.id);
             if (!node) return null;
@@ -458,7 +462,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             <foreignObject x={cx - 60} y={cy - (pendingBuild.type === 'street' ? 70 : 80)} width="120" height="90" style={{ pointerEvents: 'none' }}>
               <div className="bg-[#f4e6cd] backdrop-blur-md p-2 rounded-lg border-2 border-[#7d6549] shadow-xl flex flex-col items-center pointer-events-auto" style={{ pointerEvents: 'auto' }}>
                 <span className="text-[10px] text-[#7d6549] font-bold mb-1 text-center leading-tight whitespace-nowrap overflow-hidden text-ellipsis max-w-full">
-                  Cost: {pendingBuild.costText}
+                  {pendingBuild.type === 'NINJA' ? pendingBuild.costText : `Cost: ${pendingBuild.costText}`}
                 </span>
                 <div className="flex gap-1 w-full relative z-[100]">
                   <button onClick={(e) => { e.stopPropagation(); onConfirmBuild?.(); }} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] py-1 rounded font-bold cursor-pointer transition-colors shadow">✓</button>
