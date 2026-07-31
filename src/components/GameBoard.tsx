@@ -41,6 +41,7 @@ interface GameBoardProps {
   onEdgeClick?: (edgeId: string) => void;
   onHexClick?: (q: number, r: number) => void;
   isMyTurn?: boolean;
+  idSuffix?: string;
 }
 
 // Default fallback colors if no custom assets are provided
@@ -99,7 +100,8 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   onCancelBuild,
   onNodeClick,
   onEdgeClick,
-  onHexClick
+  onHexClick,
+  idSuffix = ''
 }) => {
   const hexSize = 55;
 
@@ -120,24 +122,24 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     >
       <svg width="100%" height="100%" viewBox={`-400 -300 800 600`} className="max-w-4xl">
         <defs>
-          <pattern id="desert-pattern" patternContentUnits="objectBoundingBox" width="1" height="1">
+          <pattern id={`desert-pattern${idSuffix}`} patternContentUnits="objectBoundingBox" width="1" height="1">
             <image href={desertTexture} x="0" y="0" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
           </pattern>
           {Object.entries(RESOURCE_GRADIENTS).map(([res, colors]) => (
-            <radialGradient key={`grad-${res}`} id={`grad-${res}`} cx="50%" cy="50%" r="65%">
+            <radialGradient key={`grad-${res}`} id={`grad-${res}${idSuffix}`} cx="50%" cy="50%" r="65%">
               <stop offset="0%" stopColor={colors.center} />
               <stop offset="100%" stopColor={colors.edge} />
             </radialGradient>
           ))}
           {Object.entries(RESOURCE_TEXTURES).map(([res, { src }]) => (
-            <pattern key={`pattern-${res}`} id={`pattern-${res}`} patternContentUnits="objectBoundingBox" width="1" height="1">
+            <pattern key={`pattern-${res}`} id={`pattern-${res}${idSuffix}`} patternContentUnits="objectBoundingBox" width="1" height="1">
               <image href={src} x="0" y="0" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
             </pattern>
           ))}
 
           {/* Player Tint Filters (Multiply) */}
           {Object.values(PLAYER_COLORS).map(({ hex }) => (
-            <filter key={`tint-${hex}`} id={`tint-${hex.replace('#', '')}`} colorInterpolationFilters="sRGB" x="-50%" y="-50%" width="200%" height="200%">
+            <filter key={`tint-${hex}`} id={`tint-${hex.replace('#', '')}${idSuffix}`} colorInterpolationFilters="sRGB" x="-50%" y="-50%" width="200%" height="200%">
               <feFlood floodColor={hex} result="flood" />
               <feBlend mode="multiply" in="flood" in2="SourceGraphic" result="blend" />
               <feComposite in="blend" in2="SourceAlpha" operator="in" result="tinted" />
@@ -219,7 +221,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             <g key={`hex-${i}`} onClick={() => isHexClickable && onHexClick?.(hex.coords.q, hex.coords.r)} style={{ cursor: isHexClickable ? 'pointer' : 'default' }}>
               <polygon
                 points={pointsString}
-                fill={hex.resource === 'DESERT' ? 'url(#desert-pattern)' : (RESOURCE_GRADIENTS[hex.resource] ? `url(#grad-${hex.resource})` : RESOURCE_COLORS[hex.resource])}
+                fill={hex.resource === 'DESERT' ? `url(#desert-pattern${idSuffix})` : (RESOURCE_GRADIENTS[hex.resource] ? `url(#grad-${hex.resource}${idSuffix})` : RESOURCE_COLORS[hex.resource])}
                 stroke={highlightStroke}
                 strokeWidth={highlightWidth}
                 className={pulseClass}
@@ -230,7 +232,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               {hex.resource !== 'DESERT' && RESOURCE_TEXTURES[hex.resource] && (
                 <polygon
                   points={pointsString}
-                  fill={`url(#pattern-${hex.resource})`}
+                  fill={`url(#pattern-${hex.resource}${idSuffix})`}
                   opacity={RESOURCE_TEXTURES[hex.resource].opacity}
                   style={{ pointerEvents: 'none' }}
                 />
@@ -388,9 +390,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               {/* Invisible wide hit-area */}
               <line x1={edge.x1} y1={edge.y1} x2={edge.x2} y2={edge.y2} stroke="transparent" strokeWidth="20" />
               {street ? (
-                <StreetAsset x={edge.x1} y={edge.y1} x2={edge.x2} y2={edge.y2} playerColor={PLAYER_COLORS[gameState!.players.find(p => p.peerId === street.ownerId)?.color as keyof typeof PLAYER_COLORS]?.hex || 'white'} />
+                <StreetAsset x={edge.x1} y={edge.y1} x2={edge.x2} y2={edge.y2} playerColor={PLAYER_COLORS[gameState!.players.find(p => p.peerId === street.ownerId)?.color as keyof typeof PLAYER_COLORS]?.hex || 'white'} idSuffix={idSuffix} />
               ) : isPendingEdge ? (
-                <StreetAsset x={edge.x1} y={edge.y1} x2={edge.x2} y2={edge.y2} playerColor={currentPlayerColor} />
+                <StreetAsset x={edge.x1} y={edge.y1} x2={edge.x2} y2={edge.y2} playerColor={currentPlayerColor} idSuffix={idSuffix} />
               ) : (
                 isValidPlacement && <line x1={edge.x1} y1={edge.y1} x2={edge.x2} y2={edge.y2} stroke="#fbbf24" strokeWidth="10" opacity="0.9" strokeDasharray="8 6" className="animate-pulse" style={{ filter: 'drop-shadow(0px 0px 4px rgba(251, 191, 36, 0.8))' }} />
               )}
@@ -411,11 +413,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           if (house) {
             const color = PLAYER_COLORS[gameState!.players.find(p => p.peerId === house.ownerId)?.color as keyof typeof PLAYER_COLORS]?.hex || 'white';
             if (house.isFortress) {
-              nodeAsset = <FortressAsset x={node.x} y={node.y} playerColor={color} />;
+              nodeAsset = <FortressAsset x={node.x} y={node.y} playerColor={color} idSuffix={idSuffix} />;
             } else if (isPendingNode && pendingBuild.type === 'FORTRESS') {
-              nodeAsset = <FortressAsset x={node.x} y={node.y} playerColor={color} />;
+              nodeAsset = <FortressAsset x={node.x} y={node.y} playerColor={color} idSuffix={idSuffix} />;
             } else {
-              nodeAsset = <HouseAsset x={node.x} y={node.y} playerColor={color} />;
+              nodeAsset = <HouseAsset x={node.x} y={node.y} playerColor={color} idSuffix={idSuffix} />;
               if (isValidFortressUpgrade) {
                 nodeAsset = (
                   <g>
@@ -426,7 +428,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               }
             }
           } else if (isPendingNode && pendingBuild.type === 'HOUSE') {
-            nodeAsset = <HouseAsset x={node.x} y={node.y} playerColor={currentPlayerColor} />;
+            nodeAsset = <HouseAsset x={node.x} y={node.y} playerColor={currentPlayerColor} idSuffix={idSuffix} />;
           }
 
           return (
