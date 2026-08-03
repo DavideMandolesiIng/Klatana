@@ -67,7 +67,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const [dismissedNotificationPhase, setDismissedNotificationPhase] = useState<string | null>(null);
     const [showActionCardModal, setShowActionCardModal] = useState(true);
     const [showRoomCode, setShowRoomCode] = useState(false);
-    const [mobileActiveTab, setMobileActiveTab] = useState<'GAME' | 'LOG' | 'TRADE' | 'SETTINGS'>('GAME');
+    const [mobileActiveTab, setMobileActiveTab] = useState<'GAME' | 'LOG' | 'TRADE' | 'ROOM'>('GAME');
     const { playRoll, playTurn, playBuild, playTrade, playWin, playLose, playNinja, playClick, playCard, playDiscard, playCoins, playCollect, playDisconnect, playConnect } = useSounds();
 
     const [recentAnimations, setRecentAnimations] = useState<{ id: string; event: AnimationEvent; diffs: ResourceDiff[] }[]>([]);
@@ -266,6 +266,16 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         }
         prevTurnIndex.current = gameState.currentTurnIndex;
     }, [gameState.currentTurnIndex, playTurn]);
+
+    // Auto-switch to TRADE tab on mobile when a new trade proposal arrives from another player
+    const prevTradeProposerId = useRef<string | undefined>(undefined);
+    useEffect(() => {
+        const proposerId = gameState.tradeProposal?.proposerId;
+        if (proposerId && proposerId !== peerService.peerId && proposerId !== prevTradeProposerId.current) {
+            setMobileActiveTab('TRADE');
+        }
+        prevTradeProposerId.current = proposerId;
+    }, [gameState.tradeProposal?.proposerId]);
 
     const handleRollDice = () => {
         if (!isMyTurn || gameState.phase !== 'ROLL') return;
@@ -520,6 +530,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         // Pre-fill the offer with the calculated amount of the clicked resource
         setTradeModalConfig({ initialOffer: { [res]: initialAmount } });
         setShowTradeModal(true);
+        setMobileActiveTab('TRADE');
     };
 
     const isSetupPhase = gameState.gamePhase === 'SETUP_1' || gameState.gamePhase === 'SETUP_2';
@@ -1309,58 +1320,71 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                 </div>
 
                 {/* ── Action Button Row ── */}
-                <div className="shrink-0 bg-[#ebd8b7] border-b-2 border-[#d3be9a] flex items-center gap-1.5 px-2 py-1.5 overflow-x-auto">
-                    {isSetupPhase ? (
-                        <div className="px-3 py-1.5 bg-indigo-700/90 rounded-lg text-[10px] font-bold text-indigo-100 border border-indigo-500 animate-pulse whitespace-nowrap">
-                            {isMyTurn ? `PLACE ${gameState.setupAction}` : `Waiting for ${currentPlayer?.username}...`}
-                        </div>
-                    ) : gameState.phase === 'ROLL' && isMyTurn ? (
-                        <button onClick={handleRollDice} className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold text-[11px] uppercase tracking-wider border border-indigo-400 whitespace-nowrap shadow-md">
-                            Roll Dice
-                        </button>
-                    ) : buildMode !== 'NONE' && isMyTurn ? (
-                        <>
-                            <span className="text-[10px] font-bold text-[#7d6549] uppercase animate-pulse whitespace-nowrap">Building {buildMode}...</span>
-                            <button onClick={() => { setBuildMode('NONE'); setPendingBuild(null); }} className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-white rounded-lg font-bold text-[10px] whitespace-nowrap shadow">
-                                Cancel
+                <div className="shrink-0 relative z-50">
+                    <div className="bg-[#ebd8b7] border-b-2 border-[#d3be9a] flex items-center gap-1.5 px-2 py-1.5 overflow-x-auto relative">
+                        {isSetupPhase ? (
+                            <div className="px-3 py-1.5 bg-indigo-700/90 rounded-lg text-[10px] font-bold text-indigo-100 border border-indigo-500 animate-pulse whitespace-nowrap">
+                                {isMyTurn ? `PLACE ${gameState.setupAction}` : `Waiting for ${currentPlayer?.username}...`}
+                            </div>
+                        ) : gameState.phase === 'ROLL' && isMyTurn ? (
+                            <button onClick={handleRollDice} className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold text-[11px] uppercase tracking-wider border border-indigo-400 whitespace-nowrap shadow-md">
+                                Roll Dice
                             </button>
-                        </>
-                    ) : !isSetupPhase && (
-                        <>
-                            <button onClick={() => isMyTurn && setBuildMode('HOUSE')} disabled={!isMyTurn || !canAffordHouse || !hasValidHouseSpots}
-                                className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider border whitespace-nowrap shadow transition-opacity ${isMyTurn && canAffordHouse && hasValidHouseSpots ? 'bg-[#5c4936] text-[#f7efd8] border-[#a37941]' : 'bg-[#d3be9a]/40 text-[#7d6549]/50 border-[#d3be9a]/40 opacity-60'}`}>
-                                House
-                            </button>
-                            <button onClick={() => isMyTurn && setBuildMode('FORTRESS')} disabled={!isMyTurn || !canAffordFortress || !hasValidFortressSpots}
-                                className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider border whitespace-nowrap shadow transition-opacity ${isMyTurn && canAffordFortress && hasValidFortressSpots ? 'bg-[#5c4936] text-[#f7efd8] border-[#a37941]' : 'bg-[#d3be9a]/40 text-[#7d6549]/50 border-[#d3be9a]/40 opacity-60'}`}>
-                                Fortress
-                            </button>
-                            <button onClick={() => isMyTurn && setBuildMode('street')} disabled={!isMyTurn || !canAffordStreet || !hasValidStreetSpots}
-                                className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider border whitespace-nowrap shadow transition-opacity ${isMyTurn && canAffordStreet && hasValidStreetSpots ? 'bg-[#5c4936] text-[#f7efd8] border-[#a37941]' : 'bg-[#d3be9a]/40 text-[#7d6549]/50 border-[#d3be9a]/40 opacity-60'}`}>
-                                Street
-                            </button>
-                            <button onClick={() => isMyTurn && handleBuyCard()} disabled={!isMyTurn || !canAffordCard || gameState.actionCardDeck.length === 0}
-                                className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider border-2 whitespace-nowrap shadow transition-opacity ${isMyTurn && canAffordCard && gameState.actionCardDeck.length > 0 ? 'bg-[#5c4936] text-purple-200 border-purple-500' : 'bg-[#d3be9a]/40 text-[#7d6549]/50 border-[#d3be9a]/40 opacity-60'}`}>
-                                Buy Card ({gameState.actionCardDeck.length})
-                            </button>
-                        </>
-                    )}
-                    {/* END TURN – always visible to the right */}
-                    <div className="ml-auto shrink-0">
-                        {isMyTurn && !isSetupPhase && gameState.phase !== 'ROLL' && (
-                            gameState.gamePhase === 'FREE_STREET_BUILDING' ? (
-                                <button onClick={() => { broadcastState({ ...gameState, gamePhase: 'MAIN_GAME', freeStreetsLeft: 0 }); setBuildMode('NONE'); }}
-                                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-[10px] uppercase whitespace-nowrap border border-amber-400 shadow">
-                                    End Free Street
+                        ) : buildMode !== 'NONE' && isMyTurn ? (
+                            <>
+                                <span className="text-[10px] font-bold text-[#7d6549] uppercase animate-pulse whitespace-nowrap">Building {buildMode}...</span>
+                                <button onClick={() => { setBuildMode('NONE'); setPendingBuild(null); }} className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-white rounded-lg font-bold text-[10px] whitespace-nowrap shadow">
+                                    Cancel
                                 </button>
-                            ) : (
-                                <button onClick={() => handleEndTurn(false)} disabled={gameState.gamePhase !== 'MAIN_GAME'}
-                                    className={`px-4 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider whitespace-nowrap border shadow ${gameState.gamePhase === 'MAIN_GAME' ? 'bg-red-600 hover:bg-red-500 text-white border-red-400' : 'bg-red-900/40 text-red-300/50 border-red-800/40 cursor-not-allowed'}`}>
-                                    End Turn
+                            </>
+                        ) : !isSetupPhase && (
+                            <>
+                                <button onClick={() => isMyTurn && setBuildMode('HOUSE')} disabled={!isMyTurn || !canAffordHouse || !hasValidHouseSpots}
+                                    className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider border whitespace-nowrap shadow transition-opacity ${isMyTurn && canAffordHouse && hasValidHouseSpots ? 'bg-[#5c4936] text-[#f7efd8] border-[#a37941]' : 'bg-[#d3be9a]/40 text-[#7d6549]/50 border-[#d3be9a]/40 opacity-60'}`}>
+                                    House
                                 </button>
-                            )
+                                <button onClick={() => isMyTurn && setBuildMode('FORTRESS')} disabled={!isMyTurn || !canAffordFortress || !hasValidFortressSpots}
+                                    className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider border whitespace-nowrap shadow transition-opacity ${isMyTurn && canAffordFortress && hasValidFortressSpots ? 'bg-[#5c4936] text-[#f7efd8] border-[#a37941]' : 'bg-[#d3be9a]/40 text-[#7d6549]/50 border-[#d3be9a]/40 opacity-60'}`}>
+                                    Fortress
+                                </button>
+                                <button onClick={() => isMyTurn && setBuildMode('street')} disabled={!isMyTurn || !canAffordStreet || !hasValidStreetSpots}
+                                    className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider border whitespace-nowrap shadow transition-opacity ${isMyTurn && canAffordStreet && hasValidStreetSpots ? 'bg-[#5c4936] text-[#f7efd8] border-[#a37941]' : 'bg-[#d3be9a]/40 text-[#7d6549]/50 border-[#d3be9a]/40 opacity-60'}`}>
+                                    Street
+                                </button>
+                                <button onClick={() => isMyTurn && handleBuyCard()} disabled={!isMyTurn || !canAffordCard || gameState.actionCardDeck.length === 0}
+                                    className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider border-2 whitespace-nowrap shadow transition-opacity ${isMyTurn && canAffordCard && gameState.actionCardDeck.length > 0 ? 'bg-[#5c4936] text-purple-200 border-purple-500' : 'bg-[#d3be9a]/40 text-[#7d6549]/50 border-[#d3be9a]/40 opacity-60'}`}>
+                                    Buy Card ({gameState.actionCardDeck.length})
+                                </button>
+                            </>
                         )}
+                        {/* END TURN – always visible to the right */}
+                        <div className="ml-auto shrink-0">
+                            {isMyTurn && !isSetupPhase && gameState.phase !== 'ROLL' && (
+                                gameState.gamePhase === 'FREE_STREET_BUILDING' ? (
+                                    <button onClick={() => { broadcastState({ ...gameState, gamePhase: 'MAIN_GAME', freeStreetsLeft: 0 }); setBuildMode('NONE'); }}
+                                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-[10px] uppercase whitespace-nowrap border border-amber-400 shadow">
+                                        End Free Street
+                                    </button>
+                                ) : (
+                                    <button onClick={() => handleEndTurn(false)} disabled={gameState.gamePhase !== 'MAIN_GAME'}
+                                        className={`px-4 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider whitespace-nowrap border shadow ${gameState.gamePhase === 'MAIN_GAME' ? 'bg-red-600 hover:bg-red-500 text-white border-red-400' : 'bg-red-900/40 text-red-300/50 border-red-800/40 cursor-not-allowed'}`}>
+                                        End Turn
+                                    </button>
+                                )
+                            )}
+                        </div>
                     </div>
+                    {/* Action Card Confirmation Popup (Mobile) */}
+                    {pendingBuild?.type === 'ACTION_CARD' && (
+                        <div className="absolute top-full right-2 mt-2 bg-[#f4e6cd] backdrop-blur-md p-3 rounded-xl border-2 border-[#7d6549] shadow-2xl flex flex-col items-center pointer-events-auto w-48 z-50">
+                            <span className="text-xs text-[#7d6549] font-bold mb-2 text-center uppercase tracking-wider">Confirm Purchase?</span>
+                            <span className="text-[10px] text-black font-bold mb-3 text-center">Cost: 1 Ore, 1 Wool, 1 Cereal</span>
+                            <div className="flex gap-2 w-full">
+                                <button onClick={handleConfirmBuild} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs py-1.5 rounded font-bold cursor-pointer transition-colors shadow-md">✓ Buy</button>
+                                <button onClick={handleCancelBuild} className="flex-1 bg-red-600 hover:bg-red-500 text-white text-xs py-1.5 rounded font-bold cursor-pointer transition-colors shadow-md">✗ Cancel</button>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* ── Game Board ── */}
@@ -1489,14 +1513,14 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                     {/* LOG TAB */}
                     {mobileActiveTab === 'LOG' && (
                         <div className="p-2 h-full">
-                            <div className="flex flex-col-reverse gap-0.5 text-[11px] text-[#5c4936]">
+                            <div className="bg-[#f4e6cd]/90 backdrop-blur-sm rounded-xl border border-[#d3be9a] shadow-inner p-2 flex flex-col-reverse gap-0.5 text-[11px] font-medium text-[#2c1d10]">
                                 {[...gameState.logs].reverse().map((log, i) => {
                                     if (log.includes('|STEAL|')) {
                                         const [msg, , stealerId, targetId, resource] = log.split('|');
                                         const canSee = myPlayer?.peerId === stealerId || myPlayer?.peerId === targetId;
-                                        return <div key={i} className="border-b border-[#d3be9a]/50 pb-1">{canSee ? msg.replace('a resource', `1 ${resource}`) : msg}</div>;
+                                        return <div key={i} className="border-b border-[#d3be9a]/60 pb-1 last:border-0">{canSee ? msg.replace('a resource', `1 ${resource}`) : msg}</div>;
                                     }
-                                    return <div key={i} className="border-b border-[#d3be9a]/50 pb-1">{log}</div>;
+                                    return <div key={i} className="border-b border-[#d3be9a]/60 pb-1 last:border-0">{log}</div>;
                                 })}
                             </div>
                         </div>
@@ -1505,6 +1529,25 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                     {/* TRADE TAB */}
                     {mobileActiveTab === 'TRADE' && myPlayer && (
                         <div className="p-2 flex flex-col gap-3">
+
+                            {/* ── My Resources summary (compact) ── */}
+                            <div className="bg-[#f4e6cd]/90 rounded-lg border border-[#d3be9a] shadow px-2 py-1.5 flex items-center gap-1 flex-wrap">
+                                <span className="text-[9px] font-black text-[#7d6549] uppercase tracking-wider shrink-0 mr-0.5">My resources:</span>
+                                {Object.entries(myPlayer.resources)
+                                    .filter(([res]) => res !== 'NUGGETS' || map.hexes.some(h => h.resource === 'NUGGETS'))
+                                    .map(([res, count]) => {
+                                        const grad = RESOURCE_GRADIENTS[res] || { center: '#334155', edge: '#0f172a' };
+                                        return (
+                                            <div key={res} className={`relative flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-black/20 overflow-hidden shrink-0 transition-opacity ${count === 0 ? 'opacity-30' : ''}`}
+                                                style={{ background: `radial-gradient(circle at center, ${grad.center}, ${grad.edge})` }}>
+                                                {RESOURCE_TEXTURES[res] && <div className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-40 mix-blend-overlay" style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }} />}
+                                                <img src={RESOURCE_ICONS[res as keyof typeof RESOURCE_ICONS]} alt={res} className="relative z-10 w-3 h-3" />
+                                                <span className="relative z-10 text-[10px] font-black text-white leading-none">{count}</span>
+                                            </div>
+                                        );
+                                    })}
+                            </div>
+
                             {gameState.gamePhase === 'P2P_TRADE_PENDING' && gameState.tradeProposal && (
                                 <div className="bg-[#f4e6cd] rounded-xl border-2 border-[#d3be9a] shadow p-3">
                                     <h3 className="text-xs font-black text-[#5c4936] mb-2 text-center uppercase">Trade Proposal</h3>
@@ -1552,40 +1595,48 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                     gameState={gameState}
                                     myPlayerId={myPlayer.peerId}
                                     map={map}
-                                    onClose={() => setMobileActiveTab('GAME')}
+                                    onClose={() => { /* no-op on mobile: tab switching handled by nav bar */ }}
                                     onBankTrade={handleBankTrade}
                                     onProposeTrade={handleProposeTrade}
                                     canPropose={isMyTurn && gameState.phase !== 'ROLL' && !isSetupPhase}
                                     initialOffer={tradeModalConfig.initialOffer}
                                 />
                             </div>
-                            <div className="bg-[#f4e6cd] rounded-xl border-2 border-[#d3be9a] shadow p-3">
-                                <h3 className="font-black text-[#7d6549] uppercase text-[10px] tracking-wider mb-2">Build Costs</h3>
-                                <div className="flex flex-col gap-1.5">
-                                    {([
-                                        { name: 'Street', costs: { OAK: 1, CLAY: 1 } },
-                                        { name: 'House', costs: { OAK: 1, CLAY: 1, CEREALS: 1, WOOL: 1 } },
-                                        { name: 'Fortress', costs: { ORE: 3, CEREALS: 2 } },
-                                        { name: 'Action Card', costs: { ORE: 1, CEREALS: 1, WOOL: 1 } },
-                                    ] as const).map(({ name, costs }) => (
-                                        <div key={name} className="flex items-center justify-between bg-[#ebd8b7] rounded-lg px-3 py-2 border border-[#d3be9a]">
-                                            <span className="text-[11px] font-black text-[#5c4936] uppercase">{name}</span>
-                                            <div className="flex gap-1">
-                                                {(Object.entries(costs) as [string, number][]).flatMap(([res, qty]) =>
-                                                    Array.from({ length: qty }).map((_, idx) => (
-                                                        <img key={`${res}-${idx}`} src={RESOURCE_ICONS[res]} className="w-5 h-5 drop-shadow" alt={res} />
-                                                    ))
-                                                )}
+                            <div className="bg-[#f4e6cd] rounded-xl border-2 border-[#d3be9a] shadow overflow-hidden">
+                                <button
+                                    onClick={() => { playClick(); setShowBuildCosts(!showBuildCosts); }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[#ebd8b7] transition-colors"
+                                >
+                                    <span className="text-[#7d6549] text-[10px] font-black">{showBuildCosts ? '▲' : '▼'}</span>
+                                    <h3 className="font-black text-[#7d6549] uppercase text-[10px] tracking-wider">Build Costs</h3>
+                                </button>
+                                {showBuildCosts && (
+                                    <div className="flex flex-col gap-1.5 px-3 pb-3">
+                                        {([
+                                            { name: 'Street', costs: { OAK: 1, CLAY: 1 } },
+                                            { name: 'House', costs: { OAK: 1, CLAY: 1, CEREALS: 1, WOOL: 1 } },
+                                            { name: 'Fortress', costs: { ORE: 3, CEREALS: 2 } },
+                                            { name: 'Action Card', costs: { ORE: 1, CEREALS: 1, WOOL: 1 } },
+                                        ] as const).map(({ name, costs }) => (
+                                            <div key={name} className="flex items-center justify-between bg-[#ebd8b7] rounded-lg px-3 py-2 border border-[#d3be9a]">
+                                                <span className="text-[11px] font-black text-[#5c4936] uppercase">{name}</span>
+                                                <div className="flex gap-1">
+                                                    {(Object.entries(costs) as [string, number][]).flatMap(([res, qty]) =>
+                                                        Array.from({ length: qty }).map((_, idx) => (
+                                                            <img key={`${res}-${idx}`} src={RESOURCE_ICONS[res]} className="w-5 h-5 drop-shadow" alt={res} />
+                                                        ))
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
-                                </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
 
                     {/* SETTINGS TAB */}
-                    {mobileActiveTab === 'SETTINGS' && (
+                    {mobileActiveTab === 'ROOM' && (
                         <div className="p-3 flex flex-col gap-3">
                             <div className="bg-[#f4e6cd] rounded-xl border-2 border-[#d3be9a] shadow p-3 flex flex-col gap-2">
                                 <h3 className="font-black text-[#7d6549] uppercase text-[10px] tracking-wider">Game Settings</h3>
@@ -1610,9 +1661,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
                 {/* ── Bottom Nav Bar ── */}
                 <div className="shrink-0 h-14 bg-[#ebd8b7] border-t-2 border-[#d3be9a] flex items-stretch" style={{ boxShadow: '0 -2px 10px rgba(0,0,0,0.12)' }}>
-                    {(['GAME', 'LOG', 'TRADE', 'SETTINGS'] as const).map(tab => {
-                        const icons: Record<string, string> = { GAME: '🏠', LOG: '📋', TRADE: '⚖️', SETTINGS: '⚙️' };
-                        const labels: Record<string, string> = { GAME: 'Game', LOG: 'Log', TRADE: 'Trade', SETTINGS: '···' };
+                    {(['GAME', 'LOG', 'TRADE', 'ROOM'] as const).map(tab => {
+                        const icons: Record<string, string> = { GAME: '🏠', LOG: '📋', TRADE: '⚖️', ROOM: '⚙️' };
+                        const labels: Record<string, string> = { GAME: 'Game', LOG: 'Log', TRADE: 'Trade', ROOM: 'Room' };
                         return (
                             <button key={tab} onClick={() => { playClick(); setMobileActiveTab(tab); }}
                                 className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-black uppercase tracking-wider transition-all ${mobileActiveTab === tab ? 'bg-[#f4e6cd] text-[#5c4936] border-t-[3px] border-[#a37941]' : 'text-[#7d6549] hover:bg-[#f4e6cd]/60 border-t-[3px] border-transparent'}`}>

@@ -7,11 +7,11 @@ import { type MapTemplate } from './game/mapTemplates';
 import { type PlayerData } from './game/Player';
 import { peerService } from './network/PeerService';
 import { type GameSettings, type GameState } from './game/GameState';
-import { Volume2, VolumeX, Sliders } from 'lucide-react';
+import { Volume2, VolumeX } from 'lucide-react';
 import { useSounds } from './context/SoundContext';
 
 function App() {
-  const { isMuted, toggleMute, playClick, volume, setVolume } = useSounds();
+  const { isMuted, playClick, volume, setVolume } = useSounds();
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [gameState, setGameState] = useState<'menu' | 'lobby' | 'playing' | 'privacy'>('menu');
   const [gameMap, setGameMap] = useState<MapTemplate | null>(null);
@@ -39,7 +39,7 @@ function App() {
 
   return (
     <div className="App">
-      <div className="fixed bottom-4 right-4 z-[9999] flex items-center gap-2">
+      <div className={`fixed right-4 z-[9999] flex items-center gap-2 ${gameState === 'playing' ? 'bottom-[4.5rem] md:bottom-4' : 'bottom-4'}`}>
         {showVolumeSlider && (
           <div className="bg-[#f4e6cd] border-2 border-stone-700 px-4 py-2 rounded-full shadow-md flex items-center gap-3 w-40 opacity-90 backdrop-blur">
             <span className="text-[10px] font-bold text-stone-700 uppercase tracking-wider">Vol</span>
@@ -64,18 +64,6 @@ function App() {
           }}
           className={`p-3 rounded-full border-2 border-stone-700 shadow-md transition-transform hover:scale-110 active:scale-95 flex items-center justify-center ${showVolumeSlider ? 'bg-stone-700 text-[#f4e6cd]' : 'bg-[#f4e6cd] text-stone-700'}`}
           title="Adjust Volume"
-        >
-          <Sliders className="w-5 h-5" />
-        </button>
-
-        <button 
-          onClick={() => {
-            if (volume === 0) return;
-            toggleMute();
-            if (isMuted && volume > 0) playClick();
-          }}
-          className={`p-3 rounded-full bg-[#f4e6cd] border-2 border-stone-700 shadow-md transition-transform hover:scale-110 active:scale-95 flex items-center justify-center ${volume === 0 ? 'opacity-50 cursor-not-allowed' : 'text-stone-700'}`}
-          title={isMuted || volume === 0 ? "Unmute sounds" : "Mute sounds"}
         >
           {isMuted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
         </button>
