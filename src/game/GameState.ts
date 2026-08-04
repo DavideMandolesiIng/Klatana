@@ -5,7 +5,7 @@ import { HexMath } from './HexMath';
 export type TurnPhase = 'ROLL' | 'TRADE' | 'BUILD';
 export type GamePhase = 'SETUP_1' | 'SETUP_2' | 'MAIN_GAME' | 'NINJA_DISCARD' | 'NINJA_MOVE' | 'NINJA_STEAL' | 'FREE_STREET_BUILDING' | 'GAME_OVER' | 'P2P_TRADE_PENDING';
 export type ActionCardType = 'NINJA' | 'MONUMENT' | 'MARKET CONTROL' | 'ABUNDANCE' | 'RAPID_EXPANSION';
-export type SetupAction = 'HOUSE' | 'street';
+export type SetupAction = 'HOUSE' | 'STREET';
 
 export interface GameSettings {
     hideBankResources: boolean;

@@ -7,6 +7,17 @@ import { type GameState, createInitialGameState, rollDice, distributeResources, 
 import { HexMath } from '../game/HexMath';
 import { TradeModal } from './TradeModal';
 import { useSounds } from '../context/SoundContext';
+import { PlayerIdentityPanel } from './game-screen/PlayerIdentityPanel';
+import { TurnPhaseInfo } from './game-screen/TurnPhaseInfo';
+import { ResourceBox } from './game-screen/ResourceBox';
+import { BuildCostsLegend } from './game-screen/BuildCostsLegend';
+import { ActionCardsBox } from './game-screen/ActionCardsBox';
+import { TradeProposalPanel } from './game-screen/TradeProposalPanel';
+import { MobileTabBar } from './game-screen/MobileTabBar';
+import { BuildControls } from './game-screen/BuildControls';
+import { MobileLogTab } from './game-screen/MobileLogTab';
+import { MobileTradeTab } from './game-screen/MobileTradeTab';
+import { MobileRoomTab } from './game-screen/MobileRoomTab';
 
 import tableBg from '/assets/textures/table-background.webp?url';
 import clayTexture from '/assets/textures/clay-texture.webp?url';
@@ -30,7 +41,7 @@ import woolIcon from '/assets/icons/resources/wool_icon.webp?url';
 import cerealIcon from '/assets/icons/resources/cereal_icon.webp?url';
 import nuggetsIcon from '/assets/icons/resources/nuggets_icon.webp?url';
 
-const RESOURCE_ICONS: Record<string, string> = {
+export const RESOURCE_ICONS: Record<string, string> = {
     OAK: oakIcon,
     CLAY: clayIcon,
     ORE: oreIcon,
@@ -53,7 +64,7 @@ export type ResourceDiff = { res: string; diff: number };
 
 export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData[], settings: GameSettings, initialGameState?: GameState, onReturnToLobby?: () => void, onDisconnect?: () => void }> = ({ map, initialPlayers, settings, initialGameState, onReturnToLobby, onDisconnect }) => {
     const [gameState, setGameState] = useState<GameState>(() => initialGameState || createInitialGameState(initialPlayers, map, settings));
-    const [buildMode, setBuildMode] = useState<'NONE' | 'HOUSE' | 'street' | 'FORTRESS'>('NONE');
+    const [buildMode, setBuildMode] = useState<'NONE' | 'HOUSE' | 'STREET' | 'FORTRESS'>('NONE');
     const [discardSelection, setDiscardSelection] = useState<Partial<Record<string, number>>>({});
     const [abundancePicks, setAbundancePicks] = useState<string[]>([]);
     const [showTradeModal, setShowTradeModal] = useState(false);
@@ -61,12 +72,10 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         initialOffer?: Partial<ResourceCounts>;
     }>({});
     const [showBankPanel, setShowBankPanel] = useState(true);
-    const [showBuildCosts, setShowBuildCosts] = useState(false);
     const [showLogs, setShowLogs] = useState(false);
-    const [pendingBuild, setPendingBuild] = useState<{ type: 'HOUSE' | 'street' | 'FORTRESS' | 'ACTION_CARD' | 'NINJA', id: string, costText: string, metadata?: any } | null>(null);
+    const [pendingBuild, setPendingBuild] = useState<{ type: 'HOUSE' | 'STREET' | 'FORTRESS' | 'ACTION_CARD' | 'NINJA', id: string, costText: string, metadata?: any } | null>(null);
     const [dismissedNotificationPhase, setDismissedNotificationPhase] = useState<string | null>(null);
     const [showActionCardModal, setShowActionCardModal] = useState(true);
-    const [showRoomCode, setShowRoomCode] = useState(false);
     const [mobileActiveTab, setMobileActiveTab] = useState<'GAME' | 'LOG' | 'TRADE' | 'ROOM'>('GAME');
     const { playRoll, playTurn, playBuild, playTrade, playWin, playLose, playNinja, playClick, playCard, playDiscard, playCoins, playCollect, playDisconnect, playConnect } = useSounds();
 
@@ -399,7 +408,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         } else if (card.type === 'RAPID_EXPANSION') {
             newState.gamePhase = 'FREE_STREET_BUILDING';
             newState.freeStreetsLeft = 2;
-            setBuildMode('street');
+            setBuildMode('STREET');
             broadcastState(newState);
         } else if (card.type === 'MARKET CONTROL' || card.type === 'ABUNDANCE') {
             setActiveCardContext(card.type);
@@ -573,7 +582,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     }, [gameState, myPlayer, isMyTurn]);
 
     const validStreetEdges = useMemo(() => {
-        if (!myPlayer || activeBuildMode !== 'street' || !isMyTurn) return new Set<string>();
+        if (!myPlayer || activeBuildMode !== 'STREET' || !isMyTurn) return new Set<string>();
         return getValidStreetPlacements(gameState, myPlayer.peerId, allEdgeIds);
     }, [gameState, myPlayer, activeBuildMode, allEdgeIds, isMyTurn]);
 
@@ -737,7 +746,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
             if (isSetupPhase) {
                 newState.lastBuiltNodeId = nodeId;
-                newState.setupAction = 'street';
+                newState.setupAction = 'STREET';
                 if (gameState.gamePhase === 'SETUP_2') {
                     const gained = getStartingResources(newState, nodeId, map);
                     Object.entries(gained).forEach(([res, count]) => {
@@ -754,7 +763,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             return;
         }
 
-        if (pendingBuild.type === 'street') {
+        if (pendingBuild.type === 'STREET') {
             playBuild();
             const edgeId = pendingBuild.id;
             const validation = validatestreetPlacement(gameState, edgeId, myPlayer!.peerId);
@@ -832,7 +841,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     };
 
     const handleEdgeClick = (edgeId: string) => {
-        if (activeBuildMode !== 'street' || !isMyTurn) return;
+        if (activeBuildMode !== 'STREET' || !isMyTurn) return;
 
         const validation = validatestreetPlacement(gameState, edgeId, myPlayer!.peerId);
         if (!validation.valid) {
@@ -841,7 +850,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         }
 
         const costText = (isSetupPhase || gameState.gamePhase === 'FREE_STREET_BUILDING') ? 'Free' : '1 Wood, 1 Clay';
-        setPendingBuild({ type: 'street', id: edgeId, costText });
+        setPendingBuild({ type: 'STREET', id: edgeId, costText });
     };
 
     const handleDiscard = () => {
@@ -1347,7 +1356,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                     className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider border whitespace-nowrap shadow transition-opacity ${isMyTurn && canAffordFortress && hasValidFortressSpots ? 'bg-[#5c4936] text-[#f7efd8] border-[#a37941]' : 'bg-[#d3be9a]/40 text-[#7d6549]/50 border-[#d3be9a]/40 opacity-60'}`}>
                                     Fortress
                                 </button>
-                                <button onClick={() => isMyTurn && setBuildMode('street')} disabled={!isMyTurn || !canAffordStreet || !hasValidStreetSpots}
+                                <button onClick={() => isMyTurn && setBuildMode('STREET')} disabled={!isMyTurn || !canAffordStreet || !hasValidStreetSpots}
                                     className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider border whitespace-nowrap shadow transition-opacity ${isMyTurn && canAffordStreet && hasValidStreetSpots ? 'bg-[#5c4936] text-[#f7efd8] border-[#a37941]' : 'bg-[#d3be9a]/40 text-[#7d6549]/50 border-[#d3be9a]/40 opacity-60'}`}>
                                     Street
                                 </button>
@@ -1512,167 +1521,38 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
                     {/* LOG TAB */}
                     {mobileActiveTab === 'LOG' && (
-                        <div className="p-2 h-full">
-                            <div className="bg-[#f4e6cd]/90 backdrop-blur-sm rounded-xl border border-[#d3be9a] shadow-inner p-2 flex flex-col-reverse gap-0.5 text-[11px] font-medium text-[#2c1d10]">
-                                {[...gameState.logs].reverse().map((log, i) => {
-                                    if (log.includes('|STEAL|')) {
-                                        const [msg, , stealerId, targetId, resource] = log.split('|');
-                                        const canSee = myPlayer?.peerId === stealerId || myPlayer?.peerId === targetId;
-                                        return <div key={i} className="border-b border-[#d3be9a]/60 pb-1 last:border-0">{canSee ? msg.replace('a resource', `1 ${resource}`) : msg}</div>;
-                                    }
-                                    return <div key={i} className="border-b border-[#d3be9a]/60 pb-1 last:border-0">{log}</div>;
-                                })}
-                            </div>
-                        </div>
+                        <MobileLogTab gameState={gameState} myPlayer={myPlayer} />
                     )}
 
                     {/* TRADE TAB */}
                     {mobileActiveTab === 'TRADE' && myPlayer && (
-                        <div className="p-2 flex flex-col gap-3">
-
-                            {/* ── My Resources summary (compact) ── */}
-                            <div className="bg-[#f4e6cd]/90 rounded-lg border border-[#d3be9a] shadow px-2 py-1.5 flex items-center gap-1 flex-wrap">
-                                <span className="text-[9px] font-black text-[#7d6549] uppercase tracking-wider shrink-0 mr-0.5">My resources:</span>
-                                {Object.entries(myPlayer.resources)
-                                    .filter(([res]) => res !== 'NUGGETS' || map.hexes.some(h => h.resource === 'NUGGETS'))
-                                    .map(([res, count]) => {
-                                        const grad = RESOURCE_GRADIENTS[res] || { center: '#334155', edge: '#0f172a' };
-                                        return (
-                                            <div key={res} className={`relative flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-black/20 overflow-hidden shrink-0 transition-opacity ${count === 0 ? 'opacity-30' : ''}`}
-                                                style={{ background: `radial-gradient(circle at center, ${grad.center}, ${grad.edge})` }}>
-                                                {RESOURCE_TEXTURES[res] && <div className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-40 mix-blend-overlay" style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }} />}
-                                                <img src={RESOURCE_ICONS[res as keyof typeof RESOURCE_ICONS]} alt={res} className="relative z-10 w-3 h-3" />
-                                                <span className="relative z-10 text-[10px] font-black text-white leading-none">{count}</span>
-                                            </div>
-                                        );
-                                    })}
-                            </div>
-
-                            {gameState.gamePhase === 'P2P_TRADE_PENDING' && gameState.tradeProposal && (
-                                <div className="bg-[#f4e6cd] rounded-xl border-2 border-[#d3be9a] shadow p-3">
-                                    <h3 className="text-xs font-black text-[#5c4936] mb-2 text-center uppercase">Trade Proposal</h3>
-                                    <div className="bg-[#ebd8b7] rounded-lg border-2 border-[#d3be9a] p-2 mb-2 flex flex-col gap-1.5 text-center">
-                                        <div>
-                                            <span className="text-[9px] font-bold text-[#7d6549] uppercase">{gameState.players.find(p => p.peerId === gameState.tradeProposal!.proposerId)?.username} gives</span>
-                                            <div className="flex gap-1 flex-wrap justify-center mt-1">
-                                                {Object.entries(gameState.tradeProposal.offer).filter(([_, c]) => (c || 0) > 0).map(([res, count]) => (
-                                                    <div key={res} className="relative px-2 py-1 rounded border border-black/30 overflow-hidden" style={{ background: `radial-gradient(circle at center, ${RESOURCE_GRADIENTS[res]?.center || '#334155'}, ${RESOURCE_GRADIENTS[res]?.edge || '#0f172a'})` }}>
-                                                        {RESOURCE_TEXTURES[res] && <div className="absolute inset-0 opacity-50 mix-blend-overlay bg-cover" style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }} />}
-                                                        <span className="relative z-10 text-[10px] font-bold text-white">{count} {res}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <div className="text-sm">🔄</div>
-                                        <div>
-                                            <span className="text-[9px] font-bold text-[#7d6549] uppercase">Requests</span>
-                                            <div className="flex gap-1 flex-wrap justify-center mt-1">
-                                                {Object.entries(gameState.tradeProposal.request).filter(([_, c]) => (c || 0) > 0).map(([res, count]) => (
-                                                    <div key={res} className="relative px-2 py-1 rounded border border-black/30 overflow-hidden" style={{ background: `radial-gradient(circle at center, ${RESOURCE_GRADIENTS[res]?.center || '#334155'}, ${RESOURCE_GRADIENTS[res]?.edge || '#0f172a'})` }}>
-                                                        {RESOURCE_TEXTURES[res] && <div className="absolute inset-0 opacity-50 mix-blend-overlay bg-cover" style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }} />}
-                                                        <span className="relative z-10 text-[10px] font-bold text-white">{count} {res}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    {myPlayer.peerId === gameState.tradeProposal.proposerId ? (
-                                        <div className="space-y-1.5">
-                                            {gameState.tradeProposal.acceptedBy.map(pid => { const p = gameState.players.find(x => x.peerId === pid); return p ? <button key={pid} onClick={() => handleFinalizeTrade(pid)} className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs rounded-lg font-bold shadow">Trade with {p.username}</button> : null; })}
-                                            {gameState.tradeProposal.acceptedBy.length === 0 && <p className="text-[10px] text-center text-[#7d6549] italic">Waiting for responses...</p>}
-                                            <button onClick={handleCancelTrade} className="w-full py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs rounded-lg font-bold shadow">Cancel Offer</button>
-                                        </div>
-                                    ) : (
-                                        <div className="flex gap-2">
-                                            <button onClick={handleAcceptTrade} disabled={!canAfford(myPlayer.resources, gameState.tradeProposal.request) || gameState.tradeProposal.acceptedBy.includes(myPlayer.peerId)} className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs rounded-lg font-bold shadow">{gameState.tradeProposal.acceptedBy.includes(myPlayer.peerId) ? 'Accepted ✓' : 'Accept'}</button>
-                                            <button onClick={handleRejectTrade} disabled={gameState.tradeProposal.declinedBy?.includes(myPlayer.peerId)} className="flex-1 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-xs rounded-lg font-bold shadow">{gameState.tradeProposal.declinedBy?.includes(myPlayer.peerId) ? 'Rejected ✗' : 'Reject'}</button>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                            <div className="bg-[#f4e6cd] rounded-xl border-2 border-[#d3be9a] shadow p-3">
-                                <TradeModal
-                                    gameState={gameState}
-                                    myPlayerId={myPlayer.peerId}
-                                    map={map}
-                                    onClose={() => { /* no-op on mobile: tab switching handled by nav bar */ }}
-                                    onBankTrade={handleBankTrade}
-                                    onProposeTrade={handleProposeTrade}
-                                    canPropose={isMyTurn && gameState.phase !== 'ROLL' && !isSetupPhase}
-                                    initialOffer={tradeModalConfig.initialOffer}
-                                />
-                            </div>
-                            <div className="bg-[#f4e6cd] rounded-xl border-2 border-[#d3be9a] shadow overflow-hidden">
-                                <button
-                                    onClick={() => { playClick(); setShowBuildCosts(!showBuildCosts); }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[#ebd8b7] transition-colors"
-                                >
-                                    <span className="text-[#7d6549] text-[10px] font-black">{showBuildCosts ? '▲' : '▼'}</span>
-                                    <h3 className="font-black text-[#7d6549] uppercase text-[10px] tracking-wider">Build Costs</h3>
-                                </button>
-                                {showBuildCosts && (
-                                    <div className="flex flex-col gap-1.5 px-3 pb-3">
-                                        {([
-                                            { name: 'Street', costs: { OAK: 1, CLAY: 1 } },
-                                            { name: 'House', costs: { OAK: 1, CLAY: 1, CEREALS: 1, WOOL: 1 } },
-                                            { name: 'Fortress', costs: { ORE: 3, CEREALS: 2 } },
-                                            { name: 'Action Card', costs: { ORE: 1, CEREALS: 1, WOOL: 1 } },
-                                        ] as const).map(({ name, costs }) => (
-                                            <div key={name} className="flex items-center justify-between bg-[#ebd8b7] rounded-lg px-3 py-2 border border-[#d3be9a]">
-                                                <span className="text-[11px] font-black text-[#5c4936] uppercase">{name}</span>
-                                                <div className="flex gap-1">
-                                                    {(Object.entries(costs) as [string, number][]).flatMap(([res, qty]) =>
-                                                        Array.from({ length: qty }).map((_, idx) => (
-                                                            <img key={`${res}-${idx}`} src={RESOURCE_ICONS[res]} className="w-5 h-5 drop-shadow" alt={res} />
-                                                        ))
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
+                        <MobileTradeTab
+                            gameState={gameState}
+                            myPlayer={myPlayer}
+                            map={map}
+                            isMyTurn={isMyTurn}
+                            isSetupPhase={isSetupPhase}
+                            tradeModalConfig={tradeModalConfig}
+                            handleFinalizeTrade={handleFinalizeTrade}
+                            handleCancelTrade={handleCancelTrade}
+                            handleAcceptTrade={handleAcceptTrade}
+                            handleRejectTrade={handleRejectTrade}
+                            handleBankTrade={handleBankTrade}
+                            handleProposeTrade={handleProposeTrade}
+                        />
                     )}
 
                     {/* SETTINGS TAB */}
                     {mobileActiveTab === 'ROOM' && (
-                        <div className="p-3 flex flex-col gap-3">
-                            <div className="bg-[#f4e6cd] rounded-xl border-2 border-[#d3be9a] shadow p-3 flex flex-col gap-2">
-                                <h3 className="font-black text-[#7d6549] uppercase text-[10px] tracking-wider">Game Settings</h3>
-                                <div className="flex items-center justify-between bg-[#ebd8b7] rounded-lg px-3 py-2 border border-[#d3be9a]">
-                                    <span className="text-xs font-bold text-[#5c4936]">Room Code</span>
-                                    <span className="text-sm font-black tracking-widest text-[#2c1d10] select-all">{peerService.roomCode}</span>
-                                </div>
-                                <div className="flex items-center justify-between bg-[#ebd8b7] rounded-lg px-3 py-2 border border-[#d3be9a]">
-                                    <span className="text-xs font-bold text-[#5c4936]">Playing as</span>
-                                    <span className="text-xs font-bold" style={{ color: myPlayer ? PLAYER_COLORS[myPlayer.color as keyof typeof PLAYER_COLORS].hex : '#2c1d10' }}>{myPlayer?.username}</span>
-                                </div>
-                                {onDisconnect && (
-                                    <button onClick={() => { playDisconnect(); onDisconnect(); }} className="w-full py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg text-sm uppercase tracking-wider border border-red-700 transition shadow">
-                                        Disconnect
-                                    </button>
-                                )}
-                            </div>
-                            <p className="text-[9px] text-[#a39070] text-center leading-tight">Klatana is a free, open-source fan project. Not affiliated with Catan Studio or Asmodee.</p>
-                        </div>
+                        <MobileRoomTab roomCode={peerService.roomCode} myPlayer={myPlayer} onDisconnect={onDisconnect} />
                     )}
                 </div>
 
                 {/* ── Bottom Nav Bar ── */}
-                <div className="shrink-0 h-14 bg-[#ebd8b7] border-t-2 border-[#d3be9a] flex items-stretch" style={{ boxShadow: '0 -2px 10px rgba(0,0,0,0.12)' }}>
-                    {(['GAME', 'LOG', 'TRADE', 'ROOM'] as const).map(tab => {
-                        const icons: Record<string, string> = { GAME: '🏠', LOG: '📋', TRADE: '⚖️', ROOM: '⚙️' };
-                        const labels: Record<string, string> = { GAME: 'Game', LOG: 'Log', TRADE: 'Trade', ROOM: 'Room' };
-                        return (
-                            <button key={tab} onClick={() => { playClick(); setMobileActiveTab(tab); }}
-                                className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-black uppercase tracking-wider transition-all ${mobileActiveTab === tab ? 'bg-[#f4e6cd] text-[#5c4936] border-t-[3px] border-[#a37941]' : 'text-[#7d6549] hover:bg-[#f4e6cd]/60 border-t-[3px] border-transparent'}`}>
-                                <span className="text-base leading-none">{icons[tab]}</span>
-                                <span>{labels[tab]}</span>
-                            </button>
-                        );
-                    })}
-                </div>
+                <MobileTabBar
+                    mobileActiveTab={mobileActiveTab}
+                    setMobileActiveTab={setMobileActiveTab}
+                />
             </div>{/* end mobile layout */}
 
             {/* ============================================================ */}
@@ -1690,85 +1570,19 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         </div>
 
                         {/* Action Cards Box */}
-                        <div className="flex-1 md:flex-none bg-[#f4e6cd] p-1 md:p-3 rounded-lg md:rounded-xl border-2 border-[#d3be9a] shadow-lg flex flex-col shrink-0 min-h-0 mt-0 md:mt-auto">
-                            <h3 className="hidden md:block font-black text-[#7d6549] uppercase text-xs tracking-wider mb-2">Action Cards</h3>
-                            <div className="flex flex-row md:flex-col gap-1 md:gap-2 flex-grow overflow-x-auto overflow-y-hidden md:overflow-visible items-center md:items-stretch">
-                                {myPlayer?.actionCards.map((card, i) => (
-                                    <div key={i} className="bg-[#ebd8b7] p-1 md:p-2 rounded border-2 border-[#d3be9a] flex gap-2 justify-between items-center group relative cursor-help shrink-0 md:shrink">
-                                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-[#f4e6cd]/98 backdrop-blur border-2 border-[#d3be9a] rounded-lg p-2 shadow-2xl w-48 pointer-events-none z-[60]">
-                                            <span className="text-[10px] uppercase tracking-widest font-black text-[#7d6549] border-b border-[#d3be9a] pb-1 mb-1 text-center">Info</span>
-                                            <span className="text-[10px] text-black text-center font-medium">
-                                                {card.type === 'NINJA' ? 'Move the Ninja to a new hex and steal 1 resource from an adjacent opponent.' :
-                                                    card.type === 'MONUMENT' ? '+1 Victory Point (Hidden from others until the end).' :
-                                                        card.type === 'MARKET CONTROL' ? 'Name 1 resource. All opponents must give you ALL their cards of that type.' :
-                                                            card.type === 'ABUNDANCE' ? 'Instantly take any 2 resources of your choice from the bank.' :
-                                                                card.type === 'RAPID_EXPANSION' ? 'Instantly build 2 streets for free.' : ''}
-                                            </span>
-                                        </div>
-                                        <span className="text-[9px] md:text-[10px] font-black text-[#2c1d10] uppercase truncate pr-1 flex-1">{card.type}</span>
-                                        {card.type !== 'MONUMENT' && (
-                                            <button
-                                                onClick={() => handlePlayCard(i)}
-                                                disabled={!isMyTurn || gameState.phase === 'ROLL' || gameState.activeTurnPlayedCard || card.boughtThisTurn}
-                                                className="px-1.5 py-0.5 md:px-2 md:py-1 bg-indigo-600 hover:bg-indigo-500 rounded text-[9px] md:text-[10px] font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed relative z-10 shrink-0"
-                                            >
-                                                Play
-                                            </button>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                            {/* Buy Card button moved to main button area */}
-                        </div>{/* end Action Cards box */}
+                        <ActionCardsBox
+                            myPlayer={myPlayer}
+                            isMyTurn={isMyTurn}
+                            gameState={gameState}
+                            handlePlayCard={handlePlayCard}
+                        />
 
                         {/* Resources Box */}
-                        <div className="flex-1 md:flex-none bg-[#f4e6cd] p-1 md:p-3 rounded-lg md:rounded-xl border-2 border-[#d3be9a] shadow-lg flex flex-col shrink-0">
-                            <h3 className="hidden md:block font-black text-[#7d6549] uppercase text-xs tracking-wider mb-2">My Resources</h3>
-                            {myPlayer && (
-                                <div className="flex flex-row md:grid md:grid-cols-3 gap-1 md:gap-1.5 overflow-x-auto md:overflow-visible mb-0 md:mb-2 items-center">
-                                    {Object.entries(myPlayer.resources)
-                                        .filter(([res]) => res !== 'NUGGETS' || map.hexes.some(h => h.resource === 'NUGGETS'))
-                                        .map(([res, count]) => {
-                                            const grad = RESOURCE_GRADIENTS[res] || { center: '#334155', edge: '#0f172a' };
-                                            let textClass = "text-white drop-shadow-sm";
-                                            let numBgClass = "bg-black/40";
-                                            let numTextClass = "text-white";
-
-                                            // Make text darker on bright resources for legibility
-                                            if (res === 'CEREALS' || res === 'NUGGETS' || res === 'WOOL') {
-                                                textClass = "text-[#2a1c0d] drop-shadow-none";
-                                                numBgClass = "bg-[#2a1c0d]/20";
-                                                numTextClass = "text-[#2a1c0d]";
-                                            }
-
-                                            return (
-                                                <div
-                                                    key={res}
-                                                    onClick={() => { playClick(); handleResourceClick(res); }}
-                                                    className="relative flex flex-row md:flex-col items-center justify-between gap-1 md:gap-0 p-1 md:p-1.5 rounded border border-black/30 shadow-md overflow-hidden min-h-[24px] md:min-h-[70px] transition-transform hover:scale-105 cursor-pointer shrink-0"
-                                                    style={{ background: `radial-gradient(circle at center, ${grad.center}, ${grad.edge})` }}
-                                                >
-                                                    {RESOURCE_TEXTURES[res] && (
-                                                        <div
-                                                            className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-50 mix-blend-overlay"
-                                                            style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }}
-                                                        />
-                                                    )}
-                                                    <div className="relative z-10 flex flex-row md:flex-col items-center gap-1 md:gap-0.5">
-                                                        <img src={RESOURCE_ICONS[res as keyof typeof RESOURCE_ICONS]} alt={res} className="w-4 h-4 md:w-6 md:h-6 drop-shadow-md filter-none" />
-                                                        <span className={`hidden md:block text-[8px] font-bold uppercase tracking-wider ${textClass} text-center leading-tight truncate w-full`}>
-                                                            {res}
-                                                        </span>
-                                                    </div>
-                                                    <div className={`relative z-10 font-black ${numTextClass} ${numBgClass} px-1.5 py-0.5 md:px-2 md:py-0.5 rounded text-[10px] md:text-xs mt-0 md:mt-1 w-auto md:w-full text-center shadow-inner`}>
-                                                        {count}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                </div>
-                            )}
-                        </div>
+                        <ResourceBox
+                            myPlayer={myPlayer}
+                            map={map}
+                            handleResourceClick={handleResourceClick}
+                        />
                     </div>{/* end flex-grow inner left sidebar */}
                 </div>{/* end w-56 Left Sidebar */}
 
@@ -1794,166 +1608,31 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                     />
 
                     {/* Top-Left Floating Info: Player Identity */}
-                    <div className="absolute top-1 left-1 md:top-2 md:left-2 lg:top-4 lg:left-4 flex flex-col gap-1 lg:gap-2 z-10 pointer-events-none">
-                        <div className="flex gap-2">
-                            <div className="px-3 py-1.5 bg-[#f4e6cd]/90 backdrop-blur rounded-lg text-sm font-bold shadow-lg border-2 border-[#d3be9a] pointer-events-auto shrink-0 flex items-center">
-                                <span className="text-[#7d6549] mr-2">Playing as:</span>
-                                <span className="text-white drop-shadow" style={{ color: myPlayer ? PLAYER_COLORS[myPlayer.color as keyof typeof PLAYER_COLORS].hex : 'white' }}>{myPlayer?.username}</span>
-                            </div>
-                            <div className="flex flex-col gap-1 pointer-events-auto">
-                                <div className="flex gap-1 h-full">
-                                    <div className="relative">
-                                        <button onClick={() => { playClick(); setShowRoomCode(!showRoomCode); }} className="px-2 py-1 h-full bg-[#ebd8b7] hover:bg-[#d3be9a] text-black font-bold uppercase tracking-wider rounded-lg shadow-lg border border-slate-700 text-[10px] transition-colors shrink-0">
-                                            Room Code {showRoomCode ? '▲' : '▼'}
-                                        </button>
-                                        {showRoomCode && (
-                                            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-[#f4e6cd]/95 backdrop-blur rounded-lg border-2 border-[#d3be9a] shadow-xl p-2 min-w-max text-center pointer-events-auto z-50 cursor-text">
-                                                <span className="text-lg font-bold tracking-widest text-[#2c1d10] leading-none m-1.5 block select-all">{peerService.roomCode}</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                    {onDisconnect && (
-                                        <button onClick={() => { playDisconnect(); onDisconnect(); }} className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white font-bold uppercase tracking-wider rounded-lg shadow-lg border border-red-700 text-[10px] transition-colors shrink-0">
-                                            Log Out
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                        {activeBuildMode !== 'NONE' && (
-                            <div className="px-3 py-1.5 bg-[#2d1b0f]/80 backdrop-blur rounded-lg text-xs font-bold shadow-lg border border-[#a37941] animate-pulse text-amber-300 w-max pointer-events-auto mt-1">
-                                BUILDING {activeBuildMode}...
-                            </div>
-                        )}
-                    </div>
+                    <PlayerIdentityPanel
+                        myPlayer={myPlayer}
+                        onDisconnect={onDisconnect}
+                        activeBuildMode={activeBuildMode}
+                    />
 
                     {/* Top-Right Floating Info: Dice Roll, Turn & Phase */}
-                    <div className="absolute top-1 right-1 md:top-2 md:right-2 lg:top-4 lg:right-4 z-10 pointer-events-none flex flex-col items-end gap-1 lg:gap-2">
-                        <div className="flex gap-2">
-                            <div className="px-3 py-1.5 bg-[#f4e6cd]/90 backdrop-blur rounded-lg text-xs font-bold shadow-lg border-2 border-[#d3be9a]">
-                                <span className="text-[#7d6549] uppercase tracking-wider mr-2">Turn:</span>
-                                <span className="text-white drop-shadow" style={{ color: currentPlayer ? PLAYER_COLORS[currentPlayer.color as keyof typeof PLAYER_COLORS].hex : 'white' }}>{currentPlayer?.username}</span>
-                            </div>
-                            <div className="px-3 py-1.5 bg-[#f4e6cd]/90 backdrop-blur rounded-lg text-xs font-bold shadow-lg border-2 border-[#d3be9a]">
-                                <span className="text-[#7d6549] uppercase tracking-wider mr-2">Phase:</span>
-                                <span className="text-emerald-400 uppercase">{isSetupPhase ? gameState.gamePhase : gameState.phase}</span>
-                            </div>
-                        </div>
-                        {gameState.diceRoll && (
-                            <div className="flex flex-col items-center justify-center bg-[#f4e6cd]/90 backdrop-blur px-4 py-2 rounded-xl border-2 border-[#d3be9a] shadow-2xl min-w-[120px]">
-                                <span className="text-[#9c8466] text-[10px] font-black uppercase tracking-widest mb-1 drop-shadow">Last Roll</span>
-                                <div className="text-4xl font-black text-[#2c1d10] leading-none drop-shadow-md mb-1">{gameState.diceRoll.total}</div>
-                                <div className="flex gap-1 text-slate-400 text-xs font-bold">
-                                    <span>{gameState.diceRoll.die1}</span>
-                                    <span>+</span>
-                                    <span>{gameState.diceRoll.die2}</span>
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                    <TurnPhaseInfo
+                        currentPlayer={currentPlayer}
+                        isSetupPhase={isSetupPhase}
+                        gameState={gameState}
+                    />
 
                     {/* Bottom-Left Floating Panels: Trade Proposal & Trade Market */}
                     {myPlayer && (
                         <div className="absolute bottom-0 left-0 z-20 w-[90%] md:w-80 lg:w-[360px] max-w-sm flex flex-col justify-end gap-2">
                             {/* P2P Trade Proposal */}
-                            {gameState.gamePhase === 'P2P_TRADE_PENDING' && gameState.tradeProposal && (
-                                <div className="bg-[#f4e6cd]/95 backdrop-blur-md rounded-tr-xl border-t-2 border-r-2 border-[#d3be9a] shadow-2xl p-3 flex flex-col">
-                                    <h2 className="text-xs font-black text-[#5c4936] mb-2 text-center uppercase tracking-wider">Trade Proposal</h2>
-
-                                    <div className="flex flex-col gap-2 justify-between bg-[#ebd8b7] shadow-inner p-2 rounded-lg border-2 border-[#d3be9a] mb-2">
-                                        <div className="flex flex-col gap-1 items-center">
-                                            <span className="text-[9px] font-bold text-[#7d6549] uppercase">{gameState.players.find(p => p.peerId === gameState.tradeProposal!.proposerId)?.username} gives</span>
-                                            <div className="flex gap-1 flex-wrap justify-center">
-                                                {Object.entries(gameState.tradeProposal.offer).filter(([_, count]) => (count || 0) > 0).map(([res, count]) => (
-                                                    <div key={res} className="relative p-1 px-2 rounded overflow-hidden border border-black/30 flex justify-center items-center" style={{ background: `radial-gradient(circle at center, ${RESOURCE_GRADIENTS[res]?.center || '#334155'}, ${RESOURCE_GRADIENTS[res]?.edge || '#0f172a'})` }}>
-                                                        {RESOURCE_TEXTURES[res] && (
-                                                            <div className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-50 mix-blend-overlay" style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }} />
-                                                        )}
-                                                        <span className="relative z-10 font-bold text-white text-[10px] drop-shadow-sm">{count} {res}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <div className="flex justify-center text-sm font-black text-slate-500 leading-none">🔄</div>
-                                        <div className="flex flex-col gap-1 items-center">
-                                            <span className="text-[9px] font-bold text-[#7d6549] uppercase">Requests</span>
-                                            <div className="flex gap-1 flex-wrap justify-center">
-                                                {Object.entries(gameState.tradeProposal.request).filter(([_, count]) => (count || 0) > 0).map(([res, count]) => (
-                                                    <div key={res} className="relative p-1 px-2 rounded overflow-hidden border border-black/30 flex justify-center items-center" style={{ background: `radial-gradient(circle at center, ${RESOURCE_GRADIENTS[res]?.center || '#334155'}, ${RESOURCE_GRADIENTS[res]?.edge || '#0f172a'})` }}>
-                                                        {RESOURCE_TEXTURES[res] && (
-                                                            <div className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-50 mix-blend-overlay" style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }} />
-                                                        )}
-                                                        <span className="relative z-10 font-bold text-white text-[10px] drop-shadow-sm">{count} {res}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {myPlayer.peerId === gameState.tradeProposal.proposerId ? (
-                                        <div className="space-y-2">
-                                            {/* Accepted players */}
-                                            {gameState.tradeProposal.acceptedBy.length > 0 && (
-                                                <div className="flex flex-col gap-1">
-                                                    <h3 className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider text-center">✓ Accepted</h3>
-                                                    {gameState.tradeProposal.acceptedBy.map(pid => {
-                                                        const p = gameState.players.find(x => x.peerId === pid);
-                                                        return p ? (
-                                                            <button key={pid} onClick={() => handleFinalizeTrade(pid)} className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-500 text-[10px] text-white rounded font-bold transition-colors shadow">
-                                                                Trade with {p.username}
-                                                            </button>
-                                                        ) : null;
-                                                    })}
-                                                </div>
-                                            )}
-
-                                            {/* Declined players */}
-                                            {(gameState.tradeProposal.declinedBy?.length ?? 0) > 0 && (
-                                                <div className="flex flex-col gap-1">
-                                                    <h3 className="text-[9px] font-bold text-red-400 uppercase tracking-wider text-center">✗ Declined</h3>
-                                                    {gameState.tradeProposal.declinedBy!.map(pid => {
-                                                        const p = gameState.players.find(x => x.peerId === pid);
-                                                        return p ? (
-                                                            <div key={pid} className="w-full py-1 px-2 bg-red-900/40 border border-red-800/50 text-[10px] rounded font-bold text-white text-center">
-                                                                {p.username}
-                                                            </div>
-                                                        ) : null;
-                                                    })}
-                                                </div>
-                                            )}
-
-                                            {/* Waiting message if nobody has responded yet */}
-                                            {gameState.tradeProposal.acceptedBy.length === 0 && (gameState.tradeProposal.declinedBy?.length ?? 0) === 0 && (
-                                                <p className="text-slate-500 text-center text-[10px] italic">Waiting for responses...</p>
-                                            )}
-
-                                            <button onClick={handleCancelTrade} className="w-full py-1.5 bg-yellow-600 hover:bg-yellow-700 text-[10px] text-white rounded font-bold transition-colors shadow">Cancel Offer</button>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-2">
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={handleAcceptTrade}
-                                                    disabled={!canAfford(myPlayer.resources, gameState.tradeProposal.request) || gameState.tradeProposal.acceptedBy.includes(myPlayer.peerId)}
-                                                    className={`flex-1 py-2 ${gameState.tradeProposal.acceptedBy.includes(myPlayer.peerId) ? 'bg-emerald-800 text-emerald-300' : 'bg-emerald-600 hover:bg-emerald-500'} disabled:bg-slate-700 disabled:text-slate-500 text-[10px] rounded font-bold uppercase tracking-wider transition-colors shadow`}
-                                                >
-                                                    {gameState.tradeProposal.acceptedBy.includes(myPlayer.peerId) ? 'Accepted ✓' : 'Accept'}
-                                                </button>
-                                                <button
-                                                    onClick={handleRejectTrade}
-                                                    disabled={gameState.tradeProposal.declinedBy?.includes(myPlayer.peerId)}
-                                                    className={`flex-1 py-2 ${gameState.tradeProposal.declinedBy?.includes(myPlayer.peerId) ? 'bg-red-800 text-red-300 disabled:opacity-100 disabled:cursor-default' : 'bg-red-600 hover:bg-red-500 disabled:bg-slate-700 disabled:text-slate-500'} text-[10px] rounded font-bold uppercase tracking-wider transition-colors shadow`}
-                                                >
-                                                    {gameState.tradeProposal.declinedBy?.includes(myPlayer.peerId) ? 'Rejected ✗' : 'Reject'}
-                                                </button>
-                                            </div>
-                                            {!canAfford(myPlayer.resources, gameState.tradeProposal.request) && (
-                                                <p className="text-red-400 text-[9px] text-center font-bold">You do not have the requested resources.</p>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+                            <TradeProposalPanel
+                                gameState={gameState}
+                                myPlayer={myPlayer}
+                                handleFinalizeTrade={handleFinalizeTrade}
+                                handleCancelTrade={handleCancelTrade}
+                                handleAcceptTrade={handleAcceptTrade}
+                                handleRejectTrade={handleRejectTrade}
+                            />
 
                             {/* Trade Market (collapsible) */}
                             <div className="relative">
@@ -1994,158 +1673,33 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                     {/* Floating Controls (Roll/Build/End Turn) - Bottom Right inside Main Area */}
                     <div className="absolute bottom-[30px] md:bottom-0 right-0 z-10 flex flex-col items-end gap-2 pb-1 pr-1 md:pb-2 md:pr-2 lg:pb-3 lg:pr-4 md:scale-90 lg:scale-100 origin-bottom-right pointer-events-none">
                         {/* Build Costs Legend - sits above action buttons */}
-                        <div className="flex flex-col gap-2 items-end pointer-events-auto">
-                            <button
-                                onClick={() => { playClick(); setShowBuildCosts(!showBuildCosts); }}
-                                className="bg-[#f4e6cd]/90 hover:bg-[#fff9ea] text-[#7d6549] border-2 border-[#d3be9a] px-2 py-1 md:px-3 md:py-1.5 rounded md:rounded-lg text-[8px] md:text-[9px] font-black uppercase tracking-widest shadow-xl backdrop-blur-md transition-colors flex items-center gap-1 md:gap-2"
-                            >
-                                <span>Build Costs</span>
-                                <span>{showBuildCosts ? '▼' : '▲'}</span>
-                            </button>
-                            {showBuildCosts && (
-                                <div className="flex flex-col gap-1 bg-[#f4e6cd]/95 backdrop-blur-md p-1.5 md:p-2.5 rounded md:rounded-lg border-2 border-[#d3be9a] shadow-xl text-[8px] md:text-[9px] uppercase font-black tracking-wider mb-1">
-                                    <div className="flex items-center justify-between gap-4 text-[#5c4936]">
-                                        <span>street</span>
-                                        <div className="flex gap-1 drop-shadow-sm">
-                                            <img src={RESOURCE_ICONS.OAK} className="w-2.5 h-2.5 md:w-3 md:h-3" />
-                                            <img src={RESOURCE_ICONS.CLAY} className="w-2.5 h-2.5 md:w-3 md:h-3" />
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center justify-between gap-4 text-[#5c4936]">
-                                        <span>House</span>
-                                        <div className="flex gap-1 drop-shadow-sm">
-                                            <img src={RESOURCE_ICONS.OAK} className="w-2.5 h-2.5 md:w-3 md:h-3" />
-                                            <img src={RESOURCE_ICONS.CLAY} className="w-2.5 h-2.5 md:w-3 md:h-3" />
-                                            <img src={RESOURCE_ICONS.CEREALS} className="w-2.5 h-2.5 md:w-3 md:h-3" />
-                                            <img src={RESOURCE_ICONS.WOOL} className="w-2.5 h-2.5 md:w-3 md:h-3" />
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center justify-between gap-4 text-[#5c4936]">
-                                        <span>Fortress</span>
-                                        <div className="flex gap-1 drop-shadow-sm">
-                                            <img src={RESOURCE_ICONS.ORE} className="w-2.5 h-2.5 md:w-3 md:h-3" />
-                                            <img src={RESOURCE_ICONS.ORE} className="w-2.5 h-2.5 md:w-3 md:h-3" />
-                                            <img src={RESOURCE_ICONS.ORE} className="w-2.5 h-2.5 md:w-3 md:h-3" />
-                                            <img src={RESOURCE_ICONS.CEREALS} className="w-2.5 h-2.5 md:w-3 md:h-3" />
-                                            <img src={RESOURCE_ICONS.CEREALS} className="w-2.5 h-2.5 md:w-3 md:h-3" />
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center justify-between gap-4 text-[#5c4936]">
-                                        <span>Card</span>
-                                        <div className="flex gap-1 drop-shadow-sm">
-                                            <img src={RESOURCE_ICONS.ORE} className="w-2.5 h-2.5 md:w-3 md:h-3" />
-                                            <img src={RESOURCE_ICONS.CEREALS} className="w-2.5 h-2.5 md:w-3 md:h-3" />
-                                            <img src={RESOURCE_ICONS.WOOL} className="w-2.5 h-2.5 md:w-3 md:h-3" />
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+                        <BuildCostsLegend variant="desktop" />
 
                         {/* Action Buttons */}
-                        <div className="flex flex-wrap justify-end gap-1.5 md:gap-3 max-w-[240px] md:max-w-[400px] pointer-events-auto">
-                            {isSetupPhase ? (
-                                <div className="px-3 py-1.5 md:px-6 md:py-3 bg-indigo-900/90 backdrop-blur-sm rounded-lg md:rounded-xl text-[10px] md:text-sm font-bold text-indigo-200 shadow-xl border border-indigo-500 animate-pulse">
-                                    {isMyTurn ? `PLACE ${gameState.setupAction}` : `Waiting for ${currentPlayer?.username}...`}
-                                </div>
-                            ) : (
-                                <>
-                                    {gameState.phase === 'ROLL' && isMyTurn ? (
-                                        <button onClick={handleRollDice} className="px-3 py-1.5 md:px-6 md:py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg md:rounded-xl font-bold shadow-2xl transition-colors border border-indigo-400 text-[10px] md:text-sm uppercase tracking-wider w-full md:w-auto">
-                                            Roll Dice
-                                        </button>
-                                    ) : (
-                                        <>
-                                            {buildMode !== 'NONE' && isMyTurn ? (
-                                                <button onClick={() => { setBuildMode('NONE'); setPendingBuild(null); }} className="px-3 py-1.5 md:px-6 md:py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg md:rounded-xl font-bold transition-colors shadow-xl border border-slate-600 text-[10px] md:text-sm uppercase tracking-wider w-full md:w-auto">
-                                                    Cancel Build
-                                                </button>
-                                            ) : (
-                                                <>
-                                                    <div className="relative group flex items-stretch">
-                                                        <button onClick={() => isMyTurn && setBuildMode('HOUSE')} disabled={!isMyTurn || !canAffordHouse || !hasValidHouseSpots} title={isMyTurn && canAffordHouse && !hasValidHouseSpots ? "No valid spots available on board" : (!isMyTurn ? "Not your turn" : undefined)} className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border text-[9px] md:text-sm uppercase tracking-wider ${isMyTurn && canAffordHouse && hasValidHouseSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600 text-white' : (isMyTurn && canAffordHouse && !hasValidHouseSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 text-slate-400 opacity-50 cursor-not-allowed')}`}>
-                                                            House
-                                                        </button>
-                                                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-[#f4e6cd] backdrop-blur border-2 border-[#7d6549] rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
-                                                            <span className="text-[10px] uppercase tracking-widest font-bold text-[#7d6549] border-b border-[#7d6549] pb-1 mb-1 text-center">Cost</span>
-                                                            {Object.entries({ OAK: 1, CLAY: 1, CEREALS: 1, WOOL: 1 }).map(([res, cost]) => {
-                                                                const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
-                                                                return <div key={res} className="flex items-center justify-between text-[10px] font-bold mb-1"><div className="flex items-center gap-1.5"><img src={RESOURCE_ICONS[res]} className="w-3.5 h-3.5 drop-shadow-sm filter-none" alt="" /><span className="text-black">{res}</span></div><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
-                                                            })}
-                                                        </div>
-                                                    </div>
-                                                    <div className="relative group flex items-stretch">
-                                                        <button onClick={() => isMyTurn && setBuildMode('FORTRESS')} disabled={!isMyTurn || !canAffordFortress || !hasValidFortressSpots} title={isMyTurn && canAffordFortress && !hasValidFortressSpots ? "No valid spots available on board" : (!isMyTurn ? "Not your turn" : undefined)} className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border text-[9px] md:text-sm uppercase tracking-wider ${isMyTurn && canAffordFortress && hasValidFortressSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600 text-white' : (isMyTurn && canAffordFortress && !hasValidFortressSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 text-slate-400 opacity-50 cursor-not-allowed')}`}>
-                                                            Fortress
-                                                        </button>
-                                                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-[#f4e6cd] backdrop-blur border-2 border-[#7d6549] rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
-                                                            <span className="text-[10px] uppercase tracking-widest font-bold text-[#7d6549] border-b border-[#7d6549] pb-1 mb-1 text-center">Cost</span>
-                                                            {Object.entries({ CEREALS: 2, ORE: 3 }).map(([res, cost]) => {
-                                                                const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
-                                                                return <div key={res} className="flex items-center justify-between text-[10px] font-bold mb-1"><div className="flex items-center gap-1.5"><img src={RESOURCE_ICONS[res]} className="w-3.5 h-3.5 drop-shadow-sm filter-none" alt="" /><span className="text-black">{res}</span></div><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
-                                                            })}
-                                                        </div>
-                                                    </div>
-                                                    <div className="relative group flex items-stretch">
-                                                        <button onClick={() => isMyTurn && setBuildMode('street')} disabled={!isMyTurn || !canAffordStreet || !hasValidStreetSpots} title={isMyTurn && canAffordStreet && !hasValidStreetSpots ? "No valid spots available on board" : (!isMyTurn ? "Not your turn" : undefined)} className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border text-[9px] md:text-sm uppercase tracking-wider ${isMyTurn && canAffordStreet && hasValidStreetSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600 text-white' : (isMyTurn && canAffordStreet && !hasValidStreetSpots ? 'bg-yellow-900/50 text-yellow-500 border-yellow-700 opacity-80 cursor-not-allowed' : 'bg-slate-800 border-slate-700 text-slate-400 opacity-50 cursor-not-allowed')}`}>
-                                                            street
-                                                        </button>
-                                                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-[#f4e6cd] backdrop-blur border-2 border-[#7d6549] rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
-                                                            <span className="text-[10px] uppercase tracking-widest font-bold text-[#7d6549] border-b border-[#7d6549] pb-1 mb-1 text-center">Cost</span>
-                                                            {Object.entries({ OAK: 1, CLAY: 1 }).map(([res, cost]) => {
-                                                                const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
-                                                                return <div key={res} className="flex items-center justify-between text-[10px] font-bold mb-1"><div className="flex items-center gap-1.5"><img src={RESOURCE_ICONS[res]} className="w-3.5 h-3.5 drop-shadow-sm filter-none" alt="" /><span className="text-black">{res}</span></div><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
-                                                            })}
-                                                        </div>
-                                                    </div>
-                                                    <div className="relative group flex items-stretch">
-                                                        <button onClick={() => isMyTurn && handleBuyCard()} disabled={!isMyTurn || !canAffordCard || gameState.actionCardDeck.length === 0} title={!isMyTurn ? "Not your turn" : undefined} className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border-2 text-[9px] text-white md:text-sm uppercase tracking-wider ${isMyTurn && canAffordCard && gameState.actionCardDeck.length > 0 ? 'bg-slate-700 hover:bg-slate-600 border-purple-500 text-purple-200' : 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed'}`}>
-                                                            Buy Card <span className="text-[8px] md:text-[10px] text-white font-normal">({gameState.actionCardDeck.length})</span>
-                                                        </button>
-                                                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-[#f4e6cd] backdrop-blur border-2 border-[#7d6549] rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
-                                                            <span className="text-[10px] uppercase tracking-widest font-bold text-[#7d6549] border-b border-[#7d6549] pb-1 mb-1 text-center">Cost</span>
-                                                            {Object.entries({ CEREALS: 1, WOOL: 1, ORE: 1 }).map(([res, cost]) => {
-                                                                const has = myPlayer?.resources[res as keyof typeof myPlayer.resources] || 0;
-                                                                return <div key={res} className="flex items-center justify-between text-[10px] font-bold mb-1"><div className="flex items-center gap-1.5"><img src={RESOURCE_ICONS[res]} className="w-3.5 h-3.5 drop-shadow-sm filter-none" alt="" /><span className="text-black">{res}</span></div><span className={has >= cost ? 'text-emerald-400' : 'text-red-500'}>{has}/{cost}</span></div>;
-                                                            })}
-                                                        </div>
-                                                        {pendingBuild?.type === 'ACTION_CARD' && (
-                                                            <div className="absolute bottom-full mb-2 right-0 bg-[#f4e6cd] backdrop-blur-md p-3 rounded-xl border-2 border-[#7d6549] shadow-2xl flex flex-col items-center pointer-events-auto w-48 z-50">
-                                                                <span className="text-xs text-[#7d6549] font-bold mb-2 text-center uppercase tracking-wider">Confirm Purchase?</span>
-                                                                <span className="text-[10px] text-black font-bold mb-3 text-center">Cost: 1 Ore, 1 Wool, 1 Cereal</span>
-                                                                <div className="flex gap-2 w-full">
-                                                                    <button onClick={handleConfirmBuild} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs py-1.5 rounded font-bold cursor-pointer transition-colors shadow-md">✓ Buy</button>
-                                                                    <button onClick={handleCancelBuild} className="flex-1 bg-red-600 hover:bg-red-500 text-white text-xs py-1.5 rounded font-bold cursor-pointer transition-colors shadow-md">✗ Cancel</button>
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
-
-                                                    {isMyTurn ? (
-                                                        gameState.gamePhase === 'FREE_STREET_BUILDING' ? (
-                                                            <button onClick={() => {
-                                                                broadcastState({ ...gameState, gamePhase: 'MAIN_GAME', freeStreetsLeft: 0 });
-                                                                setBuildMode('NONE');
-                                                            }} className="px-3 py-1.5 md:px-6 md:py-3 rounded-lg md:rounded-xl font-bold shadow-2xl transition-colors border border-amber-500 bg-amber-600 hover:bg-amber-500 text-white text-[10px] md:text-sm uppercase tracking-wider">
-                                                                End Free street
-                                                            </button>
-                                                        ) : (
-                                                            <button onClick={() => handleEndTurn(false)} disabled={gameState.gamePhase !== 'MAIN_GAME'} className={`px-4 py-1.5 md:px-6 md:py-3 rounded-lg md:rounded-xl font-bold shadow-2xl transition-colors border text-[10px] md:text-sm uppercase tracking-wider text-white ${gameState.gamePhase === 'MAIN_GAME' ? 'bg-red-600 hover:bg-red-500 border-red-400' : 'bg-red-800 border-red-700 opacity-50 cursor-not-allowed'}`}>
-                                                                End Turn
-                                                            </button>
-                                                        )
-                                                    ) : (
-                                                        <div className="px-3 py-2 md:px-5 md:py-3 bg-slate-900/80 backdrop-blur-sm rounded-lg md:rounded-xl text-[10px] md:text-sm font-medium text-slate-400 shadow-xl border border-slate-700 flex items-center h-full">
-                                                            Waiting for {currentPlayer?.username}...
-                                                        </div>
-                                                    )}
-                                                </>
-                                            )}
-                                        </>
-                                    )}
-                                </>
-                            )}
-                        </div>{/* end flex gap-3 action buttons */}
+                        <BuildControls
+                            isSetupPhase={isSetupPhase}
+                            gameState={gameState}
+                            myPlayer={myPlayer}
+                            currentPlayer={currentPlayer}
+                            isMyTurn={isMyTurn}
+                            buildMode={buildMode}
+                            setBuildMode={setBuildMode}
+                            setPendingBuild={setPendingBuild}
+                            pendingBuild={pendingBuild}
+                            handleRollDice={handleRollDice}
+                            handleBuyCard={handleBuyCard}
+                            canAffordCard={canAffordCard}
+                            canAffordHouse={canAffordHouse}
+                            canAffordFortress={canAffordFortress}
+                            canAffordStreet={canAffordStreet}
+                            hasValidHouseSpots={hasValidHouseSpots}
+                            hasValidFortressSpots={hasValidFortressSpots}
+                            hasValidStreetSpots={hasValidStreetSpots}
+                            handleConfirmBuild={handleConfirmBuild}
+                            handleCancelBuild={handleCancelBuild}
+                            handleEndTurn={handleEndTurn}
+                            broadcastState={broadcastState}
+                        />
                     </div>{/* end absolute bottom-0 right-0 flex-col */}
                 </main>
 

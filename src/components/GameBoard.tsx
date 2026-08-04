@@ -27,13 +27,13 @@ import ninjaIcon from '/assets/icons/ninja_icon.webp?url';
 interface GameBoardProps {
   template: MapTemplate;
   gameState?: GameState;
-  buildMode?: 'NONE' | 'HOUSE' | 'street' | 'FORTRESS';
+  buildMode?: 'NONE' | 'HOUSE' | 'STREET' | 'FORTRESS';
   /** Pre-computed set of valid edge IDs for street placement highlighting */
   validStreetEdges?: Set<string>;
   /** Pre-computed set of valid node IDs for house placement highlighting */
   validHouseNodes?: Set<string>;
   validFortressNodes?: Set<string>;
-  pendingBuild?: { type: 'HOUSE' | 'street' | 'FORTRESS' | 'ACTION_CARD' | 'NINJA', id: string, costText: string, metadata?: any } | null;
+  pendingBuild?: { type: 'HOUSE' | 'STREET' | 'FORTRESS' | 'ACTION_CARD' | 'NINJA', id: string, costText: string, metadata?: any } | null;
   currentPlayerColor?: string;
   onConfirmBuild?: () => void;
   onCancelBuild?: () => void;
@@ -381,9 +381,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         {uniqueEdges.map(edge => {
           const street = gameState?.streets[edge.id];
           // Only highlight if this specific edge is in the pre-validated set
-          const isValidPlacement = buildMode === 'street' && !pendingBuild && !street && (validStreetEdges?.has(edge.id) ?? false);
+          const isValidPlacement = buildMode === 'STREET' && !pendingBuild && !street && (validStreetEdges?.has(edge.id) ?? false);
           const isClickable = isValidPlacement;
-          const isPendingEdge = pendingBuild?.type === 'street' && pendingBuild.id === edge.id;
+          const isPendingEdge = pendingBuild?.type === 'STREET' && pendingBuild.id === edge.id;
 
           return (
             <g key={`edge-${edge.id}`} onClick={() => isClickable && onEdgeClick?.(edge.id)} style={{ cursor: isClickable ? 'pointer' : 'default' }}>
@@ -442,9 +442,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         })}
 
         {/* PENDING BUILD CONFIRMATION OVERLAY (Always drawn last for max z-index) */}
-        {pendingBuild && (pendingBuild.type === 'street' || pendingBuild.type === 'HOUSE' || pendingBuild.type === 'FORTRESS' || pendingBuild.type === 'NINJA') && (() => {
+        {pendingBuild && (pendingBuild.type === 'STREET' || pendingBuild.type === 'HOUSE' || pendingBuild.type === 'FORTRESS' || pendingBuild.type === 'NINJA') && (() => {
           let cx = 0, cy = 0;
-          if (pendingBuild.type === 'street') {
+          if (pendingBuild.type === 'STREET') {
             const edge = uniqueEdges.find(e => e.id === pendingBuild.id);
             if (!edge) return null;
             cx = (edge.x1 + edge.x2) / 2;
@@ -461,7 +461,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           }
 
           return (
-            <foreignObject x={cx - 60} y={cy - (pendingBuild.type === 'street' ? 70 : 80)} width="120" height="90" style={{ pointerEvents: 'none' }}>
+            <foreignObject x={cx - 60} y={cy - (pendingBuild.type === 'STREET' ? 70 : 80)} width="120" height="90" style={{ pointerEvents: 'none' }}>
               <div className="bg-[#f4e6cd] backdrop-blur-md p-2 rounded-lg border-2 border-[#7d6549] shadow-xl flex flex-col items-center pointer-events-auto" style={{ pointerEvents: 'auto' }}>
                 <span className="text-[10px] text-[#7d6549] font-bold mb-1 text-center leading-tight whitespace-nowrap overflow-hidden text-ellipsis max-w-full">
                   {pendingBuild.type === 'NINJA' ? pendingBuild.costText : `Cost: ${pendingBuild.costText}`}
