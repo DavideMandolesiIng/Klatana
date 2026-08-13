@@ -1,5 +1,5 @@
 import React from 'react';
-import { type PlayerData, PLAYER_COLORS } from '../../game/Player';
+import { PLAYER_COLORS } from '../../game/Player';
 import { type GameState, type PlayerState } from '../../game/GameState';
 
 interface TurnPhaseInfoProps {

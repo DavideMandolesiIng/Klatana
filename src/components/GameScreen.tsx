@@ -82,6 +82,92 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const [recentAnimations, setRecentAnimations] = useState<{ id: string; event: AnimationEvent; diffs: ResourceDiff[] }[]>([]);
     const prevResources = useRef<ResourceCounts | null>(null);
 
+    // Zoom/Pan State
+    const [mapTransform, setMapTransform] = useState({ scale: 1, x: 0, y: 0 });
+    const mapDragRef = useRef({ isDragging: false, lastX: 0, lastY: 0, initialPinchDist: null as number | null, initialPinchScale: 1 });
+
+    const constrainPan = (x: number, y: number, scale: number, element: HTMLElement) => {
+        const rect = element.getBoundingClientRect();
+        const maxPanX = (rect.width * (scale - 1)) / 2;
+        const maxPanY = (rect.height * (scale - 1)) / 2;
+
+        return {
+            x: Math.max(-maxPanX, Math.min(maxPanX, x)),
+            y: Math.max(-maxPanY, Math.min(maxPanY, y))
+        };
+    };
+
+    const handleMapWheel = (e: React.WheelEvent<HTMLDivElement | HTMLElement>) => {
+        if (e.deltaY === 0) return;
+        const element = e.currentTarget as HTMLElement;
+        setMapTransform(prev => {
+            const zoomDelta = e.deltaY < 0 ? 1.05 : 0.95;
+            const newScale = Math.max(1, Math.min(2, prev.scale * zoomDelta));
+            const newPos = constrainPan(prev.x, prev.y, newScale, element);
+            return { scale: newScale, ...newPos };
+        });
+    };
+
+    const handlePointerDown = (e: React.PointerEvent<HTMLDivElement | HTMLElement>) => {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        mapDragRef.current.isDragging = true;
+        mapDragRef.current.lastX = e.clientX;
+        mapDragRef.current.lastY = e.clientY;
+        e.currentTarget.setPointerCapture(e.pointerId);
+    };
+
+    const handlePointerMove = (e: React.PointerEvent<HTMLDivElement | HTMLElement>) => {
+        if (mapDragRef.current.isDragging && mapTransform.scale > 1) {
+            const dx = e.clientX - mapDragRef.current.lastX;
+            const dy = e.clientY - mapDragRef.current.lastY;
+            mapDragRef.current.lastX = e.clientX;
+            mapDragRef.current.lastY = e.clientY;
+
+            const element = e.currentTarget as HTMLElement;
+            setMapTransform(prev => {
+                const newPos = constrainPan(prev.x + dx, prev.y + dy, prev.scale, element);
+                return { ...prev, ...newPos };
+            });
+        }
+    };
+
+    const handlePointerUp = (e: React.PointerEvent<HTMLDivElement | HTMLElement>) => {
+        mapDragRef.current.isDragging = false;
+        e.currentTarget.releasePointerCapture(e.pointerId);
+    };
+
+    const handleTouchStart = (e: React.TouchEvent<HTMLDivElement | HTMLElement>) => {
+        if (e.touches.length === 2) {
+            const t1 = e.touches[0];
+            const t2 = e.touches[1];
+            const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+            mapDragRef.current.initialPinchDist = dist;
+            mapDragRef.current.initialPinchScale = mapTransform.scale;
+        }
+    };
+
+    const handleTouchMove = (e: React.TouchEvent<HTMLDivElement | HTMLElement>) => {
+        if (e.touches.length === 2 && mapDragRef.current.initialPinchDist !== null) {
+            const t1 = e.touches[0];
+            const t2 = e.touches[1];
+            const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+            const scaleChange = dist / mapDragRef.current.initialPinchDist;
+            const element = e.currentTarget as HTMLElement;
+
+            setMapTransform(prev => {
+                const newScale = Math.max(1, Math.min(2.5, mapDragRef.current.initialPinchScale * scaleChange));
+                const newPos = constrainPan(prev.x, prev.y, newScale, element);
+                return { scale: newScale, ...newPos };
+            });
+        }
+    };
+
+    const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement | HTMLElement>) => {
+        if (e.touches.length < 2) {
+            mapDragRef.current.initialPinchDist = null;
+        }
+    };
+
     useEffect(() => {
         if (dismissedNotificationPhase !== null && gameState.gamePhase !== dismissedNotificationPhase) {
             setDismissedNotificationPhase(null);
@@ -544,15 +630,13 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
     const isSetupPhase = gameState.gamePhase === 'SETUP_1' || gameState.gamePhase === 'SETUP_2';
     const activeBuildMode = isSetupPhase ? (gameState.setupAction || 'NONE') : buildMode;
-
-    const canAffordStreet = isSetupPhase ||
+    const canAffordStreet = !!(isSetupPhase ||
         (gameState.gamePhase === 'FREE_STREET_BUILDING' && myPlayer && myPlayer.inventory.availableStreets > 0) ||
-        (gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.street) && myPlayer.inventory.availableStreets > 0);
-    const canAffordHouse = isSetupPhase || (gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.HOUSE) && myPlayer.inventory.availableHouses > 0);
-    const canAffordFortress = gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.FORTRESS) && myPlayer.inventory.availableFortresses > 0;
-    const canAffordCard = gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.ACTION_CARD);
+        (gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.street) && myPlayer.inventory.availableStreets > 0));
+    const canAffordHouse = !!(isSetupPhase || (gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.HOUSE) && myPlayer.inventory.availableHouses > 0));
+    const canAffordFortress = !!(gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.FORTRESS) && myPlayer.inventory.availableFortresses > 0);
+    const canAffordCard = !!(gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.ACTION_CARD));
 
-    // Pre-compute valid placements for UI highlighting (derived from authoritative validation)
     const { allEdgeIds, allNodeIds } = useMemo(() => {
         const nodeSet = new Map<string, boolean>();
         const edgeSet = new Map<string, boolean>();
@@ -1307,9 +1391,9 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
 
             {/* ============================================================ */}
-            {/* MOBILE PORTRAIT LAYOUT (md:hidden)                           */}
+            {/* MOBILE PORTRAIT LAYOUT (lg:hidden)                           */}
             {/* ============================================================ */}
-            <div className="md:hidden flex flex-col flex-1 min-h-0">
+            <div className="lg:hidden flex flex-col flex-1 min-h-0">
 
                 {/* ── Top Bar ── */}
                 <div className="shrink-0 px-3 py-1.5 bg-[#f4e6cd]/95 border-b-2 border-[#d3be9a] flex items-center justify-between text-[11px] font-bold text-[#2c1d10]">
@@ -1328,224 +1412,240 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                     </span>
                 </div>
 
-                {/* ── Action Button Row ── */}
-                <div className="shrink-0 relative z-50">
-                    <div className="bg-[#ebd8b7] border-b-2 border-[#d3be9a] flex items-center gap-1.5 px-2 py-1.5 overflow-x-auto relative">
-                        {isSetupPhase ? (
-                            <div className="px-3 py-1.5 bg-indigo-700/90 rounded-lg text-[10px] font-bold text-indigo-100 border border-indigo-500 animate-pulse whitespace-nowrap">
-                                {isMyTurn ? `PLACE ${gameState.setupAction}` : `Waiting for ${currentPlayer?.username}...`}
+                <div className="flex flex-col landscape:flex-row flex-1 min-h-0">
+                    <div className="flex flex-col shrink-0 portrait:h-[42dvh] landscape:w-[55%] landscape:h-full landscape:border-r-2 landscape:border-[#1c3d26]">
+                        {/* ── Action Button Row ── */}
+                        <div className="shrink-0 relative z-50">
+                            <div className="bg-[#ebd8b7] border-b-2 border-[#d3be9a] flex items-center gap-1.5 px-2 py-1.5 overflow-x-auto relative">
+                                {isSetupPhase ? (
+                                    <div className="px-3 py-1.5 bg-indigo-700/90 rounded-lg text-[10px] font-bold text-indigo-100 border border-indigo-500 animate-pulse whitespace-nowrap">
+                                        {isMyTurn ? `PLACE ${gameState.setupAction}` : `Waiting for ${currentPlayer?.username}...`}
+                                    </div>
+                                ) : gameState.phase === 'ROLL' && isMyTurn ? (
+                                    <button onClick={handleRollDice} className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold text-[11px] uppercase tracking-wider border border-indigo-400 whitespace-nowrap shadow-md">
+                                        Roll Dice
+                                    </button>
+                                ) : buildMode !== 'NONE' && isMyTurn ? (
+                                    <>
+                                        <span className="text-[10px] font-bold text-[#7d6549] uppercase animate-pulse whitespace-nowrap">Building {buildMode}...</span>
+                                        <button onClick={() => { setBuildMode('NONE'); setPendingBuild(null); }} className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-white rounded-lg font-bold text-[10px] whitespace-nowrap shadow">
+                                            Cancel
+                                        </button>
+                                    </>
+                                ) : !isSetupPhase && (
+                                    <>
+                                        <button onClick={() => isMyTurn && setBuildMode('HOUSE')} disabled={!isMyTurn || !canAffordHouse || !hasValidHouseSpots}
+                                            className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider border whitespace-nowrap shadow transition-opacity ${isMyTurn && canAffordHouse && hasValidHouseSpots ? 'bg-[#5c4936] text-[#f7efd8] border-[#a37941]' : 'bg-[#d3be9a]/40 text-[#7d6549]/50 border-[#d3be9a]/40 opacity-60'}`}>
+                                            House
+                                        </button>
+                                        <button onClick={() => isMyTurn && setBuildMode('FORTRESS')} disabled={!isMyTurn || !canAffordFortress || !hasValidFortressSpots}
+                                            className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider border whitespace-nowrap shadow transition-opacity ${isMyTurn && canAffordFortress && hasValidFortressSpots ? 'bg-[#5c4936] text-[#f7efd8] border-[#a37941]' : 'bg-[#d3be9a]/40 text-[#7d6549]/50 border-[#d3be9a]/40 opacity-60'}`}>
+                                            Fortress
+                                        </button>
+                                        <button onClick={() => isMyTurn && setBuildMode('STREET')} disabled={!isMyTurn || !canAffordStreet || !hasValidStreetSpots}
+                                            className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider border whitespace-nowrap shadow transition-opacity ${isMyTurn && canAffordStreet && hasValidStreetSpots ? 'bg-[#5c4936] text-[#f7efd8] border-[#a37941]' : 'bg-[#d3be9a]/40 text-[#7d6549]/50 border-[#d3be9a]/40 opacity-60'}`}>
+                                            Street
+                                        </button>
+                                        <button onClick={() => isMyTurn && handleBuyCard()} disabled={!isMyTurn || !canAffordCard || gameState.actionCardDeck.length === 0}
+                                            className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider border-2 whitespace-nowrap shadow transition-opacity ${isMyTurn && canAffordCard && gameState.actionCardDeck.length > 0 ? 'bg-[#5c4936] text-purple-200 border-purple-500' : 'bg-[#d3be9a]/40 text-[#7d6549]/50 border-[#d3be9a]/40 opacity-60'}`}>
+                                            Buy Card ({gameState.actionCardDeck.length})
+                                        </button>
+                                    </>
+                                )}
+                                {/* END TURN – always visible to the right */}
+                                <div className="ml-auto shrink-0">
+                                    {isMyTurn && !isSetupPhase && gameState.phase !== 'ROLL' && (
+                                        gameState.gamePhase === 'FREE_STREET_BUILDING' ? (
+                                            <button onClick={() => { broadcastState({ ...gameState, gamePhase: 'MAIN_GAME', freeStreetsLeft: 0 }); setBuildMode('NONE'); }}
+                                                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-[10px] uppercase whitespace-nowrap border border-amber-400 shadow">
+                                                End Free Street
+                                            </button>
+                                        ) : (
+                                            <button onClick={() => handleEndTurn(false)} disabled={gameState.gamePhase !== 'MAIN_GAME'}
+                                                className={`px-4 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider whitespace-nowrap border shadow ${gameState.gamePhase === 'MAIN_GAME' ? 'bg-red-600 hover:bg-red-500 text-white border-red-400' : 'bg-red-900/40 text-red-300/50 border-red-800/40 cursor-not-allowed'}`}>
+                                                End Turn
+                                            </button>
+                                        )
+                                    )}
+                                </div>
                             </div>
-                        ) : gameState.phase === 'ROLL' && isMyTurn ? (
-                            <button onClick={handleRollDice} className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold text-[11px] uppercase tracking-wider border border-indigo-400 whitespace-nowrap shadow-md">
-                                Roll Dice
-                            </button>
-                        ) : buildMode !== 'NONE' && isMyTurn ? (
-                            <>
-                                <span className="text-[10px] font-bold text-[#7d6549] uppercase animate-pulse whitespace-nowrap">Building {buildMode}...</span>
-                                <button onClick={() => { setBuildMode('NONE'); setPendingBuild(null); }} className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-white rounded-lg font-bold text-[10px] whitespace-nowrap shadow">
-                                    Cancel
-                                </button>
-                            </>
-                        ) : !isSetupPhase && (
-                            <>
-                                <button onClick={() => isMyTurn && setBuildMode('HOUSE')} disabled={!isMyTurn || !canAffordHouse || !hasValidHouseSpots}
-                                    className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider border whitespace-nowrap shadow transition-opacity ${isMyTurn && canAffordHouse && hasValidHouseSpots ? 'bg-[#5c4936] text-[#f7efd8] border-[#a37941]' : 'bg-[#d3be9a]/40 text-[#7d6549]/50 border-[#d3be9a]/40 opacity-60'}`}>
-                                    House
-                                </button>
-                                <button onClick={() => isMyTurn && setBuildMode('FORTRESS')} disabled={!isMyTurn || !canAffordFortress || !hasValidFortressSpots}
-                                    className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider border whitespace-nowrap shadow transition-opacity ${isMyTurn && canAffordFortress && hasValidFortressSpots ? 'bg-[#5c4936] text-[#f7efd8] border-[#a37941]' : 'bg-[#d3be9a]/40 text-[#7d6549]/50 border-[#d3be9a]/40 opacity-60'}`}>
-                                    Fortress
-                                </button>
-                                <button onClick={() => isMyTurn && setBuildMode('STREET')} disabled={!isMyTurn || !canAffordStreet || !hasValidStreetSpots}
-                                    className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider border whitespace-nowrap shadow transition-opacity ${isMyTurn && canAffordStreet && hasValidStreetSpots ? 'bg-[#5c4936] text-[#f7efd8] border-[#a37941]' : 'bg-[#d3be9a]/40 text-[#7d6549]/50 border-[#d3be9a]/40 opacity-60'}`}>
-                                    Street
-                                </button>
-                                <button onClick={() => isMyTurn && handleBuyCard()} disabled={!isMyTurn || !canAffordCard || gameState.actionCardDeck.length === 0}
-                                    className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider border-2 whitespace-nowrap shadow transition-opacity ${isMyTurn && canAffordCard && gameState.actionCardDeck.length > 0 ? 'bg-[#5c4936] text-purple-200 border-purple-500' : 'bg-[#d3be9a]/40 text-[#7d6549]/50 border-[#d3be9a]/40 opacity-60'}`}>
-                                    Buy Card ({gameState.actionCardDeck.length})
-                                </button>
-                            </>
-                        )}
-                        {/* END TURN – always visible to the right */}
-                        <div className="ml-auto shrink-0">
-                            {isMyTurn && !isSetupPhase && gameState.phase !== 'ROLL' && (
-                                gameState.gamePhase === 'FREE_STREET_BUILDING' ? (
-                                    <button onClick={() => { broadcastState({ ...gameState, gamePhase: 'MAIN_GAME', freeStreetsLeft: 0 }); setBuildMode('NONE'); }}
-                                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-[10px] uppercase whitespace-nowrap border border-amber-400 shadow">
-                                        End Free Street
-                                    </button>
-                                ) : (
-                                    <button onClick={() => handleEndTurn(false)} disabled={gameState.gamePhase !== 'MAIN_GAME'}
-                                        className={`px-4 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider whitespace-nowrap border shadow ${gameState.gamePhase === 'MAIN_GAME' ? 'bg-red-600 hover:bg-red-500 text-white border-red-400' : 'bg-red-900/40 text-red-300/50 border-red-800/40 cursor-not-allowed'}`}>
-                                        End Turn
-                                    </button>
-                                )
+                            {/* Action Card Confirmation Popup (Mobile) */}
+                            {pendingBuild?.type === 'ACTION_CARD' && (
+                                <div className="absolute top-full right-2 mt-2 bg-[#f4e6cd] backdrop-blur-md p-3 rounded-xl border-2 border-[#7d6549] shadow-2xl flex flex-col items-center pointer-events-auto w-48 z-50">
+                                    <span className="text-xs text-[#7d6549] font-bold mb-2 text-center uppercase tracking-wider">Confirm Purchase?</span>
+                                    <span className="text-[10px] text-black font-bold mb-3 text-center">Cost: 1 Ore, 1 Wool, 1 Cereal</span>
+                                    <div className="flex gap-2 w-full">
+                                        <button onClick={handleConfirmBuild} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs py-1.5 rounded font-bold cursor-pointer transition-colors shadow-md">✓ Buy</button>
+                                        <button onClick={handleCancelBuild} className="flex-1 bg-red-600 hover:bg-red-500 text-white text-xs py-1.5 rounded font-bold cursor-pointer transition-colors shadow-md">✗ Cancel</button>
+                                    </div>
+                                </div>
                             )}
                         </div>
-                    </div>
-                    {/* Action Card Confirmation Popup (Mobile) */}
-                    {pendingBuild?.type === 'ACTION_CARD' && (
-                        <div className="absolute top-full right-2 mt-2 bg-[#f4e6cd] backdrop-blur-md p-3 rounded-xl border-2 border-[#7d6549] shadow-2xl flex flex-col items-center pointer-events-auto w-48 z-50">
-                            <span className="text-xs text-[#7d6549] font-bold mb-2 text-center uppercase tracking-wider">Confirm Purchase?</span>
-                            <span className="text-[10px] text-black font-bold mb-3 text-center">Cost: 1 Ore, 1 Wool, 1 Cereal</span>
-                            <div className="flex gap-2 w-full">
-                                <button onClick={handleConfirmBuild} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs py-1.5 rounded font-bold cursor-pointer transition-colors shadow-md">✓ Buy</button>
-                                <button onClick={handleCancelBuild} className="flex-1 bg-red-600 hover:bg-red-500 text-white text-xs py-1.5 rounded font-bold cursor-pointer transition-colors shadow-md">✗ Cancel</button>
+
+                        {/* ── Game Board ── */}
+                        <div
+                            className="flex-1 relative overflow-hidden bg-[#2c5f3a]/60 border-b-2 portrait:border-[#1c3d26] landscape:border-b-0 touch-none"
+                            onWheel={handleMapWheel}
+                            onPointerDown={handlePointerDown}
+                            onPointerMove={handlePointerMove}
+                            onPointerUp={handlePointerUp}
+                            onPointerCancel={handlePointerUp}
+                            onTouchStart={handleTouchStart}
+                            onTouchMove={handleTouchMove}
+                            onTouchEnd={handleTouchEnd}
+                        >
+                            <div className="w-full h-full flex items-center justify-center origin-center" style={{ transform: `translate(${mapTransform.x}px, ${mapTransform.y}px) scale(${mapTransform.scale})` }}>
+                                <GameBoard
+                                    template={map}
+                                    gameState={gameState}
+                                    buildMode={activeBuildMode}
+                                    validStreetEdges={validStreetEdges}
+                                    validHouseNodes={validHouseNodes}
+                                    validFortressNodes={validFortressNodes}
+                                    pendingBuild={pendingBuild}
+                                    currentPlayerColor={myPlayer ? PLAYER_COLORS[myPlayer.color as keyof typeof PLAYER_COLORS].hex : 'white'}
+                                    isMyTurn={isMyTurn}
+                                    onConfirmBuild={handleConfirmBuild}
+                                    onCancelBuild={handleCancelBuild}
+                                    onNodeClick={handleNodeClick}
+                                    onEdgeClick={handleEdgeClick}
+                                    onHexClick={handleHexClick}
+                                    idSuffix="-mobile"
+                                />
                             </div>
                         </div>
-                    )}
-                </div>
+                    </div>
 
-                {/* ── Game Board ── */}
-                <div className="shrink-0 relative overflow-hidden bg-[#2c5f3a]/60 border-b-2 border-[#1c3d26]" style={{ height: '42dvh' }}>
-                    <GameBoard
-                        template={map}
-                        gameState={gameState}
-                        buildMode={activeBuildMode}
-                        validStreetEdges={validStreetEdges}
-                        validHouseNodes={validHouseNodes}
-                        validFortressNodes={validFortressNodes}
-                        pendingBuild={pendingBuild}
-                        currentPlayerColor={myPlayer ? PLAYER_COLORS[myPlayer.color as keyof typeof PLAYER_COLORS].hex : 'white'}
-                        isMyTurn={isMyTurn}
-                        onConfirmBuild={handleConfirmBuild}
-                        onCancelBuild={handleCancelBuild}
-                        onNodeClick={handleNodeClick}
-                        onEdgeClick={handleEdgeClick}
-                        onHexClick={handleHexClick}
-                        idSuffix="-mobile"
-                    />
-                </div>
+                    {/* ── Tab Content Area ── */}
+                    <div className="flex-1 overflow-y-auto bg-cover bg-center" style={{ backgroundImage: `url(${tableBg})` }}>
 
-                {/* ── Tab Content Area ── */}
-                <div className="flex-1 overflow-y-auto bg-cover bg-center" style={{ backgroundImage: `url(${tableBg})` }}>
+                        {/* GAME TAB */}
+                        {mobileActiveTab === 'GAME' && (
+                            <div className="flex gap-2 p-2">
+                                {/* Left col: My Resources + My Action Cards */}
+                                <div className="flex-1 flex flex-col gap-2 min-w-0">
+                                    <div className="bg-[#f4e6cd] rounded-xl border-2 border-[#d3be9a] shadow p-2">
+                                        <h3 className="font-black text-[#7d6549] uppercase text-[10px] tracking-wider mb-2">My Resources</h3>
+                                        {myPlayer && (
+                                            <div className="grid grid-cols-3 gap-1.5"> {/* CAMBIATO IN grid-cols-3 per quadrati più piccoli */}
+                                                {Object.entries(myPlayer.resources)
+                                                    .filter(([res]) => res !== 'NUGGETS' || map.hexes.some(h => h.resource === 'NUGGETS'))
+                                                    .map(([res, count]) => {
+                                                        const grad = RESOURCE_GRADIENTS[res] || { center: '#334155', edge: '#0f172a' };
+                                                        const isDark = res !== 'CEREALS' && res !== 'NUGGETS' && res !== 'WOOL';
+                                                        const textColor = isDark ? 'text-white' : 'text-[#2a1c0d]';
 
-                    {/* GAME TAB */}
-                    {mobileActiveTab === 'GAME' && (
-                        <div className="flex gap-2 p-2">
-                            {/* Left col: My Resources + My Action Cards */}
-                            <div className="flex-1 flex flex-col gap-2 min-w-0">
-                                <div className="bg-[#f4e6cd] rounded-xl border-2 border-[#d3be9a] shadow p-2">
-                                    <h3 className="font-black text-[#7d6549] uppercase text-[10px] tracking-wider mb-2">My Resources</h3>
-                                    {myPlayer && (
-                                        <div className="grid grid-cols-3 gap-1.5"> {/* CAMBIATO IN grid-cols-3 per quadrati più piccoli */}
-                                            {Object.entries(myPlayer.resources)
-                                                .filter(([res]) => res !== 'NUGGETS' || map.hexes.some(h => h.resource === 'NUGGETS'))
-                                                .map(([res, count]) => {
+                                                        return (
+                                                            <div key={res} onClick={() => { playClick(); handleResourceClick(res); }}
+                                                                /* CAMBIAMENTI: aspect-square per forzare il quadrato, p-1.5 per ridurre i bordi */
+                                                                className="relative flex flex-col items-center justify-center p-1.5 rounded-lg border border-black/30 shadow-sm overflow-hidden cursor-pointer transition-transform active:scale-95 aspect-square"
+                                                                style={{ background: `radial-gradient(circle at center, ${grad.center}, ${grad.edge})` }}>
+
+                                                                {RESOURCE_TEXTURES[res] && <div className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-50 mix-blend-overlay" style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }} />}
+
+                                                                {/* Solo Icona e Numero */}
+                                                                <img src={RESOURCE_ICONS[res as keyof typeof RESOURCE_ICONS]} alt={res} className="relative z-10 w-5 h-5 mb-0.5" />
+                                                                <span className={`relative z-10 font-black text-xs ${textColor}`}>
+                                                                    {count}
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="bg-[#f4e6cd] rounded-xl border-2 border-[#d3be9a] shadow p-2">
+                                        <h3 className="font-black text-[#7d6549] uppercase text-[10px] tracking-wider mb-2">My Action Cards</h3>
+                                        <div className="flex flex-col gap-1.5">
+                                            {(!myPlayer?.actionCards.length) && <p className="text-[10px] text-[#a39070] italic text-center py-1">No cards</p>}
+                                            {myPlayer?.actionCards.map((card, i) => (
+                                                <div key={i} className="bg-[#ebd8b7] p-2 rounded-lg border-2 border-[#d3be9a] flex justify-between items-center">
+                                                    <span className="text-[11px] font-black text-[#2c1d10] uppercase">{card.type}</span>
+                                                    {card.type !== 'MONUMENT' && (
+                                                        <button onClick={() => handlePlayCard(i)} disabled={!isMyTurn || gameState.phase === 'ROLL' || gameState.activeTurnPlayedCard || card.boughtThisTurn}
+                                                            className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-[10px] font-bold text-white disabled:opacity-40 shadow">
+                                                            Play
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Right col: Bank + Players */}
+                                <div className="flex-1 flex flex-col gap-2 min-w-0">
+                                    {!settings.hideBankResources && (
+                                        <div className="bg-[#f4e6cd] rounded-xl border-2 border-[#d3be9a] shadow p-2">
+                                            <h3 className="font-black text-[#7d6549] uppercase text-[10px] tracking-wider mb-2">Bank Resources</h3>
+                                            <div className="grid grid-cols-2 gap-1">
+                                                {['OAK', 'CLAY', 'CEREALS', 'WOOL', 'ORE'].map(res => {
+                                                    const totalInPlay = gameState.players.reduce((sum, p) => sum + (p.resources[res as keyof typeof p.resources] || 0), 0);
+                                                    const remaining = Math.max(0, 19 - totalInPlay);
                                                     const grad = RESOURCE_GRADIENTS[res] || { center: '#334155', edge: '#0f172a' };
                                                     const isDark = res !== 'CEREALS' && res !== 'NUGGETS' && res !== 'WOOL';
-                                                    const textColor = isDark ? 'text-white' : 'text-[#2a1c0d]';
-
                                                     return (
-                                                        <div key={res} onClick={() => { playClick(); handleResourceClick(res); }}
-                                                            /* CAMBIAMENTI: aspect-square per forzare il quadrato, p-1.5 per ridurre i bordi */
-                                                            className="relative flex flex-col items-center justify-center p-1.5 rounded-lg border border-black/30 shadow-sm overflow-hidden cursor-pointer transition-transform active:scale-95 aspect-square"
-                                                            style={{ background: `radial-gradient(circle at center, ${grad.center}, ${grad.edge})` }}>
-
+                                                        <div key={res} className="relative p-1.5 rounded-lg border border-black/30 flex justify-between items-center shadow overflow-hidden" style={{ background: `radial-gradient(circle at center, ${grad.center}, ${grad.edge})` }}>
                                                             {RESOURCE_TEXTURES[res] && <div className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-50 mix-blend-overlay" style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }} />}
-
-                                                            {/* Solo Icona e Numero */}
-                                                            <img src={RESOURCE_ICONS[res as keyof typeof RESOURCE_ICONS]} alt={res} className="relative z-10 w-5 h-5 mb-0.5" />
-                                                            <span className={`relative z-10 font-black text-xs ${textColor}`}>
-                                                                {count}
-                                                            </span>
+                                                            <span className={`relative z-10 text-[9px] font-bold ${isDark ? 'text-white' : 'text-[#2a1c0d]'}`}>{res}</span>
+                                                            <span className={`relative z-10 font-black text-xs px-1.5 rounded ${isDark ? 'text-white bg-black/40' : 'text-[#2a1c0d] bg-[#2a1c0d]/20'}`}>{remaining}</span>
                                                         </div>
                                                     );
                                                 })}
+                                            </div>
                                         </div>
                                     )}
-                                </div>
-                                <div className="bg-[#f4e6cd] rounded-xl border-2 border-[#d3be9a] shadow p-2">
-                                    <h3 className="font-black text-[#7d6549] uppercase text-[10px] tracking-wider mb-2">My Action Cards</h3>
-                                    <div className="flex flex-col gap-1.5">
-                                        {(!myPlayer?.actionCards.length) && <p className="text-[10px] text-[#a39070] italic text-center py-1">No cards</p>}
-                                        {myPlayer?.actionCards.map((card, i) => (
-                                            <div key={i} className="bg-[#ebd8b7] p-2 rounded-lg border-2 border-[#d3be9a] flex justify-between items-center">
-                                                <span className="text-[11px] font-black text-[#2c1d10] uppercase">{card.type}</span>
-                                                {card.type !== 'MONUMENT' && (
-                                                    <button onClick={() => handlePlayCard(i)} disabled={!isMyTurn || gameState.phase === 'ROLL' || gameState.activeTurnPlayedCard || card.boughtThisTurn}
-                                                        className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-[10px] font-bold text-white disabled:opacity-40 shadow">
-                                                        Play
-                                                    </button>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Right col: Bank + Players */}
-                            <div className="flex-1 flex flex-col gap-2 min-w-0">
-                                {!settings.hideBankResources && (
-                                    <div className="bg-[#f4e6cd] rounded-xl border-2 border-[#d3be9a] shadow p-2">
-                                        <h3 className="font-black text-[#7d6549] uppercase text-[10px] tracking-wider mb-2">Bank Resources</h3>
-                                        <div className="grid grid-cols-2 gap-1">
-                                            {['OAK', 'CLAY', 'CEREALS', 'WOOL', 'ORE'].map(res => {
-                                                const totalInPlay = gameState.players.reduce((sum, p) => sum + (p.resources[res as keyof typeof p.resources] || 0), 0);
-                                                const remaining = Math.max(0, 19 - totalInPlay);
-                                                const grad = RESOURCE_GRADIENTS[res] || { center: '#334155', edge: '#0f172a' };
-                                                const isDark = res !== 'CEREALS' && res !== 'NUGGETS' && res !== 'WOOL';
-                                                return (
-                                                    <div key={res} className="relative p-1.5 rounded-lg border border-black/30 flex justify-between items-center shadow overflow-hidden" style={{ background: `radial-gradient(circle at center, ${grad.center}, ${grad.edge})` }}>
-                                                        {RESOURCE_TEXTURES[res] && <div className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-50 mix-blend-overlay" style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }} />}
-                                                        <span className={`relative z-10 text-[9px] font-bold ${isDark ? 'text-white' : 'text-[#2a1c0d]'}`}>{res}</span>
-                                                        <span className={`relative z-10 font-black text-xs px-1.5 rounded ${isDark ? 'text-white bg-black/40' : 'text-[#2a1c0d] bg-[#2a1c0d]/20'}`}>{remaining}</span>
+                                    <div className="bg-[#f4e6cd] rounded-xl border-2 border-[#d3be9a] shadow p-2 flex-1">
+                                        <h3 className="font-black text-[#7d6549] uppercase text-[10px] tracking-wider mb-2">Players</h3>
+                                        <div className="flex flex-col gap-1.5">
+                                            {gameState.players.map(p => (
+                                                <div key={p.peerId} className={`p-2 rounded-lg border-2 flex flex-col gap-1 ${p.peerId === currentPlayer?.peerId ? 'border-[#2f8a43] bg-[#e0eddf]' : 'border-[#d3be9a] bg-[#ebd8b7]/60'}`}>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <div className="w-5 h-5 rounded-full shrink-0 border border-black/20" style={{ backgroundColor: PLAYER_COLORS[p.color as keyof typeof PLAYER_COLORS].hex }} />
+                                                        <span className="font-bold text-[11px] truncate text-[#2c1d10]">{p.username}</span>
                                                     </div>
-                                                );
-                                            })}
+                                                    <div className="flex items-center gap-1 flex-wrap text-[9px]">
+                                                        <span className="bg-yellow-500/80 px-1 py-0.5 rounded font-bold">VP: {p.victoryPoints}{p.peerId === myPlayer?.peerId ? (() => { const m = p.actionCards.filter(c => c.type === 'MONUMENT').length; return m >= 1 ? <span className="text-emerald-700">+{m}</span> : ''; })() : ''}</span>
+                                                        <span className="bg-[#ebd8b7] px-1 py-0.5 rounded border border-[#d3be9a]">🃏 {Object.values(p.resources).reduce((a, b) => a + b, 0)}</span>
+                                                        <span className={`px-1 py-0.5 rounded border ${gameState.longestStreetHolder === p.peerId ? 'bg-amber-200 border-amber-500' : 'bg-[#ebd8b7] border-[#d3be9a]'}`}>🚧 {gameState.longestStreetHolder === p.peerId ? gameState.longestStreetLength : getLongestStreetForPlayer(gameState, p.peerId)}</span>
+                                                        <span className={`px-1 py-0.5 rounded border ${gameState.largestClanHolder === p.peerId ? 'bg-red-200 border-red-500' : 'bg-[#ebd8b7] border-[#d3be9a]'}`}>⚔️ {gameState.largestClanHolder === p.peerId ? gameState.largestClanSize : (gameState.playedNinjaCards[p.peerId] || 0)}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
-                                )}
-                                <div className="bg-[#f4e6cd] rounded-xl border-2 border-[#d3be9a] shadow p-2 flex-1">
-                                    <h3 className="font-black text-[#7d6549] uppercase text-[10px] tracking-wider mb-2">Players</h3>
-                                    <div className="flex flex-col gap-1.5">
-                                        {gameState.players.map(p => (
-                                            <div key={p.peerId} className={`p-2 rounded-lg border-2 flex flex-col gap-1 ${p.peerId === currentPlayer?.peerId ? 'border-[#2f8a43] bg-[#e0eddf]' : 'border-[#d3be9a] bg-[#ebd8b7]/60'}`}>
-                                                <div className="flex items-center gap-1.5">
-                                                    <div className="w-5 h-5 rounded-full shrink-0 border border-black/20" style={{ backgroundColor: PLAYER_COLORS[p.color as keyof typeof PLAYER_COLORS].hex }} />
-                                                    <span className="font-bold text-[11px] truncate text-[#2c1d10]">{p.username}</span>
-                                                </div>
-                                                <div className="flex items-center gap-1 flex-wrap text-[9px]">
-                                                    <span className="bg-yellow-500/80 px-1 py-0.5 rounded font-bold">VP: {p.victoryPoints}{p.peerId === myPlayer?.peerId ? (() => { const m = p.actionCards.filter(c => c.type === 'MONUMENT').length; return m >= 1 ? <span className="text-emerald-700">+{m}</span> : ''; })() : ''}</span>
-                                                    <span className="bg-[#ebd8b7] px-1 py-0.5 rounded border border-[#d3be9a]">🃏 {Object.values(p.resources).reduce((a, b) => a + b, 0)}</span>
-                                                    <span className={`px-1 py-0.5 rounded border ${gameState.longestStreetHolder === p.peerId ? 'bg-amber-200 border-amber-500' : 'bg-[#ebd8b7] border-[#d3be9a]'}`}>🚧 {gameState.longestStreetHolder === p.peerId ? gameState.longestStreetLength : getLongestStreetForPlayer(gameState, p.peerId)}</span>
-                                                    <span className={`px-1 py-0.5 rounded border ${gameState.largestClanHolder === p.peerId ? 'bg-red-200 border-red-500' : 'bg-[#ebd8b7] border-[#d3be9a]'}`}>⚔️ {gameState.largestClanHolder === p.peerId ? gameState.largestClanSize : (gameState.playedNinjaCards[p.peerId] || 0)}</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
+                        )}
 
-                    {/* LOG TAB */}
-                    {mobileActiveTab === 'LOG' && (
-                        <MobileLogTab gameState={gameState} myPlayer={myPlayer} />
-                    )}
+                        {/* LOG TAB */}
+                        {mobileActiveTab === 'LOG' && (
+                            <MobileLogTab gameState={gameState} myPlayer={myPlayer} />
+                        )}
 
-                    {/* TRADE TAB */}
-                    {mobileActiveTab === 'TRADE' && myPlayer && (
-                        <MobileTradeTab
-                            gameState={gameState}
-                            myPlayer={myPlayer}
-                            map={map}
-                            isMyTurn={isMyTurn}
-                            isSetupPhase={isSetupPhase}
-                            tradeModalConfig={tradeModalConfig}
-                            handleFinalizeTrade={handleFinalizeTrade}
-                            handleCancelTrade={handleCancelTrade}
-                            handleAcceptTrade={handleAcceptTrade}
-                            handleRejectTrade={handleRejectTrade}
-                            handleBankTrade={handleBankTrade}
-                            handleProposeTrade={handleProposeTrade}
-                        />
-                    )}
+                        {/* TRADE TAB */}
+                        {mobileActiveTab === 'TRADE' && myPlayer && (
+                            <MobileTradeTab
+                                gameState={gameState}
+                                myPlayer={myPlayer}
+                                map={map}
+                                isMyTurn={isMyTurn}
+                                isSetupPhase={isSetupPhase}
+                                tradeModalConfig={tradeModalConfig}
+                                handleFinalizeTrade={handleFinalizeTrade}
+                                handleCancelTrade={handleCancelTrade}
+                                handleAcceptTrade={handleAcceptTrade}
+                                handleRejectTrade={handleRejectTrade}
+                                handleBankTrade={handleBankTrade}
+                                handleProposeTrade={handleProposeTrade}
+                            />
+                        )}
 
-                    {/* SETTINGS TAB */}
-                    {mobileActiveTab === 'ROOM' && (
-                        <MobileRoomTab roomCode={peerService.roomCode} myPlayer={myPlayer} onDisconnect={onDisconnect} />
-                    )}
+                        {/* SETTINGS TAB */}
+                        {mobileActiveTab === 'ROOM' && (
+                            <MobileRoomTab roomCode={peerService.roomCode} myPlayer={myPlayer} onDisconnect={onDisconnect} />
+                        )}
+                    </div>
                 </div>
 
                 {/* ── Bottom Nav Bar ── */}
@@ -1558,7 +1658,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             {/* ============================================================ */}
             {/* DESKTOP LAYOUT (hidden on mobile)                            */}
             {/* ============================================================ */}
-            <div className="hidden md:flex flex-grow flex-col md:flex-row gap-2 md:gap-4 min-h-0 overflow-visible md:overflow-hidden">
+            <div className="hidden lg:flex flex-grow flex-col md:flex-row gap-2 md:gap-4 min-h-0 overflow-visible md:overflow-hidden">
                 {/* Left Sidebar */}
                 <div className="w-full md:w-48 lg:w-56 flex flex-col shrink-0">
                     <div className="flex-grow flex flex-row md:flex-col gap-2 lg:gap-4">
@@ -1588,24 +1688,36 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
 
                 {/* Main Board Area */}
-                <main className="flex-grow flex flex-col items-center justify-center bg-[#2c5f3a]/60 backdrop-blur-sm rounded-xl border-2 border-[#1c3d26] shadow-xl relative overflow-hidden min-w-0">
-                    <GameBoard
-                        template={map}
-                        gameState={gameState}
-                        buildMode={activeBuildMode}
-                        validStreetEdges={validStreetEdges}
-                        validHouseNodes={validHouseNodes}
-                        validFortressNodes={validFortressNodes}
-                        pendingBuild={pendingBuild}
-                        currentPlayerColor={myPlayer ? PLAYER_COLORS[myPlayer.color as keyof typeof PLAYER_COLORS].hex : 'white'}
-                        isMyTurn={isMyTurn}
-                        onConfirmBuild={handleConfirmBuild}
-                        onCancelBuild={handleCancelBuild}
-                        onNodeClick={handleNodeClick}
-                        onEdgeClick={handleEdgeClick}
-                        onHexClick={handleHexClick}
-                        idSuffix="-desktop"
-                    />
+                <main
+                    className="flex-grow flex flex-col items-center justify-center bg-[#2c5f3a]/60 backdrop-blur-sm rounded-xl border-2 border-[#1c3d26] shadow-xl relative overflow-hidden min-w-0 touch-none"
+                    onWheel={handleMapWheel}
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onPointerCancel={handlePointerUp}
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                >
+                    <div className="absolute inset-0 flex items-center justify-center origin-center" style={{ transform: `translate(${mapTransform.x}px, ${mapTransform.y}px) scale(${mapTransform.scale})` }}>
+                        <GameBoard
+                            template={map}
+                            gameState={gameState}
+                            buildMode={activeBuildMode}
+                            validStreetEdges={validStreetEdges}
+                            validHouseNodes={validHouseNodes}
+                            validFortressNodes={validFortressNodes}
+                            pendingBuild={pendingBuild}
+                            currentPlayerColor={myPlayer ? PLAYER_COLORS[myPlayer.color as keyof typeof PLAYER_COLORS].hex : 'white'}
+                            isMyTurn={isMyTurn}
+                            onConfirmBuild={handleConfirmBuild}
+                            onCancelBuild={handleCancelBuild}
+                            onNodeClick={handleNodeClick}
+                            onEdgeClick={handleEdgeClick}
+                            onHexClick={handleHexClick}
+                            idSuffix="-desktop"
+                        />
+                    </div>
 
                     {/* Top-Left Floating Info: Player Identity */}
                     <PlayerIdentityPanel
