@@ -1003,7 +1003,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     };
 
     return (
-        <div className="h-[100dvh] flex flex-col text-[#2c1d10] overflow-hidden md:p-2 lg:p-4"
+        <div className="h-[100dvh] flex flex-col text-[#2c1d10] overflow-hidden lg:p-4"
             style={{
                 backgroundImage: `url(${tableBg})`,
                 backgroundSize: 'cover',
