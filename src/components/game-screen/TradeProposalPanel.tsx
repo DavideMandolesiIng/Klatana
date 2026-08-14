@@ -24,7 +24,7 @@ export const TradeProposalPanel: React.FC<TradeProposalPanelProps> = ({
     }
 
     return (
-        <div className="bg-[#f4e6cd]/95 backdrop-blur-md rounded-tr-xl border-t-2 border-r-2 border-[#d3be9a] shadow-2xl p-3 flex flex-col">
+        <div className="bg-[#f4e6cd]/95 backdrop-blur-md rounded-tr-xl border-t-2 border-r-2 border-[#d3be9a] shadow-2xl p-3 flex flex-col pointer-events-auto">
             <h2 className="text-xs font-black text-[#5c4936] mb-2 text-center uppercase tracking-wider">Trade Proposal</h2>
 
             <div className="flex flex-col gap-2 justify-between bg-[#ebd8b7] shadow-inner p-2 rounded-lg border-2 border-[#d3be9a] mb-2">

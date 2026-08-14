@@ -94,6 +94,7 @@ export interface GameState {
     };
     isPaused: boolean;
     disconnectedPlayers: string[];
+    turnCounter: number;
 }
 
 export const createDiceDeck = (): { die1: number, die2: number }[] => {
@@ -172,7 +173,8 @@ export const createInitialGameState = (lobbyPlayers: PlayerData[], map: MapTempl
         diceDeck: settings.trueRoll ? [] : createDiceDeck(),
         settings,
         isPaused: false,
-        disconnectedPlayers: []
+        disconnectedPlayers: [],
+        turnCounter: 1
     };
 };
 
@@ -324,7 +326,8 @@ export const advanceSetupTurn = (gameState: GameState): GameState => {
         setupAction: nextPhase !== 'MAIN_GAME' ? 'HOUSE' : undefined,
         lastBuiltNodeId: undefined,
         phase: 'ROLL',
-        logs: [...gameState.logs, nextPhase === 'MAIN_GAME' ? `Setup complete! It's ${nextPlayer.username}'s turn to roll.` : `It's ${nextPlayer.username}'s setup turn.`]
+        logs: [...gameState.logs, nextPhase === 'MAIN_GAME' ? `Setup complete! It's ${nextPlayer.username}'s turn to roll.` : `It's ${nextPlayer.username}'s setup turn.`],
+        turnCounter: gameState.turnCounter + 1
     };
 };
 

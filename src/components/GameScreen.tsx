@@ -82,6 +82,8 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const [recentAnimations, setRecentAnimations] = useState<{ id: string; event: AnimationEvent; diffs: ResourceDiff[] }[]>([]);
     const prevResources = useRef<ResourceCounts | null>(null);
 
+    const [timeLeft, setTimeLeft] = useState<number | null>(null);
+
     // Zoom/Pan State
     const [mapTransform, setMapTransform] = useState({ scale: 1, x: 0, y: 0 });
     const mapDragRef = useRef({ isDragging: false, lastX: 0, lastY: 0, initialPinchDist: null as number | null, initialPinchScale: 1 });
@@ -110,10 +112,13 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
     const handlePointerDown = (e: React.PointerEvent<HTMLDivElement | HTMLElement>) => {
         if (e.pointerType === 'mouse' && e.button !== 0) return;
+        
+        // Prevent drag initialization when clicking UI elements
+        if ((e.target as HTMLElement).closest('button, .pointer-events-auto')) return;
+
         mapDragRef.current.isDragging = true;
         mapDragRef.current.lastX = e.clientX;
         mapDragRef.current.lastY = e.clientY;
-        e.currentTarget.setPointerCapture(e.pointerId);
     };
 
     const handlePointerMove = (e: React.PointerEvent<HTMLDivElement | HTMLElement>) => {
@@ -131,9 +136,8 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         }
     };
 
-    const handlePointerUp = (e: React.PointerEvent<HTMLDivElement | HTMLElement>) => {
+    const handlePointerUp = () => {
         mapDragRef.current.isDragging = false;
-        e.currentTarget.releasePointerCapture(e.pointerId);
     };
 
     const handleTouchStart = (e: React.TouchEvent<HTMLDivElement | HTMLElement>) => {
@@ -430,6 +434,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             phase: 'ROLL',
             diceRoll: null,
             activeTurnPlayedCard: false,
+            turnCounter: gameState.turnCounter + 1,
             logs: [...gameState.logs, `${currentPlayer.username} ended their turn. It is now ${nextPlayer.username}'s turn.`]
         };
 
@@ -443,6 +448,238 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             handleEndTurn(true);
         }
     }, [gameState.currentTurnIndex, gameState.players]);
+
+    const handleTurnTimeout = () => {
+        setPendingBuild(null);
+        setBuildMode('NONE');
+
+        if (gameState.gamePhase === 'P2P_TRADE_PENDING' && gameState.tradeProposal?.proposerId === peerService.peerId) {
+            handleCancelTrade();
+        }
+
+        if (gameState.gamePhase === 'NINJA_DISCARD' && myPlayer && gameState.playersNeedingToDiscard.includes(myPlayer.peerId)) {
+            const totalCards = Object.values(myPlayer.resources).reduce((a, b) => a + b, 0);
+            const required = Math.floor(totalCards / 2);
+            let selected = 0;
+            const randomDiscardSelection: Partial<Record<string, number>> = {};
+            const availableRes = Object.entries(myPlayer.resources)
+                .filter(([, count]) => count > 0)
+                .map(([r]) => r);
+
+            while (selected < required && availableRes.length > 0) {
+                const res = availableRes[Math.floor(Math.random() * availableRes.length)];
+                if ((randomDiscardSelection[res] || 0) < myPlayer.resources[res as keyof ResourceCounts]) {
+                    randomDiscardSelection[res] = (randomDiscardSelection[res] || 0) + 1;
+                    selected++;
+                }
+            }
+
+            const newPlayers = [...gameState.players];
+            const playerIndex = newPlayers.findIndex(p => p.peerId === myPlayer.peerId);
+            const updatedPlayer = { ...newPlayers[playerIndex], resources: { ...newPlayers[playerIndex].resources } };
+
+            Object.entries(randomDiscardSelection).forEach(([res, count]) => {
+                updatedPlayer.resources[res as keyof typeof updatedPlayer.resources] -= (count || 0);
+            });
+            newPlayers[playerIndex] = updatedPlayer;
+
+            const newDiscarders = gameState.playersNeedingToDiscard.filter(id => id !== myPlayer.peerId);
+            const newState: GameState = {
+                ...gameState,
+                players: newPlayers,
+                playersNeedingToDiscard: newDiscarders,
+                gamePhase: newDiscarders.length === 0 ? 'NINJA_MOVE' : 'NINJA_DISCARD',
+                logs: [...gameState.logs, `${myPlayer.username} timed out and discarded ${required} resources randomly.`]
+            };
+            broadcastState(newState);
+            return;
+        }
+
+        if (isMyTurn) {
+            if (isSetupPhase) {
+                const validNodes = Array.from(getValidHousePlacements(gameState, myPlayer!.peerId, allNodeIds));
+                if (validNodes.length > 0) {
+                    const randomNode = validNodes[Math.floor(Math.random() * validNodes.length)];
+                    
+                    const newPlayers = [...gameState.players];
+                    const playerIndex = newPlayers.findIndex(p => p.peerId === myPlayer!.peerId);
+                    const updatedPlayer = {
+                        ...newPlayers[playerIndex],
+                        resources: { ...newPlayers[playerIndex].resources },
+                        inventory: {
+                            ...newPlayers[playerIndex].inventory,
+                            availableHouses: newPlayers[playerIndex].inventory.availableHouses - 1,
+                            availableStreets: newPlayers[playerIndex].inventory.availableStreets - 1
+                        }
+                    };
+                    newPlayers[playerIndex] = updatedPlayer;
+                    
+                    let newState: GameState = {
+                        ...gameState,
+                        players: newPlayers,
+                        lastBuiltNodeId: randomNode,
+                        houses: {
+                            ...gameState.houses,
+                            [randomNode]: { ownerId: myPlayer!.peerId, isFortress: false, nodeId: randomNode }
+                        },
+                        streets: {
+                            ...gameState.streets
+                        },
+                        logs: [...gameState.logs, `${currentPlayer.username} timed out. A house and street were randomly placed.`]
+                    };
+
+                    const validEdgesForStreet = Array.from(allEdgeIds).filter(edgeId => validatestreetPlacement(newState, edgeId, myPlayer!.peerId).valid);
+                    if (validEdgesForStreet.length > 0) {
+                        const randomEdge = validEdgesForStreet[Math.floor(Math.random() * validEdgesForStreet.length)];
+                        newState.streets[randomEdge] = { ownerId: myPlayer!.peerId, edgeId: randomEdge };
+                    }
+
+                    if (gameState.gamePhase === 'SETUP_2') {
+                        const gained = getStartingResources(newState, randomNode, map);
+                        Object.entries(gained).forEach(([res, count]) => {
+                            newState.players[newState.currentTurnIndex].resources[res as keyof ResourceCounts] += (count || 0);
+                        });
+                    }
+                    newState = advanceSetupTurn(newState);
+                    broadcastState(newState);
+                } else {
+                    broadcastState(advanceSetupTurn(gameState));
+                }
+            } else if (gameState.gamePhase === 'NINJA_MOVE') {
+                const hexes = map.hexes.filter(h => h.resource !== 'DESERT' && (h.coords.q !== gameState.ninjaHexCoords.q || h.coords.r !== gameState.ninjaHexCoords.r));
+                if (hexes.length > 0) {
+                    const randomHex = hexes[Math.floor(Math.random() * hexes.length)];
+                    let newState = {
+                        ...gameState,
+                        ninjaHexCoords: randomHex.coords,
+                        logs: [...gameState.logs, `${currentPlayer.username} timed out. Ninja was moved randomly.`]
+                    };
+                    
+                    // Steal logic from random opponent if any
+                    const hexNodeIds = HexMath.getHexNodeIds(randomHex.coords);
+                    const adjacentOpponents = new Set<string>();
+                    hexNodeIds.forEach(nId => {
+                        const s = newState.houses[nId];
+                        if (s && s.ownerId !== myPlayer!.peerId) {
+                            const opp = newState.players.find(p => p.peerId === s.ownerId);
+                            if (opp && newState.settings?.safeNinja && opp.victoryPoints <= 2) return;
+                            adjacentOpponents.add(s.ownerId);
+                        }
+                    });
+
+                    const opponentsArray = Array.from(adjacentOpponents).filter(oppId => {
+                        const opp = newState.players.find(p => p.peerId === oppId);
+                        return opp && Object.values(opp.resources).reduce((a, b) => a + b, 0) > 0;
+                    });
+
+                    if (opponentsArray.length > 0) {
+                        const targetPeerId = opponentsArray[Math.floor(Math.random() * opponentsArray.length)];
+                        
+                        const newPlayers = [...newState.players];
+                        const targetIndex = newPlayers.findIndex(p => p.peerId === targetPeerId);
+                        const myIndex = newPlayers.findIndex(p => p.peerId === myPlayer!.peerId);
+                        const targetPlayer = { ...newPlayers[targetIndex], resources: { ...newPlayers[targetIndex].resources } };
+                        const updatedMe = { ...newPlayers[myIndex], resources: { ...newPlayers[myIndex].resources } };
+
+                        const available = Object.entries(targetPlayer.resources).filter(([_, count]) => count > 0).map(([res]) => res);
+                        const stolenRes = available[Math.floor(Math.random() * available.length)] as keyof typeof targetPlayer.resources;
+                        targetPlayer.resources[stolenRes] -= 1;
+                        updatedMe.resources[stolenRes] += 1;
+
+                        newState.logs.push(`${myPlayer!.username} stole a resource from ${targetPlayer.username}.|STEAL|${myPlayer!.peerId}|${targetPlayer.peerId}|${stolenRes}`);
+                        
+                        newPlayers[targetIndex] = targetPlayer;
+                        newPlayers[myIndex] = updatedMe;
+                        newState.players = newPlayers;
+                    }
+
+                    newState.gamePhase = 'MAIN_GAME';
+                    broadcastState(newState);
+                }
+            } else if (gameState.phase === 'ROLL') {
+                let roll;
+                let newDeck = [...gameState.diceDeck];
+                if (gameState.settings.trueRoll) {
+                    roll = rollDice();
+                } else {
+                    if (newDeck.length === 0) newDeck = createDiceDeck();
+                    const p = newDeck.pop()!;
+                    roll = { die1: p.die1, die2: p.die2, total: p.die1 + p.die2 };
+                }
+
+                let newState: GameState = {
+                    ...gameState,
+                    diceRoll: roll,
+                    diceDeck: newDeck,
+                    phase: 'TRADE',
+                    logs: [...gameState.logs, `${currentPlayer.username} timed out. Auto-rolled ${roll.total}.`]
+                };
+                newState = distributeResources(newState, map, roll.total);
+
+                if (newState.gamePhase !== 'NINJA_DISCARD' && newState.gamePhase !== 'NINJA_MOVE') {
+                    let nextIndex = (newState.currentTurnIndex + 1) % newState.players.length;
+                    let loops = 0;
+                    while (newState.players[nextIndex].isInert && loops < newState.players.length) {
+                        nextIndex = (nextIndex + 1) % newState.players.length;
+                        loops++;
+                    }
+
+                    const myIndex = newState.players.findIndex(p => p.peerId === myPlayer?.peerId);
+                    if (myIndex !== -1) {
+                         newState.players[myIndex] = {
+                             ...newState.players[myIndex],
+                             actionCards: newState.players[myIndex].actionCards.map(c => ({ ...c, boughtThisTurn: false }))
+                         };
+                    }
+
+                    newState = {
+                        ...newState,
+                        currentTurnIndex: nextIndex,
+                        phase: 'ROLL',
+                        diceRoll: null,
+                        activeTurnPlayedCard: false,
+                        turnCounter: newState.turnCounter + 1,
+                        logs: [...newState.logs, `Turn passed to ${newState.players[nextIndex].username}.`]
+                    };
+                }
+                broadcastState(newState);
+            } else if (gameState.gamePhase === 'FREE_STREET_BUILDING') {
+                broadcastState({ ...gameState, gamePhase: 'MAIN_GAME', freeStreetsLeft: 0, logs: [...gameState.logs, `${currentPlayer.username} timed out during free street building.`] });
+                setBuildMode('NONE');
+            } else {
+                handleEndTurn();
+            }
+        }
+    };
+
+    useEffect(() => {
+        if (!gameState.settings.turnTimer) {
+            setTimeLeft(null);
+            return;
+        }
+
+        setTimeLeft(gameState.settings.turnTimer);
+
+        const timer = setInterval(() => {
+            setTimeLeft((prev) => {
+                if (prev === null || prev <= 0) {
+                    clearInterval(timer);
+                    return prev;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
+        return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [gameState.turnCounter, gameState.gamePhase, gameState.settings.turnTimer, myPlayer?.peerId]);
+
+    useEffect(() => {
+        if (timeLeft === 0) {
+            handleTurnTimeout();
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [timeLeft]);
 
     const handleBuyCard = () => {
         if (!isMyTurn || gameState.phase === 'ROLL' || !canAffordCard || gameState.actionCardDeck.length === 0) return;
@@ -666,25 +903,25 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     }, [gameState, myPlayer, isMyTurn]);
 
     const validStreetEdges = useMemo(() => {
-        if (!myPlayer || activeBuildMode !== 'STREET' || !isMyTurn) return new Set<string>();
+        if (!isMyTurn || !myPlayer) return new Set<string>();
         return getValidStreetPlacements(gameState, myPlayer.peerId, allEdgeIds);
-    }, [gameState, myPlayer, activeBuildMode, allEdgeIds, isMyTurn]);
+    }, [isMyTurn, gameState, myPlayer?.peerId, allEdgeIds]);
 
     const validHouseNodes = useMemo(() => {
-        if (!myPlayer || activeBuildMode !== 'HOUSE' || !isMyTurn) return new Set<string>();
+        if (!isMyTurn || !myPlayer) return new Set<string>();
         return getValidHousePlacements(gameState, myPlayer.peerId, allNodeIds);
-    }, [gameState, myPlayer, activeBuildMode, allNodeIds, isMyTurn]);
+    }, [isMyTurn, gameState, myPlayer?.peerId, allNodeIds]);
 
     const validFortressNodes = useMemo(() => {
-        if (!myPlayer || activeBuildMode !== 'FORTRESS' || !isMyTurn) return new Set<string>();
-        const nodes = new Set<string>();
-        Object.values(gameState.houses).forEach(s => {
-            if (s.ownerId === myPlayer.peerId && !s.isFortress) {
-                nodes.add(s.nodeId);
+        if (!isMyTurn || !myPlayer) return new Set<string>();
+        const valid = new Set<string>();
+        Object.entries(gameState.houses).forEach(([nodeId, house]) => {
+            if (house.ownerId === myPlayer.peerId && !house.isFortress) {
+                valid.add(nodeId);
             }
         });
-        return nodes;
-    }, [gameState, myPlayer, activeBuildMode, isMyTurn]);
+        return valid;
+    }, [isMyTurn, gameState.houses, myPlayer?.peerId]);
 
     const handleConfirmBuild = () => {
         if (!pendingBuild || !isMyTurn) return;
@@ -1397,12 +1634,19 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
                 {/* ── Top Bar ── */}
                 <div className="shrink-0 px-3 py-1.5 bg-[#f4e6cd]/95 border-b-2 border-[#d3be9a] flex items-center justify-between text-[11px] font-bold text-[#2c1d10]">
-                    <span className="truncate pr-2">
+                    <span className="truncate pr-2 flex items-center gap-2">
+                        <span>
                         {gameState.diceRoll
                             ? `LAST ROLL: ${gameState.diceRoll.total} (${gameState.diceRoll.die1}+${gameState.diceRoll.die2})`
                             : isSetupPhase
                                 ? (isMyTurn ? `Place: ${gameState.setupAction}` : 'Waiting...')
                                 : `Phase: ${gameState.phase}`}
+                        </span>
+                        {timeLeft !== null && (
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] ${timeLeft <= 10 ? 'bg-red-600 text-white animate-pulse' : 'bg-[#e2cead] text-[#7d6549]'}`}>
+                                ⏳ {timeLeft}s
+                            </span>
+                        )}
                     </span>
                     <span className="shrink-0 text-[#7d6549]">
                         Current:{' '}
@@ -1731,11 +1975,12 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         currentPlayer={currentPlayer}
                         isSetupPhase={isSetupPhase}
                         gameState={gameState}
+                        timeLeft={timeLeft}
                     />
 
                     {/* Bottom-Left Floating Panels: Trade Proposal & Trade Market */}
                     {myPlayer && (
-                        <div className="absolute bottom-0 left-0 z-20 w-[90%] md:w-80 lg:w-[360px] max-w-sm flex flex-col justify-end gap-2">
+                        <div className="absolute bottom-0 left-0 z-20 w-[90%] md:w-80 lg:w-[360px] max-w-sm flex flex-col justify-end gap-2 pointer-events-none">
                             {/* P2P Trade Proposal */}
                             <TradeProposalPanel
                                 gameState={gameState}
@@ -1752,7 +1997,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                 <button
                                     onClick={() => { playClick(); setShowTradeModal(prev => !prev); }}
                                     disabled={isSetupPhase}
-                                    className={`w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-tr-xl border-r border-t border-slate-600 shadow-xl transition-colors ${isSetupPhase
+                                    className={`w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-tr-xl border-r border-t border-slate-600 shadow-xl transition-colors pointer-events-auto ${isSetupPhase
                                         ? 'bg-[#f4e6cd]/80 text-slate-600 cursor-not-allowed'
                                         : showTradeModal
                                             ? 'bg-[#f4e6cd]/95 text-black border border-[#d3be9a] hover:border-blue-700'

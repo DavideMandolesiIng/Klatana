@@ -6,12 +6,14 @@ interface TurnPhaseInfoProps {
     currentPlayer: PlayerState | undefined;
     isSetupPhase: boolean;
     gameState: GameState;
+    timeLeft?: number | null;
 }
 
 export const TurnPhaseInfo: React.FC<TurnPhaseInfoProps> = ({
     currentPlayer,
     isSetupPhase,
-    gameState
+    gameState,
+    timeLeft
 }) => {
     return (
         <div className="absolute top-1 right-1 md:top-2 md:right-2 lg:top-4 lg:right-4 z-10 pointer-events-none flex flex-col items-end gap-1 lg:gap-2">
@@ -24,6 +26,11 @@ export const TurnPhaseInfo: React.FC<TurnPhaseInfoProps> = ({
                     <span className="text-[#7d6549] uppercase tracking-wider mr-2">Phase:</span>
                     <span className="text-emerald-400 uppercase">{isSetupPhase ? gameState.gamePhase : gameState.phase}</span>
                 </div>
+                {timeLeft !== null && timeLeft !== undefined && (
+                    <div className={`px-3 py-1.5 backdrop-blur rounded-lg text-xs font-bold shadow-lg border-2 flex items-center transition-colors ${timeLeft <= 10 ? 'bg-red-600/90 text-white border-red-400 animate-pulse' : 'bg-[#e2cead]/90 text-[#7d6549] border-[#d3be9a]'}`}>
+                        <span className="uppercase tracking-wider">⏳ {timeLeft}s</span>
+                    </div>
+                )}
             </div>
             {gameState.diceRoll && (
                 <div className="flex flex-col items-center justify-center bg-[#f4e6cd]/90 backdrop-blur px-4 py-2 rounded-xl border-2 border-[#d3be9a] shadow-2xl min-w-[120px]">
