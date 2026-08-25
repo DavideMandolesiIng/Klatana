@@ -18,6 +18,7 @@ import { BuildControls } from './game-screen/BuildControls';
 import { MobileLogTab } from './game-screen/MobileLogTab';
 import { MobileTradeTab } from './game-screen/MobileTradeTab';
 import { MobileRoomTab } from './game-screen/MobileRoomTab';
+import { DonateButton } from './DonateButton';
 
 import tableBg from '/assets/textures/table-background.webp?url';
 import clayTexture from '/assets/textures/clay-texture.webp?url';
@@ -2199,6 +2200,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                     </div>
                 );
             })}
+            <DonateButton />
         </div>
     );
 };

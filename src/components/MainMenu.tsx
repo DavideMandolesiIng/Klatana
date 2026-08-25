@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { peerService } from '../network/PeerService';
 import { Plus } from 'lucide-react';
 import { useSounds } from '../context/SoundContext';
+import { DonateButton } from './DonateButton';
 
 import wavesBg from '/assets/textures/waves-background.webp?url';
 import angle1 from '/assets/UI/Angle1.webp?url';
@@ -226,6 +227,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby, onPrivacyPolicy
           </button>
         </div>
       </div>
+      <DonateButton />
     </div>
   );
 };

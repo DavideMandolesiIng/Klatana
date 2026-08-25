@@ -34,7 +34,7 @@ export const PrivacyPolicy: React.FC<PrivacyPolicyProps> = ({ onBack }) => {
 
           <section>
             <p className="mb-4">
-              <strong>Last updated:</strong> July 14, 2026
+              <strong>Last updated:</strong> August, 2026
             </p>
             <p>
               Welcome to <strong>Klatana</strong>, a web-based, multiplayer, free, and open-source board game. Your privacy is important to us. This policy explains what data is collected, how it is used, and why. Klatana was designed with the goal of collecting <strong>the least amount of personal data possible</strong>.
@@ -53,6 +53,7 @@ export const PrivacyPolicy: React.FC<PrivacyPolicyProps> = ({ onBack }) => {
             <ul className="list-none space-y-1 mt-2">
               <li>❌ Real names, email addresses, passwords, or contact information.</li>
               <li>❌ Data for advertising tracking or user profiling.</li>
+              <li>❌ Banking, credit card, or payment data (donations are securely handled off-site by PayPal).</li>
             </ul>
           </section>
 
@@ -81,6 +82,7 @@ export const PrivacyPolicy: React.FC<PrivacyPolicyProps> = ({ onBack }) => {
             <ul className="list-disc pl-5 space-y-2">
               <li><strong>Google Firebase:</strong> Used to temporarily store lobbies and host the front-end scripts.</li>
               <li><strong>PeerJS Server:</strong> An open-source service used solely for "signaling", which is the initial handshake to discover the P2P host.</li>
+              <li><strong>PayPal:</strong> Used to process voluntary donations. If you choose to donate, you will be redirected to PayPal's platform. Your transaction and payment data are processed by PayPal according to their Privacy Statement. We do not collect or store any payment information.</li>
             </ul>
           </section>
 
@@ -98,6 +100,9 @@ export const PrivacyPolicy: React.FC<PrivacyPolicyProps> = ({ onBack }) => {
             </p>
             <p>
               However, since <strong>Klatana does not retain long-term identifiers or logs traceable to you once the session ends</strong>, there is no persistent database containing your data. "Deletion" occurs automatically at the end of each game you play.
+            </p>
+            <p>
+              For privacy inquiries, contact davide.mandolesi.ing@gmail.com
             </p>
           </section>
 

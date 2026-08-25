@@ -6,6 +6,7 @@ import { type MapTemplate } from '../game/mapTemplates';
 import { type PlayerData, type PlayerColor, PLAYER_COLORS } from '../game/Player';
 import { type GameSettings, type GameState, createInitialGameState } from '../game/GameState';
 import { useSounds } from '../context/SoundContext';
+import { DonateButton } from './DonateButton';
 
 import tableBg from '/assets/textures/table-background.webp?url';
 import angle1 from '/assets/UI/Angle1.webp?url';
@@ -510,7 +511,7 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onDisconnect: () 
                       disabled={peerService.role !== 'host'}
                       className={`bg-[#f0e3cc] border-2 border-[#dec49a] text-[#3b2a1a] font-bold text-sm rounded-lg px-3 py-2 mt-1 shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)] outline-none ${peerService.role !== 'host' ? 'opacity-50 cursor-not-allowed' : 'focus:ring-2 focus:ring-[#865913] cursor-pointer'}`}>
                       <option value="off">Casual (No Limit)</option>
-                      {/* <option value="5">Debug (5s)</option>*/}
+                      {/*<option value="5">Debug (5s)</option>*/}
                       <option value="30">Flash (30s)</option>
                       <option value="60">Fast (60s)</option>
                       <option value="120">Relaxed (120s)</option>
@@ -605,6 +606,7 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onDisconnect: () 
           </div>
         </div>
       </div>
+      <DonateButton />
     </div>
   );
 };
