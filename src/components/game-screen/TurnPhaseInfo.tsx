@@ -1,31 +1,31 @@
 import React from 'react';
 import { PLAYER_COLORS } from '../../game/Player';
 import { type GameState, type PlayerState } from '../../game/GameState';
+import { SupportWidget } from './SupportWidget';
 
 interface TurnPhaseInfoProps {
     currentPlayer: PlayerState | undefined;
-    isSetupPhase: boolean;
+    isSetupPhase?: boolean;
     gameState: GameState;
     timeLeft?: number | null;
 }
 
 export const TurnPhaseInfo: React.FC<TurnPhaseInfoProps> = ({
     currentPlayer,
-    isSetupPhase,
     gameState,
     timeLeft
 }) => {
     return (
         <div className="absolute top-1 right-1 md:top-2 md:right-2 lg:top-4 lg:right-4 z-10 pointer-events-none flex flex-col items-end gap-1 lg:gap-2">
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
                 <div className="px-3 py-1.5 bg-[#f4e6cd]/90 backdrop-blur rounded-lg text-xs font-bold shadow-lg border-2 border-[#d3be9a]">
                     <span className="text-[#7d6549] uppercase tracking-wider mr-2">Turn:</span>
                     <span className="text-white drop-shadow" style={{ color: currentPlayer ? PLAYER_COLORS[currentPlayer.color as keyof typeof PLAYER_COLORS].hex : 'white' }}>{currentPlayer?.username}</span>
                 </div>
-                <div className="px-3 py-1.5 bg-[#f4e6cd]/90 backdrop-blur rounded-lg text-xs font-bold shadow-lg border-2 border-[#d3be9a]">
-                    <span className="text-[#7d6549] uppercase tracking-wider mr-2">Phase:</span>
-                    <span className="text-emerald-400 uppercase">{isSetupPhase ? gameState.gamePhase : gameState.phase}</span>
-                </div>
+
+                {/* Support Klatana Widget */}
+                <SupportWidget />
+
                 {timeLeft !== null && timeLeft !== undefined && (
                     <div className={`px-3 py-1.5 backdrop-blur rounded-lg text-xs font-bold shadow-lg border-2 flex items-center transition-colors ${timeLeft <= 10 ? 'bg-red-600/90 text-white border-red-400 animate-pulse' : 'bg-[#e2cead]/90 text-[#7d6549] border-[#d3be9a]'}`}>
                         <span className="uppercase tracking-wider">⏳ {timeLeft}s</span>

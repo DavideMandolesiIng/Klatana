@@ -18,7 +18,7 @@ import { BuildControls } from './game-screen/BuildControls';
 import { MobileLogTab } from './game-screen/MobileLogTab';
 import { MobileTradeTab } from './game-screen/MobileTradeTab';
 import { MobileRoomTab } from './game-screen/MobileRoomTab';
-import { DonateButton } from './DonateButton';
+import { SupportWidget } from './game-screen/SupportWidget';
 
 import tableBg from '/assets/textures/table-background.webp?url';
 import clayTexture from '/assets/textures/clay-texture.webp?url';
@@ -1634,7 +1634,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             <div className="lg:hidden flex flex-col flex-1 min-h-0">
 
                 {/* ── Top Bar ── */}
-                <div className="shrink-0 px-3 py-1.5 bg-[#f4e6cd]/95 border-b-2 border-[#d3be9a] flex items-center justify-between text-[11px] font-bold text-[#2c1d10]">
+                <div className="shrink-0 px-3 py-1.5 bg-[#f4e6cd]/95 border-b-2 border-[#d3be9a] flex items-center justify-between text-[11px] font-bold text-[#2c1d10] relative z-50">
                     <span className="truncate pr-2 flex items-center gap-2">
                         <span>
                         {gameState.diceRoll
@@ -1649,12 +1649,15 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                             </span>
                         )}
                     </span>
-                    <span className="shrink-0 text-[#7d6549]">
-                        Current:{' '}
-                        <span style={{ color: currentPlayer ? PLAYER_COLORS[currentPlayer.color as keyof typeof PLAYER_COLORS].hex : '#2c1d10' }}>
-                            {currentPlayer?.username}
+                    <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[#7d6549]">
+                            Current:{' '}
+                            <span style={{ color: currentPlayer ? PLAYER_COLORS[currentPlayer.color as keyof typeof PLAYER_COLORS].hex : '#2c1d10' }}>
+                                {currentPlayer?.username}
+                            </span>
                         </span>
-                    </span>
+                        <SupportWidget compact />
+                    </div>
                 </div>
 
                 <div className="flex flex-col landscape:flex-row flex-1 min-h-0">
@@ -2200,7 +2203,6 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                     </div>
                 );
             })}
-            <DonateButton />
         </div>
     );
 };

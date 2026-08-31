@@ -13,8 +13,7 @@ export interface GameSettings {
     turnTimer: number | null;
     discardLimit: number;
     trueRoll: boolean;
-    mapShape: string;
-    mapSize: string;
+    gameMode: 'standard' | 'xl';
     balancedResources: boolean;
     safeNinja: boolean;
 }

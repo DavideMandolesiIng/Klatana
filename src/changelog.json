@@ -1,16 +1,17 @@
 [
   {
-    "version": "v1.0.1",
+    "version": "v1.1.0",
     "date": "31 Agosto 2026",
-    "title": "New changelog section",
+    "title": "New XL Map",
     "changes": [
-      "This page has been introduced in order to keep players updated on new Klatana versions."
+      "New XL Map has been added to the game. It has 37 hexes instead of 19, recomended for at least 4 players.",
+      "Fixed support button UI positioning during games, both on mobile and desktop veiw"
     ]
   },
   {
     "version": "v1.0.0",
     "date": "30 Agosto 2026",
-    "title": "Initial Release (Beta)",
+    "title": "Initial Release",
     "description": "First production release of Klatana, a free to play and free to mantain, opensource, realtime, multiplayer turn-based strategy board game."
   }
 ]

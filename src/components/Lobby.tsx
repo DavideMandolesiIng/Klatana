@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { peerService } from '../network/PeerService';
 import { Send, Users, Wifi, LogOut } from 'lucide-react';
-import { generateStandardMap } from '../game/MapGenerator';
+import { generateMap } from '../game/MapGenerator';
 import { type MapTemplate } from '../game/mapTemplates';
 import { type PlayerData, type PlayerColor, PLAYER_COLORS } from '../game/Player';
 import { type GameSettings, type GameState, createInitialGameState } from '../game/GameState';
@@ -25,8 +25,7 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onDisconnect: () 
     turnTimer: null,
     discardLimit: 7,
     trueRoll: false,
-    mapShape: 'standard',
-    mapSize: 'medium',
+    gameMode: 'standard',
     balancedResources: true,
     safeNinja: false
   });
@@ -215,7 +214,7 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onDisconnect: () 
   const handleStartGameClick = async () => {
     if (peerService.role === 'host') {
       playStart();
-      const newMap = generateStandardMap(settingsRef.current.balancedResources);
+      const newMap = generateMap(settingsRef.current.gameMode, settingsRef.current.balancedResources);
       try {
         await peerService.setGameStarted();
       } catch (err) {
@@ -412,11 +411,16 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onDisconnect: () 
                       <span className="text-xs text-[#7d6549] font-medium leading-tight block mt-1">Prevents high-yield red numbers (6, 8) from being placed on adjacent hexes.</span>
                     </label>
                   </div>
-                  <div className="flex items-start gap-3 bg-[#ebd8b7] shadow-inner p-4 rounded-xl border-2 border-[#dec49a] opacity-50 cursor-not-allowed filter grayscale-[0.5]">
+                  <div className="flex items-start gap-3 bg-[#ebd8b7] shadow-inner p-4 rounded-xl border-2 border-[#dec49a]">
                     <div className="flex flex-col flex-1 gap-1.5">
-                      <span className="font-black block text-[#3b2a1a] text-sm uppercase tracking-wide flex justify-between">Map Shape <span className="text-[10px] text-[#a37941]">(Soon)</span></span>
-                      <select disabled className="bg-[#f0e3cc] border-2 border-[#dec49a] text-[#7d6549] font-semibold text-sm rounded-lg px-3 py-2 cursor-not-allowed shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)] outline-none">
-                        <option>Standard Hexagon</option>
+                      <label htmlFor="gameMode" className="font-black block text-[#3b2a1a] text-sm uppercase tracking-wide">Game Mode</label>
+                      <select id="gameMode"
+                        value={settings.gameMode}
+                        onChange={(e) => updateSettings({ gameMode: e.target.value as 'standard' | 'xl' })}
+                        disabled={peerService.role !== 'host'}
+                        className={`bg-[#f0e3cc] border-2 border-[#dec49a] text-[#7d6549] font-bold text-sm rounded-lg px-3 py-2 mt-1 shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)] outline-none ${peerService.role !== 'host' ? 'opacity-50 cursor-not-allowed' : 'focus:ring-2 focus:ring-[#865913] cursor-pointer'}`}>
+                        <option value="standard">Standard (19 Hexes)</option>
+                        <option value="xl">XL Map (37 Hexes)</option>
                       </select>
                     </div>
                   </div>
