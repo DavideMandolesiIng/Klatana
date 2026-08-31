@@ -2,6 +2,7 @@ import React from 'react';
 import { type PlayerState } from '../../game/GameState';
 import { PLAYER_COLORS } from '../../game/Player';
 import { useSounds } from '../../context/SoundContext';
+import { APP_VERSION } from '../../version';
 
 interface MobileRoomTabProps {
     roomCode: string;
@@ -15,7 +16,12 @@ export const MobileRoomTab: React.FC<MobileRoomTabProps> = ({ roomCode, myPlayer
     return (
         <div className="p-3 flex flex-col gap-3">
             <div className="bg-[#f4e6cd] rounded-xl border-2 border-[#d3be9a] shadow p-3 flex flex-col gap-2">
-                <h3 className="font-black text-[#7d6549] uppercase text-[10px] tracking-wider">Game Settings</h3>
+                <div className="flex items-center justify-between">
+                    <h3 className="font-black text-[#7d6549] uppercase text-[10px] tracking-wider">Game Settings</h3>
+                    <span className="text-[9px] font-black px-2 py-0.5 bg-[#2f8a43] text-[#f7efd8] border border-[#175225] rounded shadow-sm">
+                        {APP_VERSION}
+                    </span>
+                </div>
                 <div className="flex items-center justify-between bg-[#ebd8b7] rounded-lg px-3 py-2 border border-[#d3be9a]">
                     <span className="text-xs font-bold text-[#5c4936]">Room Code</span>
                     <span className="text-sm font-black tracking-widest text-[#2c1d10] select-all">{roomCode}</span>

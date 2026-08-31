@@ -7,6 +7,7 @@ import { type PlayerData, type PlayerColor, PLAYER_COLORS } from '../game/Player
 import { type GameSettings, type GameState, createInitialGameState } from '../game/GameState';
 import { useSounds } from '../context/SoundContext';
 import { DonateButton } from './DonateButton';
+import { APP_VERSION } from '../version';
 
 import tableBg from '/assets/textures/table-background.webp?url';
 import angle1 from '/assets/UI/Angle1.webp?url';
@@ -379,7 +380,12 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onDisconnect: () 
           {/* Central Area: Game Settings */}
           <div className="w-full lg:w-[60%] flex flex-col gap-4 overflow-hidden">
             <div className="bg-[#f4e6cd] h-full shadow-[inset_0_2px_4px_rgba(0,0,0,0.05),0_4px_10px_rgba(0,0,0,0.1)] border-2 border-[#d3be9a] rounded-xl flex flex-col p-4 md:p-6 overflow-hidden relative">
-              <h2 className="text-xl md:text-3xl font-black mb-4 pb-2 border-b-2 border-[#d3be9a] text-[#2c1d10] drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)] flex-shrink-0">Rulebook &amp; Settings</h2>
+              <div className="flex items-center justify-between mb-4 pb-2 border-b-2 border-[#d3be9a] flex-shrink-0">
+                <h2 className="text-xl md:text-3xl font-black text-[#2c1d10] drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]">Rulebook &amp; Settings</h2>
+                <span className="text-[10px] md:text-xs font-black px-2.5 py-1 bg-[#2f8a43] text-[#f7efd8] border border-[#175225] rounded-md shadow-sm uppercase tracking-wider">
+                  {APP_VERSION}
+                </span>
+              </div>
 
               {peerService.role !== 'host' && (
                 <div className="mb-4 text-sm font-bold text-[#865913] bg-[#f8dfb1] shadow-inner rounded-xl px-4 py-3 text-center border-2 border-[#be9a55] flex-shrink-0">

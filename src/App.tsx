@@ -3,6 +3,7 @@ import { MainMenu } from './components/MainMenu';
 import { Lobby } from './components/Lobby';
 import { GameScreen } from './components/GameScreen';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
+import { Changelog } from './components/Changelog';
 import { type MapTemplate } from './game/mapTemplates';
 import { type PlayerData } from './game/Player';
 import { peerService } from './network/PeerService';
@@ -13,7 +14,7 @@ import { useSounds } from './context/SoundContext';
 function App() {
   const { isMuted, playClick, volume, setVolume } = useSounds();
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
-  const [gameState, setGameState] = useState<'menu' | 'lobby' | 'playing' | 'privacy'>('menu');
+  const [gameState, setGameState] = useState<'menu' | 'lobby' | 'playing' | 'privacy' | 'changelog'>('menu');
   const [gameMap, setGameMap] = useState<MapTemplate | null>(null);
   const [gamePlayers, setGamePlayers] = useState<PlayerData[]>([]);
   const [gameSettings, setGameSettings] = useState<GameSettings>({
@@ -69,8 +70,15 @@ function App() {
         </button>
       </div>
 
-      {gameState === 'menu' && <MainMenu onJoinLobby={() => setGameState('lobby')} onPrivacyPolicy={() => setGameState('privacy')} />}
+      {gameState === 'menu' && (
+        <MainMenu 
+          onJoinLobby={() => setGameState('lobby')} 
+          onPrivacyPolicy={() => setGameState('privacy')} 
+          onChangelog={() => setGameState('changelog')}
+        />
+      )}
       {gameState === 'privacy' && <PrivacyPolicy onBack={() => setGameState('menu')} />}
+      {gameState === 'changelog' && <Changelog onBack={() => setGameState('menu')} />}
       {gameState === 'lobby' && <Lobby 
           initialSettings={gameSettings} 
           onDisconnect={() => {

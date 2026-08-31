@@ -3,6 +3,7 @@ import { peerService } from '../network/PeerService';
 import { Plus } from 'lucide-react';
 import { useSounds } from '../context/SoundContext';
 import { DonateButton } from './DonateButton';
+import { APP_VERSION } from '../version';
 
 import wavesBg from '/assets/textures/waves-background.webp?url';
 import angle1 from '/assets/UI/Angle1.webp?url';
@@ -12,9 +13,10 @@ import angle2 from '/assets/UI/Angle2.webp?url';
 interface MainMenuProps {
   onJoinLobby: () => void;
   onPrivacyPolicy: () => void;
+  onChangelog: () => void;
 }
 
-export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby, onPrivacyPolicy }) => {
+export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby, onPrivacyPolicy, onChangelog }) => {
   const { playClick } = useSounds();
   const [joinCode, setJoinCode] = useState('');
   const [username, setUsername] = useState(localStorage.getItem('klatana_username') || '');
@@ -134,7 +136,12 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby, onPrivacyPolicy
         </div>
 
         <div className="pt-12 sm:pt-16 pb-3 sm:pb-4 text-center border-b-[2px] border-[#ceb38b] bg-gradient-to-b from-[#ffffff] to-transparent rounded-t-[12px] shadow-[inset_0_4px_8px_rgba(255,255,255,1)]">
-          <h1 className="text-3xl sm:text-[2.5rem] font-black mb-1 text-[#2c1d10] tracking-wide transition-all" style={{ textShadow: '0 2px 1px rgba(255,255,255,0.8)' }}>Klatana</h1>
+          <div className="flex items-center justify-center gap-2">
+            <h1 className="text-3xl sm:text-[2.5rem] font-black mb-1 text-[#2c1d10] tracking-wide transition-all" style={{ textShadow: '0 2px 1px rgba(255,255,255,0.8)' }}>Klatana</h1>
+            <span className="text-[10px] sm:text-xs font-black px-2 py-0.5 bg-[#2f8a43] text-[#f7efd8] border border-[#175225] rounded-md shadow-sm uppercase tracking-wider self-start mt-2">
+              {APP_VERSION}
+            </span>
+          </div>
           <p className="text-[#644d36] text-[12px] sm:text-sm font-bold px-4 sm:px-6 drop-shadow-[0_1px_1px_rgba(255,255,255,0.7)]">Play your favourite board game with your Friends</p>
         </div>
 
@@ -219,15 +226,25 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby, onPrivacyPolicy
           <p className="text-[10px] text-[#63503b] leading-relaxed max-w-[90%] font-semibold drop-shadow-[0_1px_1px_rgba(255,255,255,0.6)]">
             Klatana is a free, open-source fan project. It is not affiliated with, endorsed by, or sponsored by Catan Studio, Asmodee, or any related entities.
           </p>
-          <button
-            onClick={onPrivacyPolicy}
-            className="text-[11px] text-[#2c1d10] hover:text-black font-bold transition-colors mt-1 underline underline-offset-2"
-          >
-            Privacy Policy
-          </button>
+          <div className="flex items-center gap-4 mt-1">
+            <button
+              onClick={onPrivacyPolicy}
+              className="text-[11px] text-[#2c1d10] hover:text-black font-bold transition-colors underline underline-offset-2"
+            >
+              Privacy Policy
+            </button>
+            <span className="text-[10px] text-[#a37941]">&bull;</span>
+            <button
+              onClick={onChangelog}
+              className="text-[11px] text-[#2c1d10] hover:text-black font-bold transition-colors underline underline-offset-2 flex items-center gap-1"
+            >
+              Changelog ({APP_VERSION})
+            </button>
+          </div>
         </div>
       </div>
       <DonateButton />
     </div>
   );
 };
+
