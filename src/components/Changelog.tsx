@@ -42,9 +42,9 @@ export const Changelog: React.FC<ChangelogProps> = ({ onBack }) => {
 
         {/* Releases List */}
         <div className="p-4 md:p-8 space-y-6">
-          {CHANGELOG_HISTORY.map((release) => (
+          {CHANGELOG_HISTORY.map((release, releaseIdx) => (
             <div
-              key={release.version}
+              key={release.version || releaseIdx}
               className="bg-[#f7eedc] border-2 border-[#d3be9a] rounded-xl p-5 md:p-6 shadow-[inset_0_2px_4px_rgba(0,0,0,0.04),0_4px_10px_rgba(0,0,0,0.06)]"
             >
               {/* Release Header */}
@@ -53,13 +53,17 @@ export const Changelog: React.FC<ChangelogProps> = ({ onBack }) => {
                   <span className="bg-[#2f8a43] text-[#f7efd8] text-sm md:text-base font-black px-3 py-1 rounded-lg border border-[#175225] shadow-sm tracking-wider">
                     {release.version}
                   </span>
-                  <h2 className="text-lg md:text-xl font-black text-[#2c1d10]">
-                    {release.title}
-                  </h2>
+                  {release.title && (
+                    <h2 className="text-lg md:text-xl font-black text-[#2c1d10]">
+                      {release.title}
+                    </h2>
+                  )}
                 </div>
-                <span className="text-xs font-bold text-[#7d6549] uppercase tracking-wider">
-                  {release.date}
-                </span>
+                {release.date && (
+                  <span className="text-xs font-bold text-[#7d6549] uppercase tracking-wider">
+                    {release.date}
+                  </span>
+                )}
               </div>
 
               {release.description && (
@@ -69,44 +73,53 @@ export const Changelog: React.FC<ChangelogProps> = ({ onBack }) => {
               )}
 
               {/* Changes List */}
-              <div className="space-y-2">
-                {release.changes.map((change, idx) => {
-                  let badgeColor = 'bg-[#408a55] text-white border-[#27663a]';
-                  let label = 'Feature';
-                  let Icon = Sparkles;
+              {release.changes && release.changes.length > 0 && (
+                <div className="space-y-2">
+                  {release.changes.map((change, idx) => {
+                    const text = typeof change === 'string' ? change : change.text;
+                    const changeType = typeof change === 'string' ? undefined : change.type;
 
-                  if (change.type === 'improvement') {
-                    badgeColor = 'bg-[#b8862d] text-white border-[#845b14]';
-                    label = 'Improvement';
-                    Icon = CheckCircle2;
-                  } else if (change.type === 'fix') {
-                    badgeColor = 'bg-[#c2412b] text-white border-[#8a2412]';
-                    label = 'Fix';
-                    Icon = Wrench;
-                  } else if (change.type === 'balance') {
-                    badgeColor = 'bg-[#4a6bb3] text-white border-[#2c4785]';
-                    label = 'Balance';
-                    Icon = ShieldAlert;
-                  }
+                    let badgeColor = 'bg-[#408a55] text-white border-[#27663a]';
+                    let label = 'Feature';
+                    let Icon = Sparkles;
 
-                  return (
-                    <div
-                      key={idx}
-                      className="flex items-start gap-2.5 text-xs md:text-sm text-[#3b2a1a] bg-[#fbf6ed] p-2.5 rounded-lg border border-[#e4d3b6]"
-                    >
-                      <span
-                        className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border flex-shrink-0 ${badgeColor}`}
+                    if (changeType === 'improvement') {
+                      badgeColor = 'bg-[#b8862d] text-white border-[#845b14]';
+                      label = 'Improvement';
+                      Icon = CheckCircle2;
+                    } else if (changeType === 'fix') {
+                      badgeColor = 'bg-[#c2412b] text-white border-[#8a2412]';
+                      label = 'Fix';
+                      Icon = Wrench;
+                    } else if (changeType === 'balance') {
+                      badgeColor = 'bg-[#4a6bb3] text-white border-[#2c4785]';
+                      label = 'Balance';
+                      Icon = ShieldAlert;
+                    }
+
+                    return (
+                      <div
+                        key={idx}
+                        className="flex items-start gap-2.5 text-xs md:text-sm text-[#3b2a1a] bg-[#fbf6ed] p-2.5 rounded-lg border border-[#e4d3b6]"
                       >
-                        <Icon className="w-3 h-3" />
-                        {label}
-                      </span>
-                      <span className="font-semibold leading-relaxed pt-0.5">
-                        {change.text}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+                        {changeType ? (
+                          <span
+                            className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border flex-shrink-0 ${badgeColor}`}
+                          >
+                            <Icon className="w-3 h-3" />
+                            {label}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center justify-center w-2 h-2 mt-2 rounded-full bg-[#865913] flex-shrink-0" />
+                        )}
+                        <span className="font-semibold leading-relaxed pt-0.5">
+                          {text}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           ))}
         </div>

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Heart, X, HandHeart } from 'lucide-react';
 
 export const DonateButton: React.FC = () => {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
 
   if (!isOpen) {
     return (

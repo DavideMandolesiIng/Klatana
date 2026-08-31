@@ -1,0 +1,16 @@
+[
+  {
+    "version": "v1.0.1",
+    "date": "31 Agosto 2026",
+    "title": "New changelog section",
+    "changes": [
+      "This page has been introduced in order to keep players updated on new Klatana versions."
+    ]
+  },
+  {
+    "version": "v1.0.0",
+    "date": "30 Agosto 2026",
+    "title": "Initial Release (Beta)",
+    "description": "First production release of Klatana, a free to play and free to mantain, opensource, realtime, multiplayer turn-based strategy board game."
+  }
+]
