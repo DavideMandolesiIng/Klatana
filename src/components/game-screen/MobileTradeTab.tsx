@@ -15,7 +15,7 @@ interface MobileTradeTabProps {
     handleCancelTrade: () => void;
     handleAcceptTrade: () => void;
     handleRejectTrade: () => void;
-    handleBankTrade: (giveRes: string, giveAmount: number, getRes: string) => void;
+    handleBankTrade: (offer: Partial<Record<string, number>>, request: Partial<Record<string, number>>) => void;
     handleProposeTrade: (offer: any, request: any) => void;
 }
 

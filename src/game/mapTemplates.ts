@@ -93,11 +93,11 @@ export const XLMap: MapTemplate = {
     { coords: { q: 3, r: 0 }, edgeDirection: 1, type: '3:1' },
     { coords: { q: 1, r: 2 }, edgeDirection: 1, type: '3:1' },
     { coords: { q: 0, r: 3 }, edgeDirection: 2, type: '3:1' },
-    { coords: { q: -2, r: 3 }, edgeDirection: 3, type: '3:1' },
+    { coords: { q: -2, r: 3 }, edgeDirection: 2, type: '3:1' },
     { coords: { q: -3, r: 3 }, edgeDirection: 3, type: '3:1' },
-    { coords: { q: -3, r: 1 }, edgeDirection: 4, type: '3:1' },
+    { coords: { q: -3, r: 1 }, edgeDirection: 3, type: '3:1' },
     { coords: { q: -3, r: 0 }, edgeDirection: 4, type: '3:1' },
-    { coords: { q: -1, r: -2 }, edgeDirection: 5, type: '3:1' },
+    { coords: { q: -1, r: -2 }, edgeDirection: 4, type: '3:1' },
     { coords: { q: 0, r: -3 }, edgeDirection: 5, type: '3:1' },
   ]
 };

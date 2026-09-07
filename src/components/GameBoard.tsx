@@ -6,8 +6,6 @@ import { PLAYER_COLORS } from '../game/Player';
 import { HouseAsset, StreetAsset, FortressAsset } from './Assets';
 
 import desertTexture from '/assets/textures/desert-texture.webp?url';
-import wavesBackground from '/assets/textures/waves-background.webp?url';
-
 import lighthouseIcon from '/assets/icons/lighthouse_icon.webp?url';
 
 import oreTexture from '/assets/textures/ore-texture.webp?url';
@@ -105,22 +103,58 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 }) => {
   const hexSize = 55;
 
-  const { uniqueNodes, uniqueEdges } = useMemo(() => {
+  const { uniqueNodes, uniqueEdges, viewBox } = useMemo(() => {
     const nodes = new Map<string, { id: string, x: number, y: number }>();
     const edges = new Map<string, { id: string, x1: number, y1: number, x2: number, y2: number }>();
+
+    let minX = -380;
+    let maxX = 380;
+    let minY = -280;
+    let maxY = 280;
+
     template.hexes.forEach(hex => {
+      const center = HexMath.hexToPixel(hex.coords, hexSize);
       HexMath.hexNodes(hex.coords, hexSize).forEach(n => nodes.set(n.id, n));
       HexMath.hexEdges(hex.coords, hexSize).forEach(e => edges.set(e.id, e));
+
+      minX = Math.min(minX, center.x - hexSize - 30);
+      maxX = Math.max(maxX, center.x + hexSize + 30);
+      minY = Math.min(minY, center.y - hexSize - 30);
+      maxY = Math.max(maxY, center.y + hexSize + 30);
     });
-    return { uniqueNodes: Array.from(nodes.values()), uniqueEdges: Array.from(edges.values()) };
+
+    template.ports?.forEach(port => {
+      const center = HexMath.hexToPixel(port.coords, hexSize);
+      const corners = HexMath.hexCorners(center, hexSize);
+      const p1 = corners[port.edgeDirection];
+      const p2 = corners[(port.edgeDirection + 1) % 6];
+      const midX = (p1.x + p2.x) / 2;
+      const midY = (p1.y + p2.y) / 2;
+      const dx = midX - center.x;
+      const dy = midY - center.y;
+      const outwardAngle = Math.atan2(dy, dx);
+      const portX = midX + Math.cos(outwardAngle) * PORT_OUTWARD_OFFSET;
+      const portY = midY + Math.sin(outwardAngle) * PORT_OUTWARD_OFFSET;
+
+      minX = Math.min(minX, portX - (PORT_IMAGE_WIDTH / 2) - 30);
+      maxX = Math.max(maxX, portX + (PORT_IMAGE_WIDTH / 2) + 30);
+      minY = Math.min(minY, portY - (PORT_IMAGE_HEIGHT / 2) - 30);
+      maxY = Math.max(maxY, portY + (PORT_IMAGE_HEIGHT / 2) + 35);
+    });
+
+    const halfWidth = Math.max(Math.abs(minX), Math.abs(maxX));
+    const halfHeight = Math.max(Math.abs(minY), Math.abs(maxY));
+
+    return {
+      uniqueNodes: Array.from(nodes.values()),
+      uniqueEdges: Array.from(edges.values()),
+      viewBox: `${-halfWidth} ${-halfHeight} ${halfWidth * 2} ${halfHeight * 2}`
+    };
   }, [template]);
 
   return (
-    <div
-      className="w-full h-full flex items-center justify-center rounded-xl overflow-hidden border border-slate-700 bg-cover bg-center"
-      style={{ backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.15), rgba(15, 23, 42, 0.15)), url(${wavesBackground})` }}
-    >
-      <svg width="100%" height="100%" viewBox={`-400 -300 800 600`} className="max-w-4xl">
+    <div className="w-full h-full flex items-center justify-center pointer-events-auto">
+      <svg width="100%" height="100%" viewBox={viewBox} className="w-full h-full">
         <defs>
           <pattern id={`desert-pattern${idSuffix}`} patternContentUnits="objectBoundingBox" width="1" height="1">
             <image href={desertTexture} x="0" y="0" width="1" height="1" preserveAspectRatio="xMidYMid slice" />

@@ -55,6 +55,10 @@ export const BuildControls: React.FC<BuildControlsProps> = ({
     broadcastState
 }) => {
 
+    const availableHouses = myPlayer?.inventory?.availableHouses ?? (5 - (myPlayer ? Object.values(gameState.houses).filter(h => h.ownerId === myPlayer.peerId && !h.isFortress).length : 0));
+    const availableFortresses = myPlayer?.inventory?.availableFortresses ?? (4 - (myPlayer ? Object.values(gameState.houses).filter(h => h.ownerId === myPlayer.peerId && h.isFortress).length : 0));
+    const availableStreets = myPlayer?.inventory?.availableStreets ?? (15 - (myPlayer ? Object.values(gameState.streets).filter(s => s.ownerId === myPlayer.peerId).length : 0));
+
     // Funzione helper per rendere i tooltip dei costi senza ripetere codice
     const renderCostTooltip = (costs: Record<string, number>) => (
         <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-[#f4e6cd] backdrop-blur border-2 border-[#7d6549] rounded-lg p-2 shadow-2xl w-32 pointer-events-none z-50">
@@ -101,7 +105,7 @@ export const BuildControls: React.FC<BuildControlsProps> = ({
                                             disabled={!isMyTurn || !canAffordHouse || !hasValidHouseSpots}
                                             className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border text-[9px] md:text-sm uppercase tracking-wider ${isMyTurn && canAffordHouse && hasValidHouseSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 opacity-50 cursor-not-allowed'}`}
                                         >
-                                            House
+                                            House <span className="text-[8px] md:text-[10px] text-slate-300 font-normal">({availableHouses})</span>
                                         </button>
                                         {renderCostTooltip({ OAK: 1, CLAY: 1, CEREALS: 1, WOOL: 1 })}
                                     </div>
@@ -113,7 +117,7 @@ export const BuildControls: React.FC<BuildControlsProps> = ({
                                             disabled={!isMyTurn || !canAffordFortress || !hasValidFortressSpots}
                                             className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border text-[9px] md:text-sm uppercase tracking-wider ${isMyTurn && canAffordFortress && hasValidFortressSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 opacity-50 cursor-not-allowed'}`}
                                         >
-                                            Fortress
+                                            Fortress <span className="text-[8px] md:text-[10px] text-slate-300 font-normal">({availableFortresses})</span>
                                         </button>
                                         {renderCostTooltip({ CEREALS: 2, ORE: 3 })}
                                     </div>
@@ -125,7 +129,7 @@ export const BuildControls: React.FC<BuildControlsProps> = ({
                                             disabled={!isMyTurn || !canAffordStreet || !hasValidStreetSpots}
                                             className={`px-2 py-1.5 md:px-6 md:py-3 rounded-md md:rounded-xl font-bold transition-colors shadow-xl border text-[9px] md:text-sm uppercase tracking-wider ${isMyTurn && canAffordStreet && hasValidStreetSpots ? 'bg-slate-700 hover:bg-slate-600 border-slate-600 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 opacity-50 cursor-not-allowed'}`}
                                         >
-                                            Street
+                                            Street <span className="text-[8px] md:text-[10px] text-slate-300 font-normal">({availableStreets})</span>
                                         </button>
                                         {renderCostTooltip({ OAK: 1, CLAY: 1 })}
                                     </div>

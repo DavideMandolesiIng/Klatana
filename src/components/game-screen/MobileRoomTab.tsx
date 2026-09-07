@@ -1,6 +1,5 @@
 import React from 'react';
 import { type PlayerState } from '../../game/GameState';
-import { PLAYER_COLORS } from '../../game/Player';
 import { useSounds } from '../../context/SoundContext';
 import { APP_VERSION } from '../../version';
 
@@ -10,7 +9,7 @@ interface MobileRoomTabProps {
     onDisconnect?: () => void;
 }
 
-export const MobileRoomTab: React.FC<MobileRoomTabProps> = ({ roomCode, myPlayer, onDisconnect }) => {
+export const MobileRoomTab: React.FC<MobileRoomTabProps> = ({ roomCode, onDisconnect }) => {
     const { playDisconnect } = useSounds();
 
     return (
@@ -25,10 +24,6 @@ export const MobileRoomTab: React.FC<MobileRoomTabProps> = ({ roomCode, myPlayer
                 <div className="flex items-center justify-between bg-[#ebd8b7] rounded-lg px-3 py-2 border border-[#d3be9a]">
                     <span className="text-xs font-bold text-[#5c4936]">Room Code</span>
                     <span className="text-sm font-black tracking-widest text-[#2c1d10] select-all">{roomCode}</span>
-                </div>
-                <div className="flex items-center justify-between bg-[#ebd8b7] rounded-lg px-3 py-2 border border-[#d3be9a]">
-                    <span className="text-xs font-bold text-[#5c4936]">Playing as</span>
-                    <span className="text-xs font-bold" style={{ color: myPlayer ? PLAYER_COLORS[myPlayer.color as keyof typeof PLAYER_COLORS].hex : '#2c1d10' }}>{myPlayer?.username}</span>
                 </div>
                 {onDisconnect && (
                     <button onClick={() => { playDisconnect(); onDisconnect(); }} className="w-full py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg text-sm uppercase tracking-wider border border-red-700 transition shadow">

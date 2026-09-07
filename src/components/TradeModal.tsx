@@ -8,7 +8,7 @@ interface TradeModalProps {
     myPlayerId: string;
     map: MapTemplate;
     onClose: () => void;
-    onBankTrade: (giveRes: string, giveAmount: number, getRes: string) => void;
+    onBankTrade: (offer: Partial<ResourceCounts>, request: Partial<ResourceCounts>) => void;
     onProposeTrade: (offer: Partial<ResourceCounts>, request: Partial<ResourceCounts>) => void;
     canPropose: boolean;
     initialOffer?: Partial<ResourceCounts>;
@@ -45,7 +45,8 @@ export const TradeModal: React.FC<TradeModalProps> = ({
     const [request, setRequest] = useState<Partial<ResourceCounts>>({});
 
     React.useEffect(() => {
-        if (initialOffer) setOffer({ ...initialOffer });
+        setOffer(initialOffer ? { ...initialOffer } : {});
+        setRequest({});
     }, [initialOffer]);
 
     if (!myPlayer) return null;
@@ -84,28 +85,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
     const handleBankTrade = () => {
         if (!canPropose || !bankTradeExecutable()) return;
 
-        // Build a queue of "get" resources, one slot per requested unit
-        const getQueue: string[] = [];
-        RESOURCES.forEach(res => {
-            const qty = request[res] || 0;
-            for (let i = 0; i < qty; i++) getQueue.push(res);
-        });
-
-        // For each resource in offer, execute floor(qty / rate) trades
-        // distributing the received resources from the queue in order
-        let getIdx = 0;
-        RESOURCES.forEach(res => {
-            const qty = offer[res] || 0;
-            const rate = rates[res];
-            const lots = Math.floor(qty / rate);
-            for (let i = 0; i < lots; i++) {
-                if (getIdx < getQueue.length) {
-                    onBankTrade(res, rate, getQueue[getIdx]);
-                    getIdx++;
-                }
-            }
-        });
-
+        onBankTrade(offer, request);
         onClose();
     };
 

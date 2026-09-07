@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { PLAYER_COLORS } from '../../game/Player';
 import { type PlayerState } from '../../game/GameState';
 import { peerService } from '../../network/PeerService';
 import { useSounds } from '../../context/SoundContext';
@@ -7,13 +6,10 @@ import { useSounds } from '../../context/SoundContext';
 interface PlayerIdentityPanelProps {
     myPlayer: PlayerState | undefined;
     onDisconnect?: () => void;
-    activeBuildMode: string;
 }
 
 export const PlayerIdentityPanel: React.FC<PlayerIdentityPanelProps> = ({
-    myPlayer,
-    onDisconnect,
-    activeBuildMode
+    onDisconnect
 }) => {
     const [showRoomCode, setShowRoomCode] = useState(false);
     const { playClick, playDisconnect } = useSounds();
@@ -21,10 +17,6 @@ export const PlayerIdentityPanel: React.FC<PlayerIdentityPanelProps> = ({
     return (
         <div className="absolute top-1 left-1 md:top-2 md:left-2 lg:top-4 lg:left-4 flex flex-col gap-1 lg:gap-2 z-10 pointer-events-none">
             <div className="flex gap-2">
-                <div className="px-3 py-1.5 bg-[#f4e6cd]/90 backdrop-blur rounded-lg text-sm font-bold shadow-lg border-2 border-[#d3be9a] pointer-events-auto shrink-0 flex items-center">
-                    <span className="text-[#7d6549] mr-2">Playing as:</span>
-                    <span className="text-white drop-shadow" style={{ color: myPlayer ? PLAYER_COLORS[myPlayer.color as keyof typeof PLAYER_COLORS].hex : 'white' }}>{myPlayer?.username}</span>
-                </div>
                 <div className="flex flex-col gap-1 pointer-events-auto">
                     <div className="flex gap-1 h-full">
                         <div className="relative">
@@ -45,11 +37,7 @@ export const PlayerIdentityPanel: React.FC<PlayerIdentityPanelProps> = ({
                     </div>
                 </div>
             </div>
-            {activeBuildMode !== 'NONE' && (
-                <div className="px-3 py-1.5 bg-[#2d1b0f]/80 backdrop-blur rounded-lg text-xs font-bold shadow-lg border border-[#a37941] animate-pulse text-amber-300 w-max pointer-events-auto mt-1">
-                    BUILDING {activeBuildMode}...
-                </div>
-            )}
+
         </div>
     );
 };

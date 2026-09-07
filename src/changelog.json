@@ -1,7 +1,18 @@
 [
   {
+    "version": "v1.1.1",
+    "date": "07/09/2026",
+    "title": "Xl map fixes and general improvements",
+    "changes": [
+      "Fixed lighthouse placement on XL map.",
+      "Slight UI simplification for desktop and mobile view.",
+      "Modified trade modal to allow more than 1 trade per click. Example: you can now trade 8 oak for 2 cereals in one click (assuming the 4:1 rate applies)",
+      "UI shows how many buildings you have left for each kind"
+    ]
+  },
+  {
     "version": "v1.1.0",
-    "date": "31 Agosto 2026",
+    "date": "31/08/2026",
     "title": "New XL Map",
     "changes": [
       "New XL Map has been added to the game. It has 37 hexes instead of 19, recomended for at least 4 players.",
@@ -10,7 +21,7 @@
   },
   {
     "version": "v1.0.0",
-    "date": "30 Agosto 2026",
+    "date": "30/08/2026",
     "title": "Initial Release",
     "description": "First production release of Klatana, a free to play and free to mantain, opensource, realtime, multiplayer turn-based strategy board game."
   }

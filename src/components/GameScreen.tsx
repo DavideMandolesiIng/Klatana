@@ -21,6 +21,7 @@ import { MobileRoomTab } from './game-screen/MobileRoomTab';
 import { SupportWidget } from './game-screen/SupportWidget';
 
 import tableBg from '/assets/textures/table-background.webp?url';
+import wavesBackground from '/assets/textures/waves-background.webp?url';
 import clayTexture from '/assets/textures/clay-texture.webp?url';
 import woodTexture from '/assets/textures/wood-texture-1.webp?url';
 import woolTexture from '/assets/textures/wool-texture.webp?url';
@@ -86,13 +87,16 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
     // Zoom/Pan State
+    const isXLMap = settings.gameMode === 'xl';
+    const MIN_ZOOM = isXLMap ? 0.55 : 0.75;
+    const MAX_ZOOM = 2;
     const [mapTransform, setMapTransform] = useState({ scale: 1, x: 0, y: 0 });
     const mapDragRef = useRef({ isDragging: false, lastX: 0, lastY: 0, initialPinchDist: null as number | null, initialPinchScale: 1 });
 
     const constrainPan = (x: number, y: number, scale: number, element: HTMLElement) => {
         const rect = element.getBoundingClientRect();
-        const maxPanX = (rect.width * (scale - 1)) / 2;
-        const maxPanY = (rect.height * (scale - 1)) / 2;
+        const maxPanX = Math.max(0, (rect.width * (scale - 1)) / 2);
+        const maxPanY = Math.max(0, (rect.height * (scale - 1)) / 2);
 
         return {
             x: Math.max(-maxPanX, Math.min(maxPanX, x)),
@@ -105,7 +109,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         const element = e.currentTarget as HTMLElement;
         setMapTransform(prev => {
             const zoomDelta = e.deltaY < 0 ? 1.05 : 0.95;
-            const newScale = Math.max(1, Math.min(2, prev.scale * zoomDelta));
+            const newScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, prev.scale * zoomDelta));
             const newPos = constrainPan(prev.x, prev.y, newScale, element);
             return { scale: newScale, ...newPos };
         });
@@ -113,7 +117,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
     const handlePointerDown = (e: React.PointerEvent<HTMLDivElement | HTMLElement>) => {
         if (e.pointerType === 'mouse' && e.button !== 0) return;
-        
+
         // Prevent drag initialization when clicking UI elements
         if ((e.target as HTMLElement).closest('button, .pointer-events-auto')) return;
 
@@ -123,7 +127,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     };
 
     const handlePointerMove = (e: React.PointerEvent<HTMLDivElement | HTMLElement>) => {
-        if (mapDragRef.current.isDragging && mapTransform.scale > 1) {
+        if (mapDragRef.current.isDragging && mapTransform.scale > MIN_ZOOM) {
             const dx = e.clientX - mapDragRef.current.lastX;
             const dy = e.clientY - mapDragRef.current.lastY;
             mapDragRef.current.lastX = e.clientX;
@@ -160,7 +164,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             const element = e.currentTarget as HTMLElement;
 
             setMapTransform(prev => {
-                const newScale = Math.max(1, Math.min(2.5, mapDragRef.current.initialPinchScale * scaleChange));
+                const newScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, mapDragRef.current.initialPinchScale * scaleChange));
                 const newPos = constrainPan(prev.x, prev.y, newScale, element);
                 return { scale: newScale, ...newPos };
             });
@@ -501,7 +505,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                 const validNodes = Array.from(getValidHousePlacements(gameState, myPlayer!.peerId, allNodeIds));
                 if (validNodes.length > 0) {
                     const randomNode = validNodes[Math.floor(Math.random() * validNodes.length)];
-                    
+
                     const newPlayers = [...gameState.players];
                     const playerIndex = newPlayers.findIndex(p => p.peerId === myPlayer!.peerId);
                     const updatedPlayer = {
@@ -514,7 +518,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         }
                     };
                     newPlayers[playerIndex] = updatedPlayer;
-                    
+
                     let newState: GameState = {
                         ...gameState,
                         players: newPlayers,
@@ -555,7 +559,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         ninjaHexCoords: randomHex.coords,
                         logs: [...gameState.logs, `${currentPlayer.username} timed out. Ninja was moved randomly.`]
                     };
-                    
+
                     // Steal logic from random opponent if any
                     const hexNodeIds = HexMath.getHexNodeIds(randomHex.coords);
                     const adjacentOpponents = new Set<string>();
@@ -575,7 +579,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
                     if (opponentsArray.length > 0) {
                         const targetPeerId = opponentsArray[Math.floor(Math.random() * opponentsArray.length)];
-                        
+
                         const newPlayers = [...newState.players];
                         const targetIndex = newPlayers.findIndex(p => p.peerId === targetPeerId);
                         const myIndex = newPlayers.findIndex(p => p.peerId === myPlayer!.peerId);
@@ -588,7 +592,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         updatedMe.resources[stolenRes] += 1;
 
                         newState.logs.push(`${myPlayer!.username} stole a resource from ${targetPlayer.username}.|STEAL|${myPlayer!.peerId}|${targetPlayer.peerId}|${stolenRes}`);
-                        
+
                         newPlayers[targetIndex] = targetPlayer;
                         newPlayers[myIndex] = updatedMe;
                         newState.players = newPlayers;
@@ -627,10 +631,10 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
                     const myIndex = newState.players.findIndex(p => p.peerId === myPlayer?.peerId);
                     if (myIndex !== -1) {
-                         newState.players[myIndex] = {
-                             ...newState.players[myIndex],
-                             actionCards: newState.players[myIndex].actionCards.map(c => ({ ...c, boughtThisTurn: false }))
-                         };
+                        newState.players[myIndex] = {
+                            ...newState.players[myIndex],
+                            actionCards: newState.players[myIndex].actionCards.map(c => ({ ...c, boughtThisTurn: false }))
+                        };
                     }
 
                     newState = {
@@ -672,14 +676,14 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         }, 1000);
 
         return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [gameState.turnCounter, gameState.gamePhase, gameState.settings.turnTimer, myPlayer?.peerId]);
 
     useEffect(() => {
         if (timeLeft === 0) {
             handleTurnTimeout();
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [timeLeft]);
 
     const handleBuyCard = () => {
@@ -741,19 +745,34 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         }
     };
 
-    const handleBankTrade = (giveRes: string, giveAmount: number, getRes: string) => {
+    const handleBankTrade = (offer: Partial<ResourceCounts>, request: Partial<ResourceCounts>) => {
         const newPlayers = [...gameState.players];
         const playerIndex = newPlayers.findIndex(p => p.peerId === myPlayer!.peerId);
+        if (playerIndex === -1) return;
+
         const updatedPlayer = { ...newPlayers[playerIndex], resources: { ...newPlayers[playerIndex].resources } };
 
-        updatedPlayer.resources[giveRes as keyof ResourceCounts] -= giveAmount;
-        updatedPlayer.resources[getRes as keyof ResourceCounts] += 1;
+        const giveDescriptions: string[] = [];
+        Object.entries(offer).forEach(([res, amount]) => {
+            if (amount && amount > 0) {
+                updatedPlayer.resources[res as keyof ResourceCounts] -= amount;
+                giveDescriptions.push(`${amount} ${res}`);
+            }
+        });
+
+        const getDescriptions: string[] = [];
+        Object.entries(request).forEach(([res, amount]) => {
+            if (amount && amount > 0) {
+                updatedPlayer.resources[res as keyof ResourceCounts] += amount;
+                getDescriptions.push(`${amount} ${res}`);
+            }
+        });
 
         newPlayers[playerIndex] = updatedPlayer;
         broadcastState({
             ...gameState,
             players: newPlayers,
-            logs: [...gameState.logs, `${myPlayer!.username} traded ${giveAmount} ${giveRes} for 1 ${getRes} with the bank.`]
+            logs: [...gameState.logs, `${myPlayer!.username} traded ${giveDescriptions.join(', ')} for ${getDescriptions.join(', ')} with the bank.`]
         });
     };
 
@@ -868,11 +887,16 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
     const isSetupPhase = gameState.gamePhase === 'SETUP_1' || gameState.gamePhase === 'SETUP_2';
     const activeBuildMode = isSetupPhase ? (gameState.setupAction || 'NONE') : buildMode;
+
+    const availableHouses = myPlayer?.inventory?.availableHouses ?? (5 - (myPlayer ? Object.values(gameState.houses).filter(h => h.ownerId === myPlayer.peerId && !h.isFortress).length : 0));
+    const availableFortresses = myPlayer?.inventory?.availableFortresses ?? (4 - (myPlayer ? Object.values(gameState.houses).filter(h => h.ownerId === myPlayer.peerId && h.isFortress).length : 0));
+    const availableStreets = myPlayer?.inventory?.availableStreets ?? (15 - (myPlayer ? Object.values(gameState.streets).filter(s => s.ownerId === myPlayer.peerId).length : 0));
+
     const canAffordStreet = !!(isSetupPhase ||
-        (gameState.gamePhase === 'FREE_STREET_BUILDING' && myPlayer && myPlayer.inventory.availableStreets > 0) ||
-        (gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.street) && myPlayer.inventory.availableStreets > 0));
-    const canAffordHouse = !!(isSetupPhase || (gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.HOUSE) && myPlayer.inventory.availableHouses > 0));
-    const canAffordFortress = !!(gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.FORTRESS) && myPlayer.inventory.availableFortresses > 0);
+        (gameState.gamePhase === 'FREE_STREET_BUILDING' && myPlayer && availableStreets > 0) ||
+        (gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.street) && availableStreets > 0));
+    const canAffordHouse = !!(isSetupPhase || (gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.HOUSE) && availableHouses > 0));
+    const canAffordFortress = !!(gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.FORTRESS) && availableFortresses > 0);
     const canAffordCard = !!(gameState.gamePhase === 'MAIN_GAME' && myPlayer && canAfford(myPlayer.resources, BUILD_COSTS.ACTION_CARD));
 
     const { allEdgeIds, allNodeIds } = useMemo(() => {
@@ -1636,13 +1660,11 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                 {/* ── Top Bar ── */}
                 <div className="shrink-0 px-3 py-1.5 bg-[#f4e6cd]/95 border-b-2 border-[#d3be9a] flex items-center justify-between text-[11px] font-bold text-[#2c1d10] relative z-50">
                     <span className="truncate pr-2 flex items-center gap-2">
-                        <span>
-                        {gameState.diceRoll
-                            ? `LAST ROLL: ${gameState.diceRoll.total} (${gameState.diceRoll.die1}+${gameState.diceRoll.die2})`
-                            : isSetupPhase
-                                ? (isMyTurn ? `Place: ${gameState.setupAction}` : 'Waiting...')
-                                : `Phase: ${gameState.phase}`}
-                        </span>
+                        {gameState.diceRoll && (
+                            <span>
+                                LAST ROLL: {gameState.diceRoll.total} ({gameState.diceRoll.die1}+{gameState.diceRoll.die2})
+                            </span>
+                        )}
                         {timeLeft !== null && (
                             <span className={`px-1.5 py-0.5 rounded text-[10px] ${timeLeft <= 10 ? 'bg-red-600 text-white animate-pulse' : 'bg-[#e2cead] text-[#7d6549]'}`}>
                                 ⏳ {timeLeft}s
@@ -1650,12 +1672,6 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         )}
                     </span>
                     <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-[#7d6549]">
-                            Current:{' '}
-                            <span style={{ color: currentPlayer ? PLAYER_COLORS[currentPlayer.color as keyof typeof PLAYER_COLORS].hex : '#2c1d10' }}>
-                                {currentPlayer?.username}
-                            </span>
-                        </span>
                         <SupportWidget compact />
                     </div>
                 </div>
@@ -1684,19 +1700,19 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                     <>
                                         <button onClick={() => isMyTurn && setBuildMode('HOUSE')} disabled={!isMyTurn || !canAffordHouse || !hasValidHouseSpots}
                                             className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider border whitespace-nowrap shadow transition-opacity ${isMyTurn && canAffordHouse && hasValidHouseSpots ? 'bg-[#5c4936] text-[#f7efd8] border-[#a37941]' : 'bg-[#d3be9a]/40 text-[#7d6549]/50 border-[#d3be9a]/40 opacity-60'}`}>
-                                            House
+                                            House <span className="text-[9px] font-normal opacity-80">({availableHouses})</span>
                                         </button>
                                         <button onClick={() => isMyTurn && setBuildMode('FORTRESS')} disabled={!isMyTurn || !canAffordFortress || !hasValidFortressSpots}
                                             className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider border whitespace-nowrap shadow transition-opacity ${isMyTurn && canAffordFortress && hasValidFortressSpots ? 'bg-[#5c4936] text-[#f7efd8] border-[#a37941]' : 'bg-[#d3be9a]/40 text-[#7d6549]/50 border-[#d3be9a]/40 opacity-60'}`}>
-                                            Fortress
+                                            Fortress <span className="text-[9px] font-normal opacity-80">({availableFortresses})</span>
                                         </button>
                                         <button onClick={() => isMyTurn && setBuildMode('STREET')} disabled={!isMyTurn || !canAffordStreet || !hasValidStreetSpots}
                                             className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider border whitespace-nowrap shadow transition-opacity ${isMyTurn && canAffordStreet && hasValidStreetSpots ? 'bg-[#5c4936] text-[#f7efd8] border-[#a37941]' : 'bg-[#d3be9a]/40 text-[#7d6549]/50 border-[#d3be9a]/40 opacity-60'}`}>
-                                            Street
+                                            Street <span className="text-[9px] font-normal opacity-80">({availableStreets})</span>
                                         </button>
                                         <button onClick={() => isMyTurn && handleBuyCard()} disabled={!isMyTurn || !canAffordCard || gameState.actionCardDeck.length === 0}
                                             className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider border-2 whitespace-nowrap shadow transition-opacity ${isMyTurn && canAffordCard && gameState.actionCardDeck.length > 0 ? 'bg-[#5c4936] text-purple-200 border-purple-500' : 'bg-[#d3be9a]/40 text-[#7d6549]/50 border-[#d3be9a]/40 opacity-60'}`}>
-                                            Buy Card ({gameState.actionCardDeck.length})
+                                            Buy Card <span className="text-[9px] font-normal opacity-80">({gameState.actionCardDeck.length})</span>
                                         </button>
                                     </>
                                 )}
@@ -1732,7 +1748,8 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
                         {/* ── Game Board ── */}
                         <div
-                            className="flex-1 relative overflow-hidden bg-[#2c5f3a]/60 border-b-2 portrait:border-[#1c3d26] landscape:border-b-0 touch-none"
+                            className="flex-1 relative overflow-hidden bg-cover bg-center border-b-2 portrait:border-[#1c3d26] landscape:border-b-0 touch-none"
+                            style={{ backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.15), rgba(15, 23, 42, 0.15)), url(${wavesBackground})` }}
                             onWheel={handleMapWheel}
                             onPointerDown={handlePointerDown}
                             onPointerMove={handlePointerMove}
@@ -1850,7 +1867,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                 <div key={p.peerId} className={`p-2 rounded-lg border-2 flex flex-col gap-1 ${p.peerId === currentPlayer?.peerId ? 'border-[#2f8a43] bg-[#e0eddf]' : 'border-[#d3be9a] bg-[#ebd8b7]/60'}`}>
                                                     <div className="flex items-center gap-1.5">
                                                         <div className="w-5 h-5 rounded-full shrink-0 border border-black/20" style={{ backgroundColor: PLAYER_COLORS[p.color as keyof typeof PLAYER_COLORS].hex }} />
-                                                        <span className="font-bold text-[11px] truncate text-[#2c1d10]">{p.username}</span>
+                                                        <span className="font-bold text-[11px] truncate text-[#2c1d10]">{p.username}{p.peerId === myPlayer?.peerId && <span className="text-[#7d6549] font-medium ml-1">(you)</span>}</span>
                                                     </div>
                                                     <div className="flex items-center gap-1 flex-wrap text-[9px]">
                                                         <span className="bg-yellow-500/80 px-1 py-0.5 rounded font-bold">VP: {p.victoryPoints}{p.peerId === myPlayer?.peerId ? (() => { const m = p.actionCards.filter(c => c.type === 'MONUMENT').length; return m >= 1 ? <span className="text-emerald-700">+{m}</span> : ''; })() : ''}</span>
@@ -1899,7 +1916,12 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                 {/* ── Bottom Nav Bar ── */}
                 <MobileTabBar
                     mobileActiveTab={mobileActiveTab}
-                    setMobileActiveTab={setMobileActiveTab}
+                    setMobileActiveTab={(tab) => {
+                        if (tab !== 'TRADE') {
+                            setTradeModalConfig({});
+                        }
+                        setMobileActiveTab(tab);
+                    }}
                 />
             </div>{/* end mobile layout */}
 
@@ -1937,7 +1959,8 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
                 {/* Main Board Area */}
                 <main
-                    className="flex-grow flex flex-col items-center justify-center bg-[#2c5f3a]/60 backdrop-blur-sm rounded-xl border-2 border-[#1c3d26] shadow-xl relative overflow-hidden min-w-0 touch-none"
+                    className="flex-grow flex flex-col items-center justify-center bg-cover bg-center backdrop-blur-sm rounded-xl border-2 border-[#1c3d26] shadow-xl relative overflow-hidden min-w-0 touch-none"
+                    style={{ backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.15), rgba(15, 23, 42, 0.15)), url(${wavesBackground})` }}
                     onWheel={handleMapWheel}
                     onPointerDown={handlePointerDown}
                     onPointerMove={handlePointerMove}
@@ -1971,7 +1994,6 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                     <PlayerIdentityPanel
                         myPlayer={myPlayer}
                         onDisconnect={onDisconnect}
-                        activeBuildMode={activeBuildMode}
                     />
 
                     {/* Top-Right Floating Info: Dice Roll, Turn & Phase */}
@@ -1999,7 +2021,15 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                             <div className="relative">
                                 {/* Toggle Tab */}
                                 <button
-                                    onClick={() => { playClick(); setShowTradeModal(prev => !prev); }}
+                                    onClick={() => {
+                                        playClick();
+                                        setShowTradeModal(prev => {
+                                            if (prev) {
+                                                setTradeModalConfig({});
+                                            }
+                                            return !prev;
+                                        });
+                                    }}
                                     disabled={isSetupPhase}
                                     className={`w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-tr-xl border-r border-t border-slate-600 shadow-xl transition-colors pointer-events-auto ${isSetupPhase
                                         ? 'bg-[#f4e6cd]/80 text-slate-600 cursor-not-allowed'
@@ -2019,7 +2049,10 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                             gameState={gameState}
                                             myPlayerId={myPlayer.peerId}
                                             map={map}
-                                            onClose={() => setShowTradeModal(false)}
+                                            onClose={() => {
+                                                setShowTradeModal(false);
+                                                setTradeModalConfig({});
+                                            }}
                                             onBankTrade={handleBankTrade}
                                             onProposeTrade={handleProposeTrade}
                                             canPropose={isMyTurn && gameState.phase !== 'ROLL' && !isSetupPhase}
@@ -2153,7 +2186,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                 <div key={p.peerId} className={`p-1.5 md:p-2 rounded border-2 transition-colors flex flex-col gap-1 md:gap-2 shrink-0 ${p.peerId === currentPlayer?.peerId ? 'border-[#2f8a43] bg-[#e0eddf]' : 'border-[#d3be9a] bg-[#ebd8b7]/60'}`}>
                                     <div className="flex items-center gap-1.5 md:gap-2 truncate">
                                         <div className="w-2 h-2 md:w-2.5 md:h-2.5 rounded-full shrink-0" style={{ backgroundColor: PLAYER_COLORS[p.color as keyof typeof PLAYER_COLORS].hex }}></div>
-                                        <span className="font-bold text-xs md:text-sm truncate text-[#2c1d10]">{p.username}</span>
+                                        <span className="font-bold text-xs md:text-sm truncate text-[#2c1d10]">{p.username}{p.peerId === myPlayer?.peerId && <span className="text-[#7d6549] font-medium ml-1 text-[11px] md:text-xs">(you)</span>}</span>
                                     </div>
                                     <div className="flex gap-1.5 md:gap-3 text-[10px] md:text-xs items-center mt-0.5 md:mt-1">
                                         <div className="flex gap-1 md:gap-2">

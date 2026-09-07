@@ -16,5 +16,3 @@ export interface ChangelogRelease {
 export const CHANGELOG_HISTORY: ChangelogRelease[] = changelogData as ChangelogRelease[];
 
 export const APP_VERSION = CHANGELOG_HISTORY[0]?.version || 'v1.0.0';
-
-
