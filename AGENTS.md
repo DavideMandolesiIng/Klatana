@@ -13,10 +13,11 @@ A multiplayer browser-based game where players build houses/streets on a hexagon
 ## Architectural Conventions
 1. **Module Separation**:
    - `src/game/`: Game logic (rules, state transitions)
+   - `src/game/modes/`: Game mode definitions & rulesets (`GameModeDefinition`)
    - `src/network/`: Firebase/PeerJS integration
    - `src/components/`: UI elements
 2. **State Flow**: All state changes must go through `GameState.ts`
-3. **Validation**: Centralized validation in `GameState.ts` (e.g., `validateHousePlacement`)
+3. **Validation**: Centralized validation in `GameState.ts` (e.g., `validateHousePlacement`), with mode hooks in `src/game/modes/`
 
 ## Coding Conventions
 - UseTypeScript: Yes (100%)

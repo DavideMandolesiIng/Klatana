@@ -1,4 +1,4 @@
-﻿export interface Axial {
+export interface Axial {
   q: number;
   r: number;
 }
@@ -44,6 +44,29 @@ export class HexMath {
     const dr = Math.abs(a.r - b.r);
     const ds = Math.abs((-a.q - a.r) - (-b.q - b.r));
     return Math.max(dq, dr, ds) === 1;
+  }
+
+  static hexDistance(a: Axial, b: Axial = { q: 0, r: 0 }): number {
+    const dq = Math.abs(a.q - b.q);
+    const dr = Math.abs(a.r - b.r);
+    const ds = Math.abs((-a.q - a.r) - (-b.q - b.r));
+    return Math.max(dq, dr, ds);
+  }
+
+  /**
+   * Determines if a node is on the outer ring / boundary of the board.
+   * On a hex board, interior nodes touch exactly 3 land hexes,
+   * while perimeter/outer-ring nodes touch fewer than 3 land hexes (bordering the sea/void).
+   */
+  static isOuterRingNode(nodeId: string, map: { hexes: { coords: Axial }[] }): boolean {
+    const hexCoordsList = nodeId.split('|').map(s => {
+      const [q, r] = s.split(',').map(Number);
+      return { q, r };
+    });
+    const touchingLandHexes = hexCoordsList.filter(coord => 
+      map.hexes.some(h => h.coords.q === coord.q && h.coords.r === coord.r)
+    );
+    return touchingLandHexes.length < 3;
   }
 
   // --- Canonical ID generators ---

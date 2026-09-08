@@ -4,7 +4,8 @@ import { Send, Users, Wifi, LogOut } from 'lucide-react';
 import { generateMap } from '../game/MapGenerator';
 import { type MapTemplate } from '../game/mapTemplates';
 import { type PlayerData, type PlayerColor, PLAYER_COLORS } from '../game/Player';
-import { type GameSettings, type GameState, createInitialGameState } from '../game/GameState';
+import { type GameSettings, type GameState, createInitialGameState, normalizeSettings } from '../game/GameState';
+import { getAllGameModes, getGameMode } from '../game/modes';
 import { useSounds } from '../context/SoundContext';
 import { DonateButton } from './DonateButton';
 import { APP_VERSION } from '../version';
@@ -19,16 +20,17 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onDisconnect: () 
   const [inputValue, setInputValue] = useState('');
   const [isChatOpen, setIsChatOpen] = useState(true);
 
-  const [settings, setSettings] = useState<GameSettings>(initialSettings || {
+  const [settings, setSettings] = useState<GameSettings>(() => normalizeSettings(initialSettings || {
     hideBankResources: false,
     winPoints: 10,
     turnTimer: null,
     discardLimit: 7,
     trueRoll: false,
-    gameMode: 'standard',
+    gameMode: 'classic',
+    mapType: 'standard',
     balancedResources: true,
     safeNinja: false
-  });
+  }));
   const settingsRef = React.useRef<GameSettings>(settings);
   const playersRef = React.useRef<PlayerData[]>([]);
   const [players, _setPlayers] = useState<PlayerData[]>([]);
@@ -143,8 +145,9 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onDisconnect: () 
       }
       else if (data.type === 'LOBBY_SETTINGS') {
         if (data.settings) {
-          setSettings(data.settings);
-          settingsRef.current = data.settings;
+          const norm = normalizeSettings(data.settings);
+          setSettings(norm);
+          settingsRef.current = norm;
         }
       }
       else if (data.type === 'PING_LOBBY' && peerService.role !== 'host') {
@@ -214,15 +217,16 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onDisconnect: () 
   const handleStartGameClick = async () => {
     if (peerService.role === 'host') {
       playStart();
-      const newMap = generateMap(settingsRef.current.gameMode, settingsRef.current.balancedResources);
+      const normalized = normalizeSettings(settingsRef.current);
+      const newMap = generateMap(normalized.mapType || 'standard', normalized.balancedResources, normalized.gameMode);
       try {
         await peerService.setGameStarted();
       } catch (err) {
         console.warn("Failed to set room status to IN_PROGRESS in Firebase. Continuing P2P...", err);
       }
-      const initialGameState = createInitialGameState(players, newMap, settingsRef.current);
-      peerService.broadcast({ type: 'startGame', map: newMap, players, settings: settingsRef.current, state: initialGameState });
-      onStartGame(newMap, players, settingsRef.current, initialGameState);
+      const initialGameState = createInitialGameState(players, newMap, normalized);
+      peerService.broadcast({ type: 'startGame', map: newMap, players, settings: normalized, state: initialGameState });
+      onStartGame(newMap, players, normalized, initialGameState);
     }
   };
 
@@ -416,11 +420,40 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onDisconnect: () 
                       <label htmlFor="gameMode" className="font-black block text-[#3b2a1a] text-sm uppercase tracking-wide">Game Mode</label>
                       <select id="gameMode"
                         value={settings.gameMode}
-                        onChange={(e) => updateSettings({ gameMode: e.target.value as 'standard' | 'xl' })}
+                        onChange={(e) => {
+                          const newMode = e.target.value as any;
+                          const modeDef = getGameMode(newMode);
+                          const nextMapType = modeDef.supportedMapTypes.includes(settings.mapType as any)
+                            ? settings.mapType
+                            : (modeDef.supportedMapTypes[0] || 'standard');
+                          updateSettings({ gameMode: newMode, mapType: nextMapType });
+                        }}
                         disabled={peerService.role !== 'host'}
                         className={`bg-[#f0e3cc] border-2 border-[#dec49a] text-[#7d6549] font-bold text-sm rounded-lg px-3 py-2 mt-1 shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)] outline-none ${peerService.role !== 'host' ? 'opacity-50 cursor-not-allowed' : 'focus:ring-2 focus:ring-[#865913] cursor-pointer'}`}>
-                        <option value="standard">Standard (19 Hexes)</option>
-                        <option value="xl">XL Map (37 Hexes)</option>
+                        {getAllGameModes().map(m => (
+                          <option key={m.id} value={m.id}>{m.name}</option>
+                        ))}
+                      </select>
+                      <span className="text-xs text-[#7d6549] font-medium leading-tight">
+                        {getGameMode(settings.gameMode)?.description}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 bg-[#ebd8b7] shadow-inner p-4 rounded-xl border-2 border-[#dec49a]">
+                    <div className="flex flex-col flex-1 gap-1.5">
+                      <label htmlFor="mapType" className="font-black block text-[#3b2a1a] text-sm uppercase tracking-wide">Map Size</label>
+                      <select id="mapType"
+                        value={settings.mapType || 'standard'}
+                        onChange={(e) => updateSettings({ mapType: e.target.value as 'standard' | 'xl' })}
+                        disabled={peerService.role !== 'host' || getGameMode(settings.gameMode)?.supportedMapTypes.length <= 1}
+                        className={`bg-[#f0e3cc] border-2 border-[#dec49a] text-[#7d6549] font-bold text-sm rounded-lg px-3 py-2 mt-1 shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)] outline-none ${peerService.role !== 'host' || getGameMode(settings.gameMode)?.supportedMapTypes.length <= 1 ? 'opacity-50 cursor-not-allowed' : 'focus:ring-2 focus:ring-[#865913] cursor-pointer'}`}>
+                        {getGameMode(settings.gameMode)?.supportedMapTypes.includes('standard') && (
+                          <option value="standard">Standard (19 Hexes)</option>
+                        )}
+                        {getGameMode(settings.gameMode)?.supportedMapTypes.includes('xl') && (
+                          <option value="xl">XL Map (37 Hexes)</option>
+                        )}
                       </select>
                     </div>
                   </div>

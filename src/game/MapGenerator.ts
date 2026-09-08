@@ -1,5 +1,6 @@
 import { HexMath } from './HexMath';
 import { type ResourceType, type HexData, type MapTemplate, type PortType, type PortData, StandardMap, XLMap } from './mapTemplates';
+import { type GameModeId, type MapTypeId, getGameMode } from './modes';
 
 const STANDARD_TERRAINS: ResourceType[] = [
     'OAK', 'OAK', 'OAK', 'OAK',
@@ -55,11 +56,16 @@ function shuffle<T>(array: T[]): T[] {
     return arr;
 }
 
-export function generateMap(gameMode: 'standard' | 'xl' = 'standard', balancedResources: boolean = false): MapTemplate {
-    const template = gameMode === 'xl' ? XLMap : StandardMap;
-    const terrains = gameMode === 'xl' ? XL_TERRAINS : STANDARD_TERRAINS;
-    const numbers = gameMode === 'xl' ? XL_NUMBERS : STANDARD_NUMBERS;
-    const portTypes = gameMode === 'xl' ? XL_PORTS : STANDARD_PORTS;
+export function generateMap(
+    mapTypeOrMode: MapTypeId | 'standard' | 'xl' = 'standard',
+    balancedResources: boolean = false,
+    gameModeId: GameModeId | string = 'classic'
+): MapTemplate {
+    const isXL = mapTypeOrMode === 'xl';
+    const template = isXL ? XLMap : StandardMap;
+    const terrains = isXL ? XL_TERRAINS : STANDARD_TERRAINS;
+    const numbers = isXL ? XL_NUMBERS : STANDARD_NUMBERS;
+    const portTypes = isXL ? XL_PORTS : STANDARD_PORTS;
 
     let hexes: HexData[] = [];
     const shuffledTerrains = shuffle(terrains);
@@ -74,12 +80,31 @@ export function generateMap(gameMode: 'standard' | 'xl' = 'standard', balancedRe
         });
     });
 
+    // In Conquest mode, ensure center hex (0,0) is NUGGETS and DESERT is placed elsewhere
+    if (gameModeId === 'conquest') {
+        const centerHex = hexes.find(h => h.coords.q === 0 && h.coords.r === 0);
+        const originalDesertHex = hexes.find(h => h.resource === 'DESERT');
+
+        if (centerHex) {
+            if (originalDesertHex && originalDesertHex !== centerHex) {
+                centerHex.resource = 'NUGGETS';
+            } else {
+                centerHex.resource = 'NUGGETS';
+                const outerHexes = hexes.filter(h => h !== centerHex);
+                const randomOuter = outerHexes[Math.floor(Math.random() * outerHexes.length)];
+                randomOuter.resource = 'DESERT';
+            }
+        }
+    }
+
     // Assign numbers (desert gets None)
     let numIndex = 0;
     hexes.forEach(h => {
         if (h.resource !== 'DESERT') {
             h.number = shuffledNumbers[numIndex];
             numIndex++;
+        } else {
+            h.number = null;
         }
     });
 
@@ -107,8 +132,8 @@ export function generateMap(gameMode: 'standard' | 'xl' = 'standard', balancedRe
             // Check Rule 2: Balanced Resources
             if (balancedResources) {
                 const sameResourceCount = redHexes.filter(h => h.resource === redHexes[i].resource).length;
-                // If gameMode is xl, we have 8 reds instead of 4, so we might allow 2 of the same resource to be red.
-                const limit = gameMode === 'xl' ? 2 : 1;
+                // If isXL, we have 8 reds instead of 4, so we might allow 2 of the same resource to be red.
+                const limit = isXL ? 2 : 1;
                 if (sameResourceCount > limit) {
                     valid = false;
                     // Pick this hex to swap
@@ -138,9 +163,16 @@ export function generateMap(gameMode: 'standard' | 'xl' = 'standard', balancedRe
         type: shuffledPorts[i]
     }));
 
-    return {
-        name: `Random ${gameMode === 'xl' ? 'XL' : 'Standard'} Map`,
+    let mapResult: MapTemplate = {
+        name: `Random ${isXL ? 'XL' : 'Standard'} Map`,
         hexes,
         ports
     };
+
+    const mode = getGameMode(gameModeId);
+    if (mode?.customizeGeneratedMap) {
+        mapResult = mode.customizeGeneratedMap(mapResult);
+    }
+
+    return mapResult;
 }

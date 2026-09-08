@@ -27,6 +27,7 @@ import woodTexture from '/assets/textures/wood-texture-1.webp?url';
 import woolTexture from '/assets/textures/wool-texture.webp?url';
 import wheatTexture from '/assets/textures/wheat-texture-1.webp?url';
 import oreTexture from '/assets/textures/ore-texture.webp?url';
+import goldTexture from '/assets/textures/gold-texture.webp?url';
 
 export const RESOURCE_TEXTURES: Record<string, string> = {
     OAK: woodTexture,
@@ -34,6 +35,7 @@ export const RESOURCE_TEXTURES: Record<string, string> = {
     CEREALS: wheatTexture,
     WOOL: woolTexture,
     ORE: oreTexture,
+    NUGGETS: goldTexture
 };
 
 import oakIcon from '/assets/icons/resources/oak_icon.webp?url';
@@ -87,7 +89,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
     // Zoom/Pan State
-    const isXLMap = settings.gameMode === 'xl';
+    const isXLMap = settings.mapType === 'xl' || (settings.gameMode as string) === 'xl';
     const MIN_ZOOM = isXLMap ? 0.55 : 0.75;
     const MAX_ZOOM = 2;
     const [mapTransform, setMapTransform] = useState({ scale: 1, x: 0, y: 0 });
@@ -502,7 +504,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
         if (isMyTurn) {
             if (isSetupPhase) {
-                const validNodes = Array.from(getValidHousePlacements(gameState, myPlayer!.peerId, allNodeIds));
+                const validNodes = Array.from(getValidHousePlacements(gameState, myPlayer!.peerId, allNodeIds, map));
                 if (validNodes.length > 0) {
                     const randomNode = validNodes[Math.floor(Math.random() * validNodes.length)];
 
@@ -914,8 +916,8 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
     const hasValidHouseSpots = useMemo(() => {
         if (!myPlayer || !isMyTurn) return false;
-        return getValidHousePlacements(gameState, myPlayer.peerId, allNodeIds).size > 0;
-    }, [gameState, myPlayer, allNodeIds, isMyTurn]);
+        return getValidHousePlacements(gameState, myPlayer.peerId, allNodeIds, map).size > 0;
+    }, [gameState, myPlayer, allNodeIds, isMyTurn, map]);
 
     const hasValidStreetSpots = useMemo(() => {
         if (!myPlayer || !isMyTurn) return false;
@@ -934,8 +936,8 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
     const validHouseNodes = useMemo(() => {
         if (!isMyTurn || !myPlayer) return new Set<string>();
-        return getValidHousePlacements(gameState, myPlayer.peerId, allNodeIds);
-    }, [isMyTurn, gameState, myPlayer?.peerId, allNodeIds]);
+        return getValidHousePlacements(gameState, myPlayer.peerId, allNodeIds, map);
+    }, [isMyTurn, gameState, myPlayer?.peerId, allNodeIds, map]);
 
     const validFortressNodes = useMemo(() => {
         if (!isMyTurn || !myPlayer) return new Set<string>();
@@ -1059,7 +1061,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         if (pendingBuild.type === 'HOUSE') {
             playBuild();
             const nodeId = pendingBuild.id;
-            const validation = validateHousePlacement(gameState, nodeId, myPlayer!.peerId);
+            const validation = validateHousePlacement(gameState, nodeId, myPlayer!.peerId, map);
             if (!validation.valid) return;
 
             const newPlayers = [...gameState.players];
@@ -1177,7 +1179,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
         if (activeBuildMode !== 'HOUSE') return;
 
-        const validation = validateHousePlacement(gameState, nodeId, myPlayer!.peerId);
+        const validation = validateHousePlacement(gameState, nodeId, myPlayer!.peerId, map);
         if (!validation.valid) {
             alert(validation.reason);
             return;
@@ -1693,7 +1695,11 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                             <div className="bg-[#ebd8b7] border-b-2 border-[#d3be9a] flex items-center gap-1.5 px-2 py-1.5 overflow-x-auto relative">
                                 {isSetupPhase ? (
                                     <div className="px-3 py-1.5 bg-indigo-700/90 rounded-lg text-[10px] font-bold text-indigo-100 border border-indigo-500 animate-pulse whitespace-nowrap">
-                                        {isMyTurn ? `PLACE ${gameState.setupAction}` : `Waiting for ${currentPlayer?.username}...`}
+                                        {isMyTurn
+                                            ? (gameState.settings?.gameMode === 'conquest' && gameState.setupAction === 'HOUSE'
+                                                ? 'PLACE HOUSE (OUTER RING ONLY)'
+                                                : `PLACE ${gameState.setupAction}`)
+                                            : `Waiting for ${currentPlayer?.username}...`}
                                     </div>
                                 ) : gameState.phase === 'ROLL' && isMyTurn ? (
                                     <button onClick={handleRollDice} className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold text-[11px] uppercase tracking-wider border border-indigo-400 whitespace-nowrap shadow-md">

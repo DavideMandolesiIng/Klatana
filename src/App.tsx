@@ -23,7 +23,8 @@ function App() {
       turnTimer: null,
       discardLimit: 7,
       trueRoll: false,
-      gameMode: 'standard',
+      gameMode: 'classic',
+      mapType: 'standard',
       balancedResources: true,
       safeNinja: false
   });

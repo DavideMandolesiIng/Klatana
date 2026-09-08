@@ -18,10 +18,11 @@ interface TradeModalProps {
     initialBankGive?: string;
 }
 
-const RESOURCES: Exclude<ResourceType, 'DESERT'>[] = ['OAK', 'CLAY', 'CEREALS', 'WOOL', 'ORE'];
+const STANDARD_RESOURCES: Exclude<ResourceType, 'DESERT' | 'NUGGETS'>[] = ['OAK', 'CLAY', 'CEREALS', 'WOOL', 'ORE'];
 
 /** Rate label colour based on trade rate */
 const rateColor = (rate: number) => {
+    if (rate === 1) return 'text-amber-300 font-extrabold';
     if (rate === 2) return 'text-emerald-400';
     if (rate === 3) return 'text-amber-400';
     return 'text-white';
@@ -40,6 +41,12 @@ export const TradeModal: React.FC<TradeModalProps> = ({
     const myPlayer = gameState.players.find(p => p.peerId === myPlayerId);
     const rates = getPlayerTradeRates(gameState, map, myPlayerId);
 
+    const hasNuggets = map.hexes.some(h => h.resource === 'NUGGETS');
+    const giveResources: Exclude<ResourceType, 'DESERT'>[] = React.useMemo(() => {
+        return hasNuggets ? [...STANDARD_RESOURCES, 'NUGGETS'] : [...STANDARD_RESOURCES];
+    }, [hasNuggets]);
+    const getResources: Exclude<ResourceType, 'DESERT'>[] = STANDARD_RESOURCES;
+
     // Single unified offer/request state
     const [offer, setOffer] = useState<Partial<ResourceCounts>>(initialOffer || {});
     const [request, setRequest] = useState<Partial<ResourceCounts>>({});
@@ -54,7 +61,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
     /* ── Offer helpers ── */
     const updateOffer = (res: string, delta: number) => {
         const current = offer[res as keyof typeof offer] || 0;
-        const available = myPlayer.resources[res as keyof typeof myPlayer.resources];
+        const available = myPlayer.resources[res as keyof typeof myPlayer.resources] || 0;
         const next = Math.max(0, Math.min(available, current + delta));
         setOffer(prev => ({ ...prev, [res]: next }));
     };
@@ -72,13 +79,13 @@ export const TradeModal: React.FC<TradeModalProps> = ({
        We then fire one bank trade per "lot" of (rate) given, cycling through requested resources.
     */
     const bankTradeExecutable = (): boolean => {
-        const totalGiveLots = RESOURCES.reduce((sum, res) => {
+        const totalGiveLots = giveResources.reduce((sum, res) => {
             const qty = offer[res] || 0;
-            const rate = rates[res];
+            const rate = rates[res] || 4;
             return sum + Math.floor(qty / rate);
         }, 0);
-        const totalGetSlots = RESOURCES.reduce((sum, res) => sum + (request[res] || 0), 0);
-        const givesSame = RESOURCES.some(res => (offer[res] || 0) > 0 && (request[res] || 0) > 0);
+        const totalGetSlots = getResources.reduce((sum, res) => sum + (request[res] || 0), 0);
+        const givesSame = getResources.some(res => (offer[res] || 0) > 0 && (request[res] || 0) > 0);
         return totalGiveLots > 0 && totalGetSlots > 0 && totalGiveLots === totalGetSlots && !givesSame;
     };
 
@@ -93,7 +100,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
     const handleProposeTrade = () => {
         const totalOffer = Object.values(offer).reduce((a, b) => a + (b || 0), 0);
         const totalReq = Object.values(request).reduce((a, b) => a + (b || 0), 0);
-        const givesSame = RESOURCES.some(res => (offer[res] || 0) > 0 && (request[res] || 0) > 0);
+        const givesSame = giveResources.some(res => (offer[res] || 0) > 0 && (request[res] || 0) > 0);
         if (totalOffer > 0 && totalReq > 0 && !givesSame) {
             onProposeTrade(offer, request);
             onClose();
@@ -102,7 +109,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
 
     const totalOfferQty = Object.values(offer).reduce((a, b) => a + (b || 0), 0);
     const totalReqQty = Object.values(request).reduce((a, b) => a + (b || 0), 0);
-    const givesSame = RESOURCES.some(res => (offer[res] || 0) > 0 && (request[res] || 0) > 0);
+    const givesSame = giveResources.some(res => (offer[res] || 0) > 0 && (request[res] || 0) > 0);
 
     return (
         <div className="w-full text-slate-200 space-y-2">
@@ -112,9 +119,9 @@ export const TradeModal: React.FC<TradeModalProps> = ({
                 <div className="text-[8px] font-bold uppercase tracking-widest text-black mb-1.5 text-center">
                     Your Bank Rates
                 </div>
-                <div className="grid grid-cols-5 gap-1">
-                    {RESOURCES.map(res => {
-                        const rate = rates[res];
+                <div className={`grid ${hasNuggets ? 'grid-cols-6' : 'grid-cols-5'} gap-1`}>
+                    {giveResources.map(res => {
+                        const rate = rates[res] || 4;
                         const grad = RESOURCE_GRADIENTS[res] || { center: '#334155', edge: '#0f172a' };
                         return (
                             <div
@@ -145,9 +152,9 @@ export const TradeModal: React.FC<TradeModalProps> = ({
                 <div className="bg-[#ebd8b7] p-2 rounded-lg border border-red-900/50">
                     <h3 className="text-[9px] font-bold text-red-400 uppercase tracking-wider mb-1.5 text-center">Give</h3>
                     <div className="space-y-1">
-                        {RESOURCES.map(res => {
-                            const rate = rates[res];
-                            const available = myPlayer.resources[res as keyof typeof myPlayer.resources];
+                        {giveResources.map(res => {
+                            const rate = rates[res] || 4;
+                            const available = myPlayer.resources[res as keyof typeof myPlayer.resources] || 0;
                             const qty = offer[res as keyof typeof offer] || 0;
                             const grad = RESOURCE_GRADIENTS[res] || { center: '#334155', edge: '#0f172a' };
                             // How many bank lots can we cover?
@@ -193,7 +200,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
                 <div className="bg-[#ebd8b7] p-2 rounded-lg border border-emerald-900/50">
                     <h3 className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider mb-1.5 text-center">Get</h3>
                     <div className="space-y-1">
-                        {RESOURCES.map(res => {
+                        {getResources.map(res => {
                             const qty = request[res as keyof typeof request] || 0;
                             const grad = RESOURCE_GRADIENTS[res] || { center: '#334155', edge: '#0f172a' };
                             return (
@@ -229,8 +236,8 @@ export const TradeModal: React.FC<TradeModalProps> = ({
 
             {/* ── Bank trade validation hint ── */}
             {(() => {
-                const giveLots = RESOURCES.reduce((sum, res) => sum + Math.floor((offer[res] || 0) / rates[res]), 0);
-                const getSlots = RESOURCES.reduce((sum, res) => sum + (request[res] || 0), 0);
+                const giveLots = giveResources.reduce((sum, res) => sum + Math.floor((offer[res] || 0) / (rates[res] || 4)), 0);
+                const getSlots = getResources.reduce((sum, res) => sum + (request[res] || 0), 0);
                 if (giveLots > 0 || getSlots > 0) {
                     if (givesSame) {
                         return (

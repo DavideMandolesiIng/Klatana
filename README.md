@@ -26,13 +26,6 @@ A multiplayer browser-based game where players build houses/streets on a hexagon
 - Centralized validation rules in `GameState.ts`
 - Redux-like state mutations (immutable patterns)
 
-## AI Agent Workflow
-1. Start at root with `CLAUDE.md` for overview
-2. Identify module via `AGENTS.md` and folder structure
-3. Check `src/README.md` or `public/README.md` for module specifics
-4. Directly access files via path (no deep code scanning)
-5. Update `AGENTS.md` if new patterns are discovered
-
 ## Module Identification Rules
 - Game logic → `src/game/`
 - Networking → `src/network/`
@@ -44,7 +37,6 @@ A multiplayer browser-based game where players build houses/streets on a hexagon
 2. Document changes in `AGENTS.md` if they affect patterns/conventions
 3. Keep code changes minimal and focused
 4. Use type hints extensively in new code
-5. Update folder READMEs if module scope changes
 
 ## Project Goals
 - **Completely Free**: The game will be free for both the publisher who hosts the web app and for the final user.

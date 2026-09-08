@@ -1,6 +1,7 @@
 import { type ResourceType, type MapTemplate } from './mapTemplates';
 import { type PlayerData } from './Player';
 import { HexMath } from './HexMath';
+import { type GameModeId, type MapTypeId, getGameMode } from './modes';
 
 export type TurnPhase = 'ROLL' | 'TRADE' | 'BUILD';
 export type GamePhase = 'SETUP_1' | 'SETUP_2' | 'MAIN_GAME' | 'NINJA_DISCARD' | 'NINJA_MOVE' | 'NINJA_STEAL' | 'FREE_STREET_BUILDING' | 'GAME_OVER' | 'P2P_TRADE_PENDING';
@@ -13,10 +14,32 @@ export interface GameSettings {
     turnTimer: number | null;
     discardLimit: number;
     trueRoll: boolean;
-    gameMode: 'standard' | 'xl';
+    gameMode: GameModeId | 'standard' | 'xl';
+    mapType?: MapTypeId;
     balancedResources: boolean;
     safeNinja: boolean;
 }
+
+export const normalizeSettings = (settings: GameSettings): GameSettings => {
+    let mode: GameModeId = 'classic';
+    let mapType: MapTypeId = settings.mapType || 'standard';
+
+    if ((settings.gameMode as string) === 'xl') {
+        mapType = 'xl';
+        mode = 'classic';
+    } else if ((settings.gameMode as string) === 'standard') {
+        mapType = 'standard';
+        mode = 'classic';
+    } else if (settings.gameMode) {
+        mode = settings.gameMode as GameModeId;
+    }
+
+    return {
+        ...settings,
+        gameMode: mode,
+        mapType: mapType
+    };
+};
 
 // We map generic resource types. DESERT produces nothing.
 export type ResourceCounts = Record<Exclude<ResourceType, 'DESERT'>, number>;
@@ -170,14 +193,23 @@ export const createInitialGameState = (lobbyPlayers: PlayerData[], map: MapTempl
         playedNinjaCards: {},
         winningScore: settings.winPoints,
         diceDeck: settings.trueRoll ? [] : createDiceDeck(),
-        settings,
+        settings: normalizeSettings(settings),
         isPaused: false,
         disconnectedPlayers: [],
         turnCounter: 1
     };
 };
 
-export const validateHousePlacement = (gameState: GameState, nodeId: string, peerId: string): { valid: boolean, reason?: string } => {
+export const validateHousePlacement = (gameState: GameState, nodeId: string, peerId: string, map?: MapTemplate): { valid: boolean, reason?: string } => {
+    // Mode-specific validation hook (if defined by gameMode)
+    const mode = getGameMode(gameState.settings?.gameMode);
+    if (mode?.validateHousePlacement) {
+        const modeCheck = mode.validateHousePlacement(gameState, nodeId, peerId, map);
+        if (modeCheck && !modeCheck.valid) {
+            return modeCheck;
+        }
+    }
+
     if (gameState.houses[nodeId]) return { valid: false, reason: "Node is already occupied." };
 
     const player = gameState.players.find(p => p.peerId === peerId);
@@ -270,10 +302,10 @@ export const getValidStreetPlacements = (gameState: GameState, peerId: string, a
  * Returns the Set of node IDs where the current player is allowed to place a house.
  * This is used by the UI to highlight only truly valid nodes.
  */
-export const getValidHousePlacements = (gameState: GameState, peerId: string, allNodeIds: string[]): Set<string> => {
+export const getValidHousePlacements = (gameState: GameState, peerId: string, allNodeIds: string[], map?: MapTemplate): Set<string> => {
     const valid = new Set<string>();
     for (const nodeId of allNodeIds) {
-        if (validateHousePlacement(gameState, nodeId, peerId).valid) {
+        if (validateHousePlacement(gameState, nodeId, peerId, map).valid) {
             valid.add(nodeId);
         }
     }
@@ -515,6 +547,11 @@ export const getPlayerTradeRates = (gameState: GameState, map: MapTemplate, peer
             }
         }
     });
+
+    const mode = getGameMode(gameState.settings?.gameMode);
+    if (mode?.getTradeRates) {
+        return mode.getTradeRates(gameState, map, peerId, rates);
+    }
 
     return rates;
 };

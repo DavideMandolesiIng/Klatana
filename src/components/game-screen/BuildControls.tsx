@@ -82,7 +82,11 @@ export const BuildControls: React.FC<BuildControlsProps> = ({
         <div className="flex flex-wrap justify-end gap-1.5 md:gap-3 max-w-[240px] md:max-w-[400px] pointer-events-auto">
             {isSetupPhase ? (
                 <div className="px-3 py-1.5 md:px-6 md:py-3 bg-indigo-900/90 backdrop-blur-sm rounded-lg md:rounded-xl text-[10px] md:text-sm font-bold text-indigo-200 shadow-xl border border-indigo-500 animate-pulse">
-                    {isMyTurn ? `PLACE ${gameState.setupAction}` : `Waiting for ${currentPlayer?.username}...`}
+                    {isMyTurn
+                        ? (gameState.settings?.gameMode === 'conquest' && gameState.setupAction === 'HOUSE'
+                            ? 'PLACE HOUSE (OUTER RING ONLY)'
+                            : `PLACE ${gameState.setupAction}`)
+                        : `Waiting for ${currentPlayer?.username}...`}
                 </div>
             ) : (
                 <>

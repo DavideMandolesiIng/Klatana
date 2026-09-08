@@ -13,6 +13,7 @@ import clayTexture from '/assets/textures/clay-texture.webp?url';
 import woodTexture from '/assets/textures/wood-texture-1.webp?url';
 import woolTexture from '/assets/textures/wool-texture.webp?url';
 import wheatTexture from '/assets/textures/wheat-texture-1.webp?url';
+import goldTexture from '/assets/textures/gold-texture.webp?url';
 
 import oakIcon from '/assets/icons/resources/oak_icon.webp?url';
 import clayIcon from '/assets/icons/resources/clay_icon.webp?url';
@@ -77,6 +78,7 @@ const RESOURCE_TEXTURES: Record<string, { src: string, opacity: number }> = {
   CEREALS: { src: wheatTexture, opacity: 0.5 },
   WOOL: { src: woolTexture, opacity: 0.5 },
   ORE: { src: oreTexture, opacity: 0.5 },
+  NUGGETS: { src: goldTexture, opacity: 0.5 },
 };
 
 
