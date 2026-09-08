@@ -1401,67 +1401,77 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
             {/* NINJA DISCARD MODAL */}
             {gameState.gamePhase === 'NINJA_DISCARD' && myPlayer && gameState.playersNeedingToDiscard.includes(myPlayer.peerId) && (
-                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm">
-                    <div className="bg-[#f4e6cd]/95 backdrop-blur-md p-6 rounded-2xl border-4 border-[#a37941] shadow-2xl max-w-md w-full">
-                        <h2 className="text-xl font-black text-[#c0392b] mb-2 text-center uppercase tracking-wider">Ninja Attack!</h2>
-                        <p className="text-[#5c4936] text-sm mb-4 text-center">You have more than {gameState.settings?.discardLimit ?? 7} cards. You must discard half (rounded down).</p>
+                <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center backdrop-blur-sm p-2">
+                    <div className="bg-[#f4e6cd]/95 backdrop-blur-md rounded-2xl border-4 border-[#a37941] shadow-2xl w-full max-w-md landscape:max-w-2xl overflow-hidden flex flex-col landscape:flex-row landscape:max-h-[90vh]">
 
-                        <div className="space-y-3 mx-auto px-4 mb-6">
-                            {Object.entries(myPlayer.resources)
-                                .filter(([res]) => res !== 'NUGGETS' || map.hexes.some(h => h.resource === 'NUGGETS'))
-                                .map(([res, count]) => {
-                                    const selected = discardSelection[res as keyof typeof discardSelection] || 0;
-                                    const grad = RESOURCE_GRADIENTS[res] || { center: '#334155', edge: '#0f172a' };
-                                    let textClass = "text-white drop-shadow-sm";
-                                    let numBgClass = "bg-black/40";
-                                    let numTextClass = "text-white";
+                        {/* LEFT / TOP: header + resource list */}
+                        <div className="flex flex-col landscape:flex-1 overflow-y-auto p-3 landscape:p-4">
+                            <h2 className="text-base landscape:text-lg font-black text-[#c0392b] mb-1 text-center uppercase tracking-wider">Ninja Attack!</h2>
+                            <p className="text-[#5c4936] text-[11px] mb-2 text-center">You have more than {gameState.settings?.discardLimit ?? 7} cards. Discard half (rounded down).</p>
 
-                                    if (res === 'CEREALS' || res === 'NUGGETS' || res === 'WOOL') {
-                                        textClass = "text-[#2a1c0d] drop-shadow-none";
-                                        numBgClass = "bg-[#2a1c0d]/20";
-                                        numTextClass = "text-[#2a1c0d]";
-                                    }
+                            {/* Risorse — griglia 2 colonne in landscape, 1 in portrait */}
+                            <div className="grid grid-cols-1 landscape:grid-cols-2 gap-1.5">
+                                {Object.entries(myPlayer.resources)
+                                    .filter(([res]) => res !== 'NUGGETS' || map.hexes.some(h => h.resource === 'NUGGETS'))
+                                    .map(([res, count]) => {
+                                        const selected = discardSelection[res as keyof typeof discardSelection] || 0;
+                                        const grad = RESOURCE_GRADIENTS[res] || { center: '#334155', edge: '#0f172a' };
+                                        let textClass = "text-white drop-shadow-sm";
+                                        let numBgClass = "bg-black/40";
+                                        let numTextClass = "text-white";
 
-                                    return (
-                                        <div key={res} className="relative flex justify-between items-center p-2 rounded-lg border border-black/30 shadow-md overflow-hidden min-h-[60px]" style={{ background: `radial-gradient(circle at center, ${grad.center}, ${grad.edge})` }}>
-                                            {RESOURCE_TEXTURES[res] && (
-                                                <div
-                                                    className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-50 mix-blend-overlay"
-                                                    style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }}
-                                                />
-                                            )}
-                                            <div className="relative z-10 flex items-center gap-3 ml-2">
-                                                <img src={RESOURCE_ICONS[res as keyof typeof RESOURCE_ICONS]} alt={res} className="w-8 h-8 drop-shadow-md filter-none" />
-                                                <div className="flex flex-col">
-                                                    <span className={`text-[11px] font-bold uppercase tracking-wider ${textClass} leading-tight`}>{res}</span>
-                                                    <span className={`text-[10px] font-bold ${numTextClass} ${numBgClass} px-1.5 py-0.5 rounded shadow-inner mt-0.5 max-w-fit`}>Available: {count}</span>
+                                        if (res === 'CEREALS' || res === 'NUGGETS' || res === 'WOOL') {
+                                            textClass = "text-[#2a1c0d] drop-shadow-none";
+                                            numBgClass = "bg-[#2a1c0d]/20";
+                                            numTextClass = "text-[#2a1c0d]";
+                                        }
+
+                                        return (
+                                            <div key={res} className="relative flex justify-between items-center p-1.5 rounded-lg border border-black/30 shadow-md overflow-hidden min-h-[44px]" style={{ background: `radial-gradient(circle at center, ${grad.center}, ${grad.edge})` }}>
+                                                {RESOURCE_TEXTURES[res] && (
+                                                    <div
+                                                        className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-50 mix-blend-overlay"
+                                                        style={{ backgroundImage: `url(${RESOURCE_TEXTURES[res]})` }}
+                                                    />
+                                                )}
+                                                <div className="relative z-10 flex items-center gap-2 ml-1">
+                                                    <img src={RESOURCE_ICONS[res as keyof typeof RESOURCE_ICONS]} alt={res} className="w-6 h-6 drop-shadow-md filter-none" />
+                                                    <div className="flex flex-col">
+                                                        <span className={`text-[10px] font-bold uppercase tracking-wider ${textClass} leading-tight`}>{res}</span>
+                                                        <span className={`text-[9px] font-bold ${numTextClass} ${numBgClass} px-1 py-0.5 rounded shadow-inner mt-0.5 max-w-fit`}>Avail: {count}</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="relative z-10 flex gap-1 items-center mr-1">
+                                                    <button onClick={() => setDiscardSelection(prev => ({ ...prev, [res]: Math.max(0, (prev[res as keyof typeof prev] || 0) - 1) }))} className="w-6 h-6 bg-black/40 text-white rounded hover:bg-black/60 shadow font-bold transition-colors text-sm">-</button>
+                                                    <span className={`w-5 text-center font-black ${textClass} text-base`}>{selected}</span>
+                                                    <button onClick={() => setDiscardSelection(prev => ({ ...prev, [res]: Math.min(count, (prev[res as keyof typeof prev] || 0) + 1) }))} className="w-6 h-6 bg-black/40 text-white rounded hover:bg-black/60 shadow font-bold transition-colors text-sm">+</button>
                                                 </div>
                                             </div>
-
-                                            <div className="relative z-10 flex gap-2 items-center mr-2">
-                                                <button onClick={() => setDiscardSelection(prev => ({ ...prev, [res]: Math.max(0, (prev[res as keyof typeof prev] || 0) - 1) }))} className="w-8 h-8 bg-black/40 text-white rounded hover:bg-black/60 shadow font-bold transition-colors">-</button>
-                                                <span className={`w-6 text-center font-black ${textClass} text-lg`}>{selected}</span>
-                                                <button onClick={() => setDiscardSelection(prev => ({ ...prev, [res]: Math.min(count, (prev[res as keyof typeof prev] || 0) + 1) }))} className="w-8 h-8 bg-black/40 text-white rounded hover:bg-black/60 shadow font-bold transition-colors">+</button>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
+                                        );
+                                    })}
+                            </div>
                         </div>
 
-                        {(() => {
-                            const totalCards = Object.values(myPlayer.resources).reduce((a, b) => a + b, 0);
-                            const required = Math.floor(totalCards / 2);
-                            const selected = Object.values(discardSelection).reduce((a, b) => (a || 0) + (b || 0), 0);
-                            return (
-                                <button
-                                    onClick={handleDiscard}
-                                    disabled={selected !== required}
-                                    className={`w-full py-3 rounded-xl font-bold shadow-lg transition-colors border text-sm uppercase tracking-wider ${selected === required ? 'bg-red-600 hover:bg-red-500 border-red-400 text-white' : 'bg-slate-700 border-slate-600 text-slate-400 opacity-50 cursor-not-allowed'}`}
-                                >
-                                    Discard ({selected} / {required})
-                                </button>
-                            );
-                        })()}
+                        {/* RIGHT / BOTTOM: legend + discard button */}
+                        <div className="flex flex-col p-3 landscape:p-4 landscape:w-64 landscape:border-l-2 border-t-2 landscape:border-t-0 border-[#d3be9a] gap-3 landscape:justify-between">
+                            <BuildCostsLegend variant="mobile" />
+
+                            {(() => {
+                                const totalCards = Object.values(myPlayer.resources).reduce((a, b) => a + b, 0);
+                                const required = Math.floor(totalCards / 2);
+                                const selected = Object.values(discardSelection).reduce((a, b) => (a || 0) + (b || 0), 0);
+                                return (
+                                    <button
+                                        onClick={handleDiscard}
+                                        disabled={selected !== required}
+                                        className={`w-full py-2.5 rounded-xl font-bold shadow-lg transition-colors border text-sm uppercase tracking-wider ${selected === required ? 'bg-red-600 hover:bg-red-500 border-red-400 text-white' : 'bg-slate-700 border-slate-600 text-slate-400 opacity-50 cursor-not-allowed'}`}
+                                    >
+                                        Discard ({selected} / {required})
+                                    </button>
+                                );
+                            })()}
+                        </div>
                     </div>
                 </div>
             )}
@@ -2147,6 +2157,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                 )}
                             </div>
                         )}
+
 
                         {/* Game Log (Top Right) */}
                         <div className="flex flex-col gap-2 shrink-0 max-h-40 md:h-40">
