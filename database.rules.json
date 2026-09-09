@@ -5,17 +5,17 @@
       ".indexOn": ["createdAt"],
       "$roomCode": {
         ".read": true,
-        ".write": "!data.exists() || !newData.exists()",
-        ".validate": "$roomCode.matches(/^[A-Z0-9]{4}$/) && newData.hasChildren(['hostPeerId', 'status', 'createdAt']) && newData.child('hostPeerId').isString() && newData.child('hostPeerId').val().length > 0 && newData.child('status').val() === 'LOBBY' && newData.child('createdAt').isNumber()",
+        ".write": "!data.exists() || !newData.exists() || data.exists()",
+        ".validate": "!newData.exists() || ($roomCode.matches(/^[A-Z0-9]{4}$/) && newData.hasChildren(['hostPeerId', 'status', 'createdAt']) && newData.child('hostPeerId').isString() && newData.child('hostPeerId').val().length > 0 && newData.child('status').isString() && newData.child('createdAt').isNumber())",
         "status": {
           ".write": "data.parent().exists()",
           ".validate": "newData.isString() && (newData.val() === 'LOBBY' || newData.val() === 'IN_PROGRESS')"
         },
         "hostPeerId": {
-          ".write": false
+          ".write": "!data.exists()"
         },
         "createdAt": {
-          ".write": false
+          ".write": "!data.exists()"
         }
       }
     },

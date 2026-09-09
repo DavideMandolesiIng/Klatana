@@ -32,7 +32,20 @@ function App() {
 
   useEffect(() => {
     peerService.onConnectionRejected((reason) => {
-      alert(`Connection rejected: ${reason}`);
+      if (reason.startsWith('VERSION_MISMATCH:')) {
+        const parts = reason.split(':');
+        const yourVersion = parts[1] ?? '?';
+        const hostVersion = parts[2] ?? '?';
+        alert(
+          `⚠️ Version mismatch!\n\n` +
+          `Your version: ${yourVersion}\n` +
+          `Host version: ${hostVersion}\n\n` +
+          `The game version must match the host's to join.\n` +
+          `Please reload the page (F5 / Ctrl+R) to get the latest version, then try again.`
+        );
+      } else {
+        alert(`Connection rejected: ${reason}`);
+      }
       setGameState('menu');
       setGameMap(null);
     });

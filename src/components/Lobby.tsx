@@ -97,7 +97,7 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onDisconnect: () 
       // Client sends JOIN intent to Host as soon as they render the lobby
       const connectedPeers = peerService.getConnectedPeers();
       if (connectedPeers.length > 0) {
-        peerService.sendTo(connectedPeers[0], { type: 'JOIN_LOBBY', username: myUsername, playerId: peerService.playerId });
+        peerService.sendTo(connectedPeers[0], { type: 'JOIN_LOBBY', username: myUsername, playerId: peerService.playerId, version: APP_VERSION });
       }
     }
 
@@ -153,7 +153,7 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onDisconnect: () 
       else if (data.type === 'PING_LOBBY' && peerService.role !== 'host') {
         const connectedPeers = peerService.getConnectedPeers();
         if (connectedPeers.length > 0) {
-          peerService.sendTo(connectedPeers[0], { type: 'JOIN_LOBBY', username: localStorage.getItem('klatana_username') || 'Unknown', playerId: peerService.playerId });
+          peerService.sendTo(connectedPeers[0], { type: 'JOIN_LOBBY', username: localStorage.getItem('klatana_username') || 'Unknown', playerId: peerService.playerId, version: APP_VERSION });
         }
       }
       else if (peerService.role === 'host') {
@@ -161,6 +161,17 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onDisconnect: () 
         if (data.type === 'JOIN_LOBBY') {
           // Guard imperativo: evita doppio processing
           if (joinedPeers.current.has(incomingPeerId)) return;
+
+          // Version check: reject client if game version doesn't match host
+          if (data.version && data.version !== APP_VERSION) {
+            console.warn(`[Lobby] Version mismatch: client=${data.version}, host=${APP_VERSION}. Rejecting ${incomingPeerId}`);
+            peerService.rejectConnection(
+              incomingPeerId,
+              `VERSION_MISMATCH:${data.version}:${APP_VERSION}`
+            );
+            return;
+          }
+          console.log(`[Lobby] JOIN_LOBBY from ${incomingPeerId}, version=${data.version ?? 'none'} — OK`);
           joinedPeers.current.add(incomingPeerId);
 
           const joinText = `${data.username} joined the lobby`;

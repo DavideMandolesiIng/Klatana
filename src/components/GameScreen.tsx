@@ -1887,7 +1887,16 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                                     </div>
                                                     <div className="flex items-center gap-1 flex-wrap text-[9px]">
                                                         <span className="bg-yellow-500/80 px-1 py-0.5 rounded font-bold">VP: {p.victoryPoints}{p.peerId === myPlayer?.peerId ? (() => { const m = p.actionCards.filter(c => c.type === 'MONUMENT').length; return m >= 1 ? <span className="text-emerald-700">+{m}</span> : ''; })() : ''}</span>
-                                                        <span className="bg-[#ebd8b7] px-1 py-0.5 rounded border border-[#d3be9a]">🃏 {Object.values(p.resources).reduce((a, b) => a + b, 0)}</span>
+                                                        {(() => {
+                                                            const totalCards = Object.values(p.resources).reduce((a, b) => a + b, 0);
+                                                            const discardLimit = gameState.settings?.discardLimit ?? 7;
+                                                            const isOverLimit = totalCards > discardLimit;
+                                                            return (
+                                                                <span className={`px-1 py-0.5 rounded border ${isOverLimit ? 'bg-red-200 border-red-500 text-red-700 font-bold' : 'bg-[#ebd8b7] border-[#d3be9a]'}`}>
+                                                                    🃏 <span className={isOverLimit ? 'text-red-700 font-bold' : ''}>{totalCards}</span>
+                                                                </span>
+                                                            );
+                                                        })()}
                                                         <span className={`px-1 py-0.5 rounded border ${gameState.longestStreetHolder === p.peerId ? 'bg-amber-200 border-amber-500' : 'bg-[#ebd8b7] border-[#d3be9a]'}`}>🚧 {gameState.longestStreetHolder === p.peerId ? gameState.longestStreetLength : getLongestStreetForPlayer(gameState, p.peerId)}</span>
                                                         <span className={`px-1 py-0.5 rounded border ${gameState.largestClanHolder === p.peerId ? 'bg-red-200 border-red-500' : 'bg-[#ebd8b7] border-[#d3be9a]'}`}>⚔️ {gameState.largestClanHolder === p.peerId ? gameState.largestClanSize : (gameState.playedNinjaCards[p.peerId] || 0)}</span>
                                                     </div>
@@ -2208,7 +2217,16 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                     <div className="flex gap-1.5 md:gap-3 text-[10px] md:text-xs items-center mt-0.5 md:mt-1">
                                         <div className="flex gap-1 md:gap-2">
                                             <span title="Victory Points" className="bg-yellow-500/80 px-1 py-0.5 rounded shadow border border-slate-700">VP: <span className="text-black font-bold">{p.victoryPoints}{p.peerId === myPlayer?.peerId ? (() => { const monuments = p.actionCards.filter(c => c.type === 'MONUMENT').length; return monuments >= 1 ? <span className="text-emerald-400 font-normal">+{monuments}</span> : ''; })() : ''}</span></span>
-                                            <span title="Cards" className="bg-[#ebd8b7] px-1 py-0.5 rounded shadow border border-slate-700 text-slate-300">🃏 <span className="text-black font-bold">{Object.values(p.resources).reduce((a, b) => a + b, 0)}</span></span>
+                                            {(() => {
+                                                const totalCards = Object.values(p.resources).reduce((a, b) => a + b, 0);
+                                                const discardLimit = gameState.settings?.discardLimit ?? 7;
+                                                const isOverLimit = totalCards > discardLimit;
+                                                return (
+                                                    <span title="Cards" className={`px-1 py-0.5 rounded shadow border ${isOverLimit ? 'bg-red-200 border-red-500 text-red-700 font-bold' : 'bg-[#ebd8b7] border-slate-700 text-slate-300'}`}>
+                                                        🃏 <span className={`font-bold ${isOverLimit ? 'text-red-700 font-extrabold' : 'text-black'}`}>{totalCards}</span>
+                                                    </span>
+                                                );
+                                            })()}
                                         </div>
                                         <div className="flex ml-auto gap-1 md:gap-2">
                                             <div className={`flex items-center gap-0.5 md:gap-1 px-1 py-0.5 rounded shadow border ${gameState.longestStreetHolder === p.peerId ? 'bg-amber-900 border-amber-500 text-amber-500' : 'bg-[#ebd8b7] border-slate-700 text-black'}`} title="Street Length">
