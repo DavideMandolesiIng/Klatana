@@ -1,27 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { peerService } from '../network/PeerService';
-import { Plus } from 'lucide-react';
+import { Plus, RotateCcw } from 'lucide-react';
 import { useSounds } from '../context/SoundContext';
 import { DonateButton } from './DonateButton';
 import { APP_VERSION } from '../version';
+import { type GameState, type GameSettings } from '../game/GameState';
+import { type MapTemplate } from '../game/mapTemplates';
+import { type PlayerData } from '../game/Player';
 
 import wavesBg from '/assets/textures/waves-background.webp?url';
 import angle1 from '/assets/UI/Angle1.webp?url';
 import angle2 from '/assets/UI/Angle2.webp?url';
 
-
 interface MainMenuProps {
   onJoinLobby: () => void;
   onPrivacyPolicy: () => void;
   onChangelog: () => void;
+  onReconnectHost?: (map: MapTemplate, players: PlayerData[], settings: GameSettings, state: GameState) => void;
 }
 
-export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby, onPrivacyPolicy, onChangelog }) => {
+export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby, onPrivacyPolicy, onChangelog, onReconnectHost }) => {
   const { playClick } = useSounds();
   const [joinCode, setJoinCode] = useState('');
   const [username, setUsername] = useState(localStorage.getItem('klatana_username') || '');
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [activeHostRoom, setActiveHostRoom] = useState<{ roomCode: string; savedState: GameState; map: MapTemplate } | null>(null);
   const [error, setError] = useState('');
   const [uiScale, setUiScale] = useState(1);
 
@@ -43,6 +48,31 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby, onPrivacyPolicy
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Check if there is an active host room in DB that we can reconnect to
+  useEffect(() => {
+    const checkActiveRoom = async () => {
+      const savedRoomCode = localStorage.getItem('klatana_room_code');
+      if (!savedRoomCode) return;
+
+      const savedDataRaw = localStorage.getItem(`klatana_saved_game_${savedRoomCode}`);
+      if (!savedDataRaw) return;
+
+      try {
+        const savedData: { state: GameState; map: MapTemplate } = JSON.parse(savedDataRaw);
+        const { getRoomInfo } = await import('../network/firebase');
+        const roomInfo = await getRoomInfo(savedRoomCode);
+
+        if (roomInfo && roomInfo.status === 'IN_PROGRESS' && savedData.state && savedData.map) {
+          setActiveHostRoom({ roomCode: savedRoomCode, savedState: savedData.state, map: savedData.map });
+        }
+      } catch (e) {
+        console.warn("Could not check active room:", e);
+      }
+    };
+
+    checkActiveRoom();
+  }, []);
+
   const getPlayerId = () => {
     let id = localStorage.getItem('klatana_player_id');
     if (!id) {
@@ -60,7 +90,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby, onPrivacyPolicy
       setIsCreating(true);
       setError('');
 
-      // Need lazy initialization of peer service or something similar, but let's just use it
       peerService.playerId = getPlayerId();
       peerService.username = username.trim();
       await peerService.createRoom();
@@ -68,6 +97,47 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby, onPrivacyPolicy
     } catch (err: any) {
       setError(err.message || 'Failed to create room');
       setIsCreating(false);
+    }
+  };
+
+  const handleReconnectAsHost = async () => {
+    if (!activeHostRoom) return;
+    playClick();
+    if (!username.trim()) { setError('Please enter a username'); return; }
+    localStorage.setItem('klatana_username', username.trim());
+
+    try {
+      setIsReconnecting(true);
+      setError('');
+
+      peerService.playerId = getPlayerId();
+      peerService.username = username.trim();
+
+      const savedPeerId = localStorage.getItem('klatana_peer_id') || undefined;
+      await peerService.reconnectAsHost(activeHostRoom.roomCode, savedPeerId);
+
+      if (onReconnectHost) {
+        const { map, savedState } = activeHostRoom;
+        const updatedPlayerStates = savedState.players.map(p =>
+          p.playerId === peerService.playerId ? { ...p, peerId: peerService.peerId } : p
+        );
+        const initialPlayerDataList: PlayerData[] = updatedPlayerStates.map((p, index) => ({
+          peerId: p.peerId,
+          username: p.username,
+          color: (p.color as any) || null,
+          isHost: p.peerId === peerService.peerId || index === 0,
+          playerId: p.playerId
+        }));
+        const updatedState: GameState = {
+          ...savedState,
+          players: updatedPlayerStates,
+          isPaused: false
+        };
+        onReconnectHost(map, initialPlayerDataList, savedState.settings, updatedState);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to reconnect to room');
+      setIsReconnecting(false);
     }
   };
 
@@ -169,9 +239,28 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby, onPrivacyPolicy
             </div>
           </div>
 
+          {activeHostRoom && (
+            <button
+              onClick={handleReconnectAsHost}
+              disabled={isCreating || isJoining || isReconnecting}
+              className="w-full flex items-center justify-center space-x-2 bg-gradient-to-b from-[#d97706] via-[#b45309] to-[#78350f] hover:from-[#f59e0b] hover:to-[#92400e] border-t border-[#fde68a] border-b-[5px] border-[#451a03] text-[#fffbeb] font-bold py-4 px-4 rounded-xl shadow-[0_6px_10px_rgba(0,0,0,0.3),inset_0_2px_3px_rgba(255,255,255,0.3)] transition-transform active:translate-y-[4px] active:border-b-[1px] active:mb-[4px] disabled:opacity-75 disabled:filter disabled:grayscale-[0.3] cursor-pointer"
+            >
+              {isReconnecting ? (
+                <span className="animate-pulse drop-shadow-md text-lg">Reconnecting...</span>
+              ) : (
+                <>
+                  <RotateCcw className="w-5 h-5 drop-shadow-md text-[#fef3c7]" strokeWidth={2.5} />
+                  <span className="text-lg tracking-wider drop-shadow-[0_2px_2px_rgba(0,0,0,0.6)]">
+                    Reconnect to Game ({activeHostRoom.roomCode})
+                  </span>
+                </>
+              )}
+            </button>
+          )}
+
           <button
             onClick={handleCreateRoom}
-            disabled={isCreating || isJoining}
+            disabled={isCreating || isJoining || isReconnecting}
             className="w-full flex items-center justify-center space-x-2 bg-gradient-to-b from-[#3ca956] via-[#2f8a43] to-[#1c552a] hover:from-[#4ac565] hover:to-[#226834] border-t border-[#64dc7f] border-b-[5px] border-[#113118] text-[#f7efd8] font-bold py-4 px-4 rounded-xl shadow-[0_6px_10px_rgba(0,0,0,0.3),inset_0_2px_3px_rgba(255,255,255,0.3)] transition-transform active:translate-y-[4px] active:border-b-[1px] active:mb-[4px] disabled:opacity-75 disabled:filter disabled:grayscale-[0.3] disabled:active:translate-y-0"
           >
             {isCreating ? (
@@ -206,7 +295,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby, onPrivacyPolicy
 
             <button
               type="submit"
-              disabled={isCreating || isJoining || joinCode.length !== 4}
+              disabled={isCreating || isJoining || isReconnecting || joinCode.length !== 4}
               className="w-full flex font-bold rounded-xl shadow-[0_6px_10px_rgba(0,0,0,0.3),inset_0_2px_3px_rgba(255,255,255,0.3)] border-t border-[#f77e5e] border-b-[5px] border-[#5e1e0c] transition-transform active:translate-y-[4px] active:border-b-[1px] active:mb-[4px] disabled:opacity-75 disabled:filter disabled:grayscale-[0.3] disabled:active:translate-y-0 overflow-hidden group"
             >
               <div className="flex-grow flex items-center justify-center bg-gradient-to-b from-[#d15431] via-[#aa3c1e] to-[#802a11] group-hover:from-[#e3613d] group-hover:to-[#913214] text-[#f7efd8] py-4 pl-8">

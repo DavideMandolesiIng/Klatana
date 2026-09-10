@@ -1,5 +1,14 @@
 [
   {
+    "version": "v1.2.11",
+    "date": "11/09/2026",
+    "title": "Networking improvements",
+    "changes": [
+      "Reconnection logic improvements.",
+      "If the host loses connection, it now has a way to reconnect and continue the game."
+    ]
+  },
+  {
     "version": "v1.2.1",
     "date": "09/09/2026",
     "title": "Minor game UI fixes",

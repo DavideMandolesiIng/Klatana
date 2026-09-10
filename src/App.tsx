@@ -10,6 +10,7 @@ import { peerService } from './network/PeerService';
 import { type GameSettings, type GameState } from './game/GameState';
 import { Volume2, VolumeX } from 'lucide-react';
 import { useSounds } from './context/SoundContext';
+import { NetworkDebugWidget } from './components/NetworkDebugWidget';
 
 function App() {
   const { isMuted, playClick, volume, setVolume } = useSounds();
@@ -88,6 +89,13 @@ function App() {
           onJoinLobby={() => setGameState('lobby')} 
           onPrivacyPolicy={() => setGameState('privacy')} 
           onChangelog={() => setGameState('changelog')}
+          onReconnectHost={(map, players, settings, state) => {
+            setGameMap(map);
+            setGamePlayers(players);
+            setGameSettings(settings);
+            setResumeGameState(state);
+            setGameState('playing');
+          }}
         />
       )}
       {gameState === 'privacy' && <PrivacyPolicy onBack={() => setGameState('menu')} />}
@@ -107,6 +115,7 @@ function App() {
           }} 
       />}
       {gameState === 'playing' && gameMap && <GameScreen map={gameMap} initialPlayers={gamePlayers} settings={gameSettings!} initialGameState={resumeGameState || undefined} onReturnToLobby={() => setGameState('lobby')} onDisconnect={() => { peerService.destroy(true); setGameState('menu'); }} />}
+      <NetworkDebugWidget />
     </div>
   );
 }

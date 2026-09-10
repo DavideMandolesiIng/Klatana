@@ -19,6 +19,8 @@ import { MobileLogTab } from './game-screen/MobileLogTab';
 import { MobileTradeTab } from './game-screen/MobileTradeTab';
 import { MobileRoomTab } from './game-screen/MobileRoomTab';
 import { SupportWidget } from './game-screen/SupportWidget';
+import { WifiOff } from 'lucide-react';
+import { debugLogger } from '../network/DebugLogger';
 
 import tableBg from '/assets/textures/table-background.webp?url';
 import wavesBackground from '/assets/textures/waves-background.webp?url';
@@ -81,6 +83,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     const [dismissedNotificationPhase, setDismissedNotificationPhase] = useState<string | null>(null);
     const [showActionCardModal, setShowActionCardModal] = useState(true);
     const [mobileActiveTab, setMobileActiveTab] = useState<'GAME' | 'LOG' | 'TRADE' | 'ROOM'>('GAME');
+    const [isHostDisconnected, setIsHostDisconnected] = useState(false);
     const { playRoll, playTurn, playBuild, playTrade, playWin, playLose, playNinja, playClick, playCard, playDiscard, playCoins, playCollect, playDisconnect, playConnect } = useSounds();
 
     const [recentAnimations, setRecentAnimations] = useState<{ id: string; event: AnimationEvent; diffs: ResourceDiff[] }[]>([]);
@@ -188,6 +191,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
     useEffect(() => {
         peerService.onMessage((data, _peerId) => {
             if (data.type === 'GAME_STATE_UPDATE') {
+                setIsHostDisconnected(false);
                 setGameState(prev => {
                     let nextState = data.state;
                     if (prev.tradeProposal && nextState.tradeProposal && prev.tradeProposal.proposerId === nextState.tradeProposal.proposerId) {
@@ -207,6 +211,11 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                     }
                     return nextState;
                 });
+            } else if (data.type === 'RESUME_GAME') {
+                setIsHostDisconnected(false);
+                if (data.state) {
+                    setGameState(data.state);
+                }
             } else if (data.type === 'TRADE_RESPONSE') {
                 setGameState(prev => {
                     if (!prev.tradeProposal) return prev;
@@ -253,33 +262,112 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             });
 
             peerService.onPlayerReconnected((peerId, metadata) => {
+                debugLogger.log('HOST', `onPlayerReconnected triggered on Host for peer ${peerId}`, metadata);
                 setGameState(prev => {
                     const incomingPlayerId = metadata?.playerId;
-                    if (incomingPlayerId && prev.disconnectedPlayers.includes(incomingPlayerId)) {
-                        const pIndex = prev.players.findIndex(x => x.playerId === incomingPlayerId);
-                        if (pIndex !== -1) {
-                            const newPlayers = [...prev.players];
-                            newPlayers[pIndex] = { ...newPlayers[pIndex], peerId };
-                            const newDisconnected = prev.disconnectedPlayers.filter(id => id !== incomingPlayerId);
-                            const newState = {
-                                ...prev,
-                                players: newPlayers,
-                                disconnectedPlayers: newDisconnected,
-                                isPaused: newDisconnected.length > 0,
-                                logs: [...prev.logs, `${newPlayers[pIndex].username} reconnected!`]
-                            };
-                            peerService.broadcast({ type: 'GAME_STATE_UPDATE', state: newState });
-                            setTimeout(() => peerService.sendTo(peerId, { type: 'RESUME_GAME', map, players: initialPlayers, state: newState }), 100);
-                            return newState;
-                        }
+                    const pIndex = incomingPlayerId
+                        ? prev.players.findIndex(x => x.playerId === incomingPlayerId)
+                        : prev.players.findIndex(x => x.peerId === peerId);
+
+                    if (pIndex !== -1) {
+                        const newPlayers = [...prev.players];
+                        newPlayers[pIndex] = { ...newPlayers[pIndex], peerId };
+                        const targetPlayerId = newPlayers[pIndex].playerId;
+                        const newDisconnected = prev.disconnectedPlayers.filter(id => id !== targetPlayerId && id !== peerId);
+                        const newState = {
+                            ...prev,
+                            players: newPlayers,
+                            disconnectedPlayers: newDisconnected,
+                            isPaused: newDisconnected.length > 0,
+                            logs: [...prev.logs, `${newPlayers[pIndex].username} reconnected!`]
+                        };
+                        debugLogger.log('HOST', `Player ${newPlayers[pIndex].username} accepted! Unpausing game state and broadcasting...`);
+                        peerService.broadcast({ type: 'GAME_STATE_UPDATE', state: newState });
+                        setTimeout(() => peerService.sendTo(peerId, { type: 'RESUME_GAME', map, players: initialPlayers, state: newState }), 100);
+                        return newState;
                     } else if (metadata?.playerId) {
-                        peerService.rejectConnection(peerId, 'You are not in this game or not disconnected.');
+                        debugLogger.log('ERROR', `Rejecting connection from peer ${peerId}: player ${metadata.playerId} not found in game players`, prev.players);
+                        peerService.rejectConnection(peerId, 'You are not in this game.');
                     }
                     return prev;
                 });
             });
+        } else {
+            // CLIENT ROLE: Listen for host disconnect
+            peerService.onPeerDisconnect((disconnectedPeerId) => {
+                debugLogger.log('CLIENT', `Host disconnected! (peerId: ${disconnectedPeerId}) Setting isHostDisconnected = true`);
+                setIsHostDisconnected(true);
+            });
         }
     }, []);
+
+    // Save host state to localStorage whenever gameState changes
+    useEffect(() => {
+        if (peerService.role === 'host' && peerService.roomCode) {
+            if (gameState.gamePhase === 'GAME_OVER') {
+                localStorage.removeItem(`klatana_saved_game_${peerService.roomCode}`);
+            } else {
+                localStorage.setItem(`klatana_saved_game_${peerService.roomCode}`, JSON.stringify({ state: gameState, map }));
+            }
+        }
+    }, [gameState, map]);
+
+    // Client auto-reconnect effect when host disconnects
+    useEffect(() => {
+        if (!isHostDisconnected || peerService.role !== 'client' || !peerService.roomCode) return;
+
+        let unsubscribe: (() => void) | null = null;
+        let isAttempting = false;
+        let intervalTimer: any = null;
+
+        const attemptReconnect = async (targetHostPeerId: string) => {
+            if (isAttempting) return;
+            isAttempting = true;
+            try {
+                debugLogger.log('CLIENT', `Attempting auto-reconnect to host ${targetHostPeerId}...`);
+                await peerService.reconnectClientToHost(targetHostPeerId);
+            } catch (err) {
+                debugLogger.log('CLIENT', `Auto-reconnect attempt failed (will retry...): ${String(err)}`);
+            } finally {
+                isAttempting = false;
+            }
+        };
+
+        const setupListener = async () => {
+            const { ref, db, onValue, get } = await import('../network/firebase');
+            const roomRef = ref(db, `rooms/${peerService.roomCode}`);
+
+            unsubscribe = onValue(roomRef, async (snapshot) => {
+                if (!snapshot.exists()) return;
+                const data = snapshot.val();
+                if (data.status === 'IN_PROGRESS' && data.hostPeerId) {
+                    attemptReconnect(data.hostPeerId);
+                }
+            });
+
+            // Also poll every 3 seconds while disconnected to guarantee retries
+            intervalTimer = setInterval(async () => {
+                try {
+                    const snap = await get(roomRef);
+                    if (snap.exists()) {
+                        const data = snap.val();
+                        if (data.status === 'IN_PROGRESS' && data.hostPeerId) {
+                            attemptReconnect(data.hostPeerId);
+                        }
+                    }
+                } catch (e) {
+                    // ignore
+                }
+            }, 3000);
+        };
+
+        setupListener();
+
+        return () => {
+            if (unsubscribe) unsubscribe();
+            if (intervalTimer) clearInterval(intervalTimer);
+        };
+    }, [isHostDisconnected]);
 
     const broadcastState = (newState: GameState) => {
         const scoredState = calculateScores(newState);
@@ -2271,6 +2359,32 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                     </div>
                 );
             })}
+            {/* HOST DISCONNECTED OVERLAY */}
+            {isHostDisconnected && (
+                <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center text-[#f4e6cd]">
+                    <div className="bg-gradient-to-br from-[#f4e6cd] to-[#e4cdad] border-4 border-[#a37941] p-8 rounded-2xl shadow-2xl max-w-md w-full text-[#3b2a1a]">
+                        <div className="w-16 h-16 bg-amber-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-amber-600 animate-pulse">
+                            <WifiOff className="w-8 h-8 text-amber-700" />
+                        </div>
+                        <h2 className="text-2xl font-black uppercase tracking-wider mb-2 text-[#2c1d10]">Host Disconnected</h2>
+                        <p className="text-sm font-bold text-[#644d36] mb-6 leading-relaxed">
+                            The host of the room has disconnected. The game is paused while waiting for the host to reconnect to room code <span className="font-extrabold tracking-widest text-[#2c1d10] bg-[#e6d9b9] px-2 py-0.5 rounded border border-[#a37941]">{peerService.roomCode}</span>...
+                        </p>
+                        <div className="flex items-center justify-center gap-2 text-xs font-bold text-amber-900 bg-amber-200/80 p-3 rounded-lg border border-amber-400 mb-4">
+                            <div className="w-2.5 h-2.5 bg-amber-600 rounded-full animate-ping"></div>
+                            <span>Searching for Host connection...</span>
+                        </div>
+                        {onDisconnect && (
+                            <button
+                                onClick={() => { playDisconnect(); onDisconnect(); }}
+                                className="w-full py-3 bg-[#d15431] hover:bg-[#e05b36] text-[#fdf7e1] font-bold rounded-xl border-2 border-[#5e1e0c] shadow-lg transition-transform active:scale-95 uppercase text-sm tracking-wider cursor-pointer"
+                            >
+                                Leave and return to menu
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

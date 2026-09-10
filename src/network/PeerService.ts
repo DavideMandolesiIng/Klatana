@@ -1,5 +1,6 @@
 import Peer, { type DataConnection } from 'peerjs';
-import { registerRoomCode, getRoomInfo, setRoomStatus, removeRoom, cancelRoomAutoRemove, cleanupAllExpiredRooms } from './firebase';
+import { registerRoomCode, getRoomInfo, setRoomStatus, removeRoom, cancelRoomAutoRemove, cleanupAllExpiredRooms, updateHostPeerId } from './firebase';
+import { debugLogger } from './DebugLogger';
 
 export type NetworkRole = 'host' | 'client' | 'none';
 
@@ -126,6 +127,149 @@ export class PeerService {
   }
 
   /**
+   * Reconnects to an existing active room as Host.
+   */
+  public async reconnectAsHost(code: string, savedPeerId?: string): Promise<string> {
+    const codeUpper = code.toUpperCase();
+    debugLogger.log('HOST', `reconnectAsHost initiated for room ${codeUpper}`, { savedPeerId });
+    const roomInfo = await getRoomInfo(codeUpper);
+    if (!roomInfo) {
+      debugLogger.log('ERROR', `reconnectAsHost failed: room ${codeUpper} not in DB`);
+      throw new Error("Room not found in database");
+    }
+    if (roomInfo.status !== 'IN_PROGRESS') {
+      debugLogger.log('ERROR', `reconnectAsHost failed: room status is ${roomInfo.status}`);
+      throw new Error("Room is not in progress");
+    }
+
+    return new Promise((resolve, reject) => {
+      this.peer = savedPeerId ? new Peer(savedPeerId) : new Peer();
+
+      this.peer.on('open', async (id) => {
+        this.role = 'host';
+        this.peerId = id;
+        this.roomCode = codeUpper;
+        this.gameStatus = 'IN_PROGRESS';
+        localStorage.setItem('klatana_peer_id', id);
+        localStorage.setItem('klatana_room_code', codeUpper);
+
+        debugLogger.log('HOST', `Host peer opened successfully with ID ${id}, updating Firebase...`);
+        await updateHostPeerId(codeUpper, id);
+        resolve(codeUpper);
+      });
+
+      this.peer.on('connection', (conn) => {
+        debugLogger.log('HOST', `Incoming connection received on reconnected Host from ${conn.peer}`, conn.metadata);
+        this.handleNewConnection(conn);
+        conn.on('open', () => {
+          debugLogger.log('HOST', `Connection opened with client ${conn.peer}`);
+          if (this.onPlayerReconnectedCallback) {
+            this.onPlayerReconnectedCallback(conn.peer, conn.metadata);
+          }
+        });
+      });
+
+      this.peer.on('error', (err) => {
+        debugLogger.log('ERROR', `Host peer error during reconnect`, err);
+        reject(err);
+      });
+    });
+  }
+
+  /**
+   * Reconnects an existing client to a host's peer ID.
+   */
+  public async reconnectClientToHost(hostPeerId: string): Promise<boolean> {
+    if (!hostPeerId) return false;
+    debugLogger.log('CLIENT', `reconnectClientToHost initiated targeting host ${hostPeerId}`);
+
+    const existingConn = this.connections.get(hostPeerId);
+    if (existingConn && existingConn.open) {
+      debugLogger.log('CLIENT', `Already connected to host ${hostPeerId}`);
+      return true;
+    }
+
+    return new Promise((resolve, reject) => {
+      let isSettled = false;
+      const timeoutTimer = setTimeout(() => {
+        if (!isSettled) {
+          isSettled = true;
+          debugLogger.log('CLIENT', `Connection attempt to host ${hostPeerId} timed out after 2.5s`);
+          reject(new Error("Connection attempt timed out"));
+        }
+      }, 2500);
+
+      const doConnect = () => {
+        if (!this.peer || this.peer.destroyed) {
+          const savedPeerId = localStorage.getItem('klatana_peer_id') || undefined;
+          debugLogger.log('CLIENT', `Creating new Peer instance for client reconnect`, { savedPeerId });
+          this.peer = savedPeerId ? new Peer(savedPeerId) : new Peer();
+          this.peer.on('open', (id) => {
+            this.peerId = id;
+            this.role = 'client';
+            localStorage.setItem('klatana_peer_id', id);
+            debugLogger.log('CLIENT', `Client peer open with ID ${id}, connecting to host ${hostPeerId}`);
+            const conn = this.peer!.connect(hostPeerId, {
+              reliable: true,
+              metadata: { playerId: this.playerId, username: this.username }
+            });
+            conn.on('open', () => {
+              if (!isSettled) {
+                isSettled = true;
+                clearTimeout(timeoutTimer);
+                debugLogger.log('CLIENT', `DataConnection to host ${hostPeerId} OPEN!`);
+                this.handleNewConnection(conn);
+                resolve(true);
+              }
+            });
+            conn.on('error', (err) => {
+              if (!isSettled) {
+                isSettled = true;
+                clearTimeout(timeoutTimer);
+                debugLogger.log('ERROR', `Connection error to host ${hostPeerId}`, err);
+                reject(err);
+              }
+            });
+          });
+          this.peer.on('error', (err) => {
+            if (!isSettled) {
+              isSettled = true;
+              clearTimeout(timeoutTimer);
+              debugLogger.log('ERROR', `Client Peer error`, err);
+              reject(err);
+            }
+          });
+        } else {
+          debugLogger.log('CLIENT', `Using existing client Peer ${this.peerId} to connect to host ${hostPeerId}`);
+          const conn = this.peer.connect(hostPeerId, {
+            reliable: true,
+            metadata: { playerId: this.playerId, username: this.username }
+          });
+          conn.on('open', () => {
+            if (!isSettled) {
+              isSettled = true;
+              clearTimeout(timeoutTimer);
+              debugLogger.log('CLIENT', `DataConnection to host ${hostPeerId} OPEN!`);
+              this.handleNewConnection(conn);
+              resolve(true);
+            }
+          });
+          conn.on('error', (err) => {
+            if (!isSettled) {
+              isSettled = true;
+              clearTimeout(timeoutTimer);
+              debugLogger.log('ERROR', `Connection error to host ${hostPeerId}`, err);
+              reject(err);
+            }
+          });
+        }
+      };
+
+      doConnect();
+    });
+  }
+
+  /**
    * Initializes as Client and connects to a Room via code.
    */
   public async joinRoom(code: string, peerIdOverride?: string): Promise<boolean> {
@@ -170,22 +314,26 @@ export class PeerService {
   }
 
   private handleNewConnection(conn: DataConnection) {
+    debugLogger.log('PEER', `handleNewConnection added for peer ${conn.peer}`);
     this.connections.set(conn.peer, conn);
 
     conn.on('data', (data: any) => {
       if (data && data.type === 'CONNECTION_REJECTED') {
+        debugLogger.log('ERROR', `Connection rejected by remote peer: ${data.reason}`);
         if (this.onConnectionRejectedCallback) {
           this.onConnectionRejectedCallback(data.reason);
         }
         this.destroy();
         return;
       }
+      debugLogger.log('MESSAGE', `Data received from ${conn.peer} [type: ${data?.type}]`);
       if (this.onMessageCallback) {
         this.onMessageCallback(data, conn.peer);
       }
     });
 
     conn.on('close', () => {
+      debugLogger.log('PEER', `Connection CLOSED for peer ${conn.peer}`);
       this.connections.delete(conn.peer);
       if (this.onDisconnectCallback) {
         this.onDisconnectCallback(conn.peer);
@@ -223,15 +371,15 @@ export class PeerService {
     }
   }
 
-  public destroy(isIntentional: boolean = false) {
+  public destroy(_isIntentional: boolean = false) {
     // 1. Remove the beforeunload listener (we're doing explicit cleanup)
     if (this._beforeUnloadHandler) {
       window.removeEventListener('beforeunload', this._beforeUnloadHandler);
       this._beforeUnloadHandler = null;
     }
-    // 2. If we're the host, remove the room from Firebase.
-    //    We remove it if we are still in LOBBY, OR if the disconnect was intentional (user clicked exit).
-    if (this.role === 'host' && this.roomCode && (this.gameStatus === 'LOBBY' || isIntentional)) {
+    // 2. If we're the host, remove the room from Firebase ONLY if in LOBBY.
+    //    If game is IN_PROGRESS, room persists so host can reconnect.
+    if (this.role === 'host' && this.roomCode && this.gameStatus === 'LOBBY') {
       removeRoom(this.roomCode).catch(console.error);
     }
     // 3. Tear down PeerJS

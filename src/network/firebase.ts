@@ -40,6 +40,14 @@ export const setRoomStatus = async (roomCode: string, status: string): Promise<v
   await set(statusRef, status);
 };
 
+export const updateHostPeerId = async (roomCode: string, hostPeerId: string): Promise<void> => {
+  if (!roomCode) return;
+  const hostRef = ref(db, `rooms/${roomCode}/hostPeerId`);
+  await set(hostRef, hostPeerId);
+  const updatedRef = ref(db, `rooms/${roomCode}/lastHostActive`);
+  await set(updatedRef, Date.now());
+};
+
 export const getRoomInfo = async (roomCode: string): Promise<{ hostPeerId: string, status: string, createdAt: number } | null> => {
   const roomRef = ref(db, `rooms/${roomCode}`);
   const snapshot = await get(roomRef);
@@ -103,4 +111,4 @@ export const cleanupAllExpiredRooms = async (): Promise<void> => {
   }
 };
 
-export { onValue, off, ref };
+export { onValue, off, ref, get };
