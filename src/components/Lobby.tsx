@@ -129,6 +129,8 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onDisconnect: () 
       else if (data.type === 'startGame') {
         playStart();
         peerService.gameStatus = 'IN_PROGRESS';
+        // Use the canonical initial state sent by the host to ensure identical
+        // player order (which is randomised on the host side) on all clients.
         onStartGame(data.map, data.players, data.settings, data.state);
       }
       else if (data.type === 'RESUME_GAME') {
@@ -235,6 +237,9 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onDisconnect: () 
       } catch (err) {
         console.warn("Failed to set room status to IN_PROGRESS in Firebase. Continuing P2P...", err);
       }
+      // Create the authoritative initial state once on the host.
+      // It is broadcast to clients AND passed to the host's own GameScreen
+      // so that the randomised player order is identical everywhere.
       const initialGameState = createInitialGameState(players, newMap, normalized);
       peerService.broadcast({ type: 'startGame', map: newMap, players, settings: normalized, state: initialGameState });
       onStartGame(newMap, players, normalized, initialGameState);

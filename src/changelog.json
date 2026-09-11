@@ -1,11 +1,12 @@
 [
   {
-    "version": "v1.2.11",
+    "version": "v1.2.2",
     "date": "11/09/2026",
     "title": "Networking improvements",
     "changes": [
-      "Reconnection logic improvements.",
-      "If the host loses connection, it now has a way to reconnect and continue the game."
+      "General disconnection/reconnection logic improvements.",
+      "If the host loses connection, it now has a way to reconnect and continue the game.",
+      "Host disconnection is only final during setup phase."
     ]
   },
   {

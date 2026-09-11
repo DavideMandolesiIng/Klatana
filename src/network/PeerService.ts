@@ -13,6 +13,7 @@ export class PeerService {
   public role: NetworkRole = 'none';
   public roomCode: string = '';
   public gameStatus: 'LOBBY' | 'IN_PROGRESS' = 'LOBBY';
+  public isMainGameStarted: boolean = false;
   public knownPlayers: Set<string> = new Set();
   public playerId: string = '';
   public username: string = '';
@@ -52,12 +53,17 @@ export class PeerService {
   public async setGameStarted() {
     if (this.role === 'host') {
       this.gameStatus = 'IN_PROGRESS';
+      this.isMainGameStarted = false;
       // Snapshot all currently connected peers as valid players
       this.connections.forEach((_v, k) => this.knownPlayers.add(k));
       await setRoomStatus(this.roomCode, 'IN_PROGRESS');
-      // Game is running: cancel auto-cleanup on disconnect (players may need to reconnect)
+    }
+  }
+
+  public async setMainGameStarted() {
+    if (this.role === 'host') {
+      this.isMainGameStarted = true;
       await cancelRoomAutoRemove(this.roomCode);
-      // Also remove the beforeunload handler — room should persist for reconnection
       if (this._beforeUnloadHandler) {
         window.removeEventListener('beforeunload', this._beforeUnloadHandler);
         this._beforeUnloadHandler = null;
@@ -377,9 +383,9 @@ export class PeerService {
       window.removeEventListener('beforeunload', this._beforeUnloadHandler);
       this._beforeUnloadHandler = null;
     }
-    // 2. If we're the host, remove the room from Firebase ONLY if in LOBBY.
-    //    If game is IN_PROGRESS, room persists so host can reconnect.
-    if (this.role === 'host' && this.roomCode && this.gameStatus === 'LOBBY') {
+    // 2. If we're the host, remove the room from Firebase ONLY if in LOBBY or before MAIN_GAME starts.
+    //    If MAIN_GAME is running, room persists so host can reconnect.
+    if (this.role === 'host' && this.roomCode && (!this.isMainGameStarted || this.gameStatus === 'LOBBY')) {
       removeRoom(this.roomCode).catch(console.error);
     }
     // 3. Tear down PeerJS
@@ -390,6 +396,7 @@ export class PeerService {
     this.connections.clear();
     this.role = 'none';
     this.roomCode = '';
+    this.isMainGameStarted = false;
   }
 }
 

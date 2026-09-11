@@ -50,14 +50,14 @@ async function inspectRoom() {
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
   const roomRef = ref(db, `rooms/${roomCode}`);
-  
+
   console.log(`Fetching info for room ${roomCode}...`);
   const snapshot = await get(roomRef);
 
   if (!snapshot.exists()) {
-    console.log(`❌ Room ${roomCode} DOES NOT EXIST in database.`);
+    console.log(`X Room ${roomCode} DOES NOT EXIST in database.`);
   } else {
-    console.log(`✅ Room ${roomCode} details:`);
+    console.log(`V Room ${roomCode} details:`);
     console.log(JSON.stringify(snapshot.val(), null, 2));
   }
   process.exit(0);

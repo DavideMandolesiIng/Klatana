@@ -68,8 +68,18 @@ export const RESOURCE_GRADIENTS: Record<string, { center: string, edge: string }
 export type AnimationEvent = 'TRADE' | 'BUILD' | 'YIELD';
 export type ResourceDiff = { res: string; diff: number };
 
-export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData[], settings: GameSettings, initialGameState?: GameState, onReturnToLobby?: () => void, onDisconnect?: () => void }> = ({ map, initialPlayers, settings, initialGameState, onReturnToLobby, onDisconnect }) => {
-    const [gameState, setGameState] = useState<GameState>(() => initialGameState || createInitialGameState(initialPlayers, map, settings));
+export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData[], settings: GameSettings, initialGameState?: GameState, isHostReconnection?: boolean, onReturnToLobby?: () => void, onDisconnect?: () => void }> = ({ map, initialPlayers, settings, initialGameState, isHostReconnection, onReturnToLobby, onDisconnect }) => {
+    const [gameState, setGameState] = useState<GameState>(() => {
+        const state = initialGameState || createInitialGameState(initialPlayers, map, settings);
+        if (isHostReconnection && peerService.role === 'host') {
+            return { ...state, isPaused: true };
+        }
+        return state;
+    });
+    const [showHostResumeModal, setShowHostResumeModal] = useState<boolean>(!!isHostReconnection && peerService.role === 'host');
+    const showHostResumeModalRef = useRef(showHostResumeModal);
+    useEffect(() => { showHostResumeModalRef.current = showHostResumeModal; }, [showHostResumeModal]);
+    const [connectedPeerIds, setConnectedPeerIds] = useState<string[]>(() => peerService.getConnectedPeers());
     const [buildMode, setBuildMode] = useState<'NONE' | 'HOUSE' | 'STREET' | 'FORTRESS'>('NONE');
     const [discardSelection, setDiscardSelection] = useState<Partial<Record<string, number>>>({});
     const [abundancePicks, setAbundancePicks] = useState<string[]>([]);
@@ -263,22 +273,29 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
 
             peerService.onPlayerReconnected((peerId, metadata) => {
                 debugLogger.log('HOST', `onPlayerReconnected triggered on Host for peer ${peerId}`, metadata);
+                setConnectedPeerIds(peerService.getConnectedPeers());
                 setGameState(prev => {
                     const incomingPlayerId = metadata?.playerId;
                     const pIndex = incomingPlayerId
-                        ? prev.players.findIndex(x => x.playerId === incomingPlayerId)
-                        : prev.players.findIndex(x => x.peerId === peerId);
+                        ? prev.players.findIndex(x => x.playerId && x.playerId === incomingPlayerId)
+                        : prev.players.findIndex(x => x.peerId === peerId || (metadata?.username && x.username === metadata.username));
 
                     if (pIndex !== -1) {
+                        const targetPlayer = prev.players[pIndex];
+                        const oldPeerId = targetPlayer.peerId;
+                        const targetPlayerId = targetPlayer.playerId;
+
                         const newPlayers = [...prev.players];
-                        newPlayers[pIndex] = { ...newPlayers[pIndex], peerId };
-                        const targetPlayerId = newPlayers[pIndex].playerId;
-                        const newDisconnected = prev.disconnectedPlayers.filter(id => id !== targetPlayerId && id !== peerId);
+                        newPlayers[pIndex] = { ...newPlayers[pIndex], peerId, isInert: false };
+
+                        const newDisconnected = prev.disconnectedPlayers.filter(id => 
+                            id !== targetPlayerId && id !== oldPeerId && id !== peerId
+                        );
                         const newState = {
                             ...prev,
                             players: newPlayers,
                             disconnectedPlayers: newDisconnected,
-                            isPaused: newDisconnected.length > 0,
+                            isPaused: showHostResumeModalRef.current ? true : newDisconnected.length > 0,
                             logs: [...prev.logs, `${newPlayers[pIndex].username} reconnected!`]
                         };
                         debugLogger.log('HOST', `Player ${newPlayers[pIndex].username} accepted! Unpausing game state and broadcasting...`);
@@ -301,13 +318,14 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
         }
     }, []);
 
-    // Save host state to localStorage whenever gameState changes
+    // Save host state to localStorage ONLY when game enters MAIN_GAME phase
     useEffect(() => {
         if (peerService.role === 'host' && peerService.roomCode) {
-            if (gameState.gamePhase === 'GAME_OVER') {
-                localStorage.removeItem(`klatana_saved_game_${peerService.roomCode}`);
-            } else {
+            if (gameState.gamePhase === 'MAIN_GAME') {
+                peerService.setMainGameStarted();
                 localStorage.setItem(`klatana_saved_game_${peerService.roomCode}`, JSON.stringify({ state: gameState, map }));
+            } else {
+                localStorage.removeItem(`klatana_saved_game_${peerService.roomCode}`);
             }
         }
     }, [gameState, map]);
@@ -368,6 +386,76 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             if (intervalTimer) clearInterval(intervalTimer);
         };
     }, [isHostDisconnected]);
+
+    useEffect(() => {
+        if (!showHostResumeModal) return;
+        const updatePeers = () => {
+            setConnectedPeerIds(peerService.getConnectedPeers());
+        };
+        updatePeers();
+        const timer = setInterval(updatePeers, 1000);
+        return () => clearInterval(timer);
+    }, [showHostResumeModal]);
+
+    const handleHostResumeGame = () => {
+        const currentConnected = peerService.getConnectedPeers();
+        const missingPlayers: string[] = [];
+
+        const updatedPlayers = gameState.players.map(p => {
+            if (p.peerId === peerService.peerId || p.isInert) {
+                return p;
+            }
+            if (currentConnected.includes(p.peerId)) {
+                return p;
+            }
+            missingPlayers.push(p.username);
+            return { ...p, isInert: true };
+        });
+
+        const newDisconnectedPlayers = [...gameState.disconnectedPlayers];
+        gameState.players.forEach(p => {
+            if (p.peerId !== peerService.peerId && !currentConnected.includes(p.peerId)) {
+                const targetId = p.playerId || p.peerId;
+                if (!newDisconnectedPlayers.includes(targetId)) {
+                    newDisconnectedPlayers.push(targetId);
+                }
+            }
+        });
+
+        let newLogs = [...gameState.logs];
+        if (missingPlayers.length > 0) {
+            newLogs.push(`${missingPlayers.join(', ')} did not reconnect and were marked disconnected.`);
+        } else {
+            newLogs.push(`Host resumed the game.`);
+        }
+
+        let nextTurnIndex = gameState.currentTurnIndex;
+        let turnPassed = false;
+        let loops = 0;
+        while (updatedPlayers[nextTurnIndex].isInert && loops < updatedPlayers.length) {
+            nextTurnIndex = (nextTurnIndex + 1) % updatedPlayers.length;
+            loops++;
+            turnPassed = true;
+        }
+
+        if (turnPassed) {
+            newLogs.push(`It is now ${updatedPlayers[nextTurnIndex].username}'s turn.`);
+        }
+
+        const newState: GameState = {
+            ...gameState,
+            players: updatedPlayers,
+            disconnectedPlayers: newDisconnectedPlayers,
+            isPaused: false,
+            currentTurnIndex: nextTurnIndex,
+            phase: turnPassed ? 'ROLL' : gameState.phase,
+            diceRoll: turnPassed ? null : gameState.diceRoll,
+            logs: newLogs
+        };
+
+        setShowHostResumeModal(false);
+        broadcastState(newState);
+    };
 
     const broadcastState = (newState: GameState) => {
         const scoredState = calculateScores(newState);
@@ -2363,25 +2451,117 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             {isHostDisconnected && (
                 <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center text-[#f4e6cd]">
                     <div className="bg-gradient-to-br from-[#f4e6cd] to-[#e4cdad] border-4 border-[#a37941] p-8 rounded-2xl shadow-2xl max-w-md w-full text-[#3b2a1a]">
-                        <div className="w-16 h-16 bg-amber-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-amber-600 animate-pulse">
-                            <WifiOff className="w-8 h-8 text-amber-700" />
-                        </div>
-                        <h2 className="text-2xl font-black uppercase tracking-wider mb-2 text-[#2c1d10]">Host Disconnected</h2>
-                        <p className="text-sm font-bold text-[#644d36] mb-6 leading-relaxed">
-                            The host of the room has disconnected. The game is paused while waiting for the host to reconnect to room code <span className="font-extrabold tracking-widest text-[#2c1d10] bg-[#e6d9b9] px-2 py-0.5 rounded border border-[#a37941]">{peerService.roomCode}</span>...
-                        </p>
-                        <div className="flex items-center justify-center gap-2 text-xs font-bold text-amber-900 bg-amber-200/80 p-3 rounded-lg border border-amber-400 mb-4">
-                            <div className="w-2.5 h-2.5 bg-amber-600 rounded-full animate-ping"></div>
-                            <span>Searching for Host connection...</span>
-                        </div>
-                        {onDisconnect && (
-                            <button
-                                onClick={() => { playDisconnect(); onDisconnect(); }}
-                                className="w-full py-3 bg-[#d15431] hover:bg-[#e05b36] text-[#fdf7e1] font-bold rounded-xl border-2 border-[#5e1e0c] shadow-lg transition-transform active:scale-95 uppercase text-sm tracking-wider cursor-pointer"
-                            >
-                                Leave and return to menu
-                            </button>
+                        {gameState.gamePhase === 'SETUP_1' || gameState.gamePhase === 'SETUP_2' ? (
+                            <>
+                                <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-red-600">
+                                    <WifiOff className="w-8 h-8 text-red-700" />
+                                </div>
+                                <h2 className="text-2xl font-black uppercase tracking-wider mb-2 text-[#2c1d10]">Match Closed</h2>
+                                <p className="text-sm font-bold text-[#644d36] mb-6 leading-relaxed">
+                                    The host disconnected during the initial setup phase. The match has been closed. Please leave and return to the main menu.
+                                </p>
+                                {onDisconnect && (
+                                    <button
+                                        onClick={() => { playDisconnect(); onDisconnect(); }}
+                                        className="w-full py-3 bg-[#d15431] hover:bg-[#e05b36] text-[#fdf7e1] font-bold rounded-xl border-2 border-[#5e1e0c] shadow-lg transition-transform active:scale-95 uppercase text-sm tracking-wider cursor-pointer"
+                                    >
+                                        Return to menu
+                                    </button>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                <div className="w-16 h-16 bg-amber-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-amber-600 animate-pulse">
+                                    <WifiOff className="w-8 h-8 text-amber-700" />
+                                </div>
+                                <h2 className="text-2xl font-black uppercase tracking-wider mb-2 text-[#2c1d10]">Host Disconnected</h2>
+                                <p className="text-sm font-bold text-[#644d36] mb-6 leading-relaxed">
+                                    The host of the room has disconnected. The game is paused while waiting for the host to reconnect to room code <span className="font-extrabold tracking-widest text-[#2c1d10] bg-[#e6d9b9] px-2 py-0.5 rounded border border-[#a37941]">{peerService.roomCode}</span>...
+                                </p>
+                                <div className="flex items-center justify-center gap-2 text-xs font-bold text-amber-900 bg-amber-200/80 p-3 rounded-lg border border-amber-400 mb-4">
+                                    <div className="w-2.5 h-2.5 bg-amber-600 rounded-full animate-ping"></div>
+                                    <span>Searching for Host connection...</span>
+                                </div>
+                                {onDisconnect && (
+                                    <button
+                                        onClick={() => { playDisconnect(); onDisconnect(); }}
+                                        className="w-full py-3 bg-[#d15431] hover:bg-[#e05b36] text-[#fdf7e1] font-bold rounded-xl border-2 border-[#5e1e0c] shadow-lg transition-transform active:scale-95 uppercase text-sm tracking-wider cursor-pointer"
+                                    >
+                                        Leave and return to menu
+                                    </button>
+                                )}
+                            </>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* HOST RECONNECTION RESUME MODAL */}
+            {showHostResumeModal && peerService.role === 'host' && (
+                <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center text-[#f4e6cd]">
+                    <div className="bg-gradient-to-br from-[#f4e6cd] to-[#e4cdad] border-4 border-[#a37941] p-6 md:p-8 rounded-2xl shadow-2xl max-w-lg w-full text-[#3b2a1a]">
+                        <div className="w-14 h-14 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-3 border-2 border-emerald-600">
+                            <span className="text-2xl">🎮</span>
+                        </div>
+                        <h2 className="text-xl md:text-2xl font-black uppercase tracking-wider mb-2 text-[#2c1d10]">
+                            Match Reconnected
+                        </h2>
+                        <p className="text-xs md:text-sm font-medium text-[#644d36] mb-4 leading-relaxed">
+                            You reconnected to room <span className="font-extrabold tracking-widest text-[#2c1d10] bg-[#e6d9b9] px-2 py-0.5 rounded border border-[#a37941]">{peerService.roomCode}</span>. Below is the current status of all players:
+                        </p>
+
+                        {/* Players Status List */}
+                        <div className="bg-[#ebd8b7]/80 rounded-xl border-2 border-[#d3be9a] p-3 mb-6 space-y-2 text-left max-h-56 overflow-y-auto">
+                            {gameState.players.map(p => {
+                                const isHostPlayer = p.peerId === peerService.peerId;
+                                const isConnected = isHostPlayer || connectedPeerIds.includes(p.peerId);
+                                const isInert = p.isInert;
+
+                                return (
+                                    <div key={p.peerId} className="flex items-center justify-between p-2 rounded-lg bg-[#f4e6cd] border border-[#d3be9a]">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: PLAYER_COLORS[p.color as keyof typeof PLAYER_COLORS]?.hex || '#888' }}></div>
+                                            <span className="font-bold text-xs md:text-sm text-[#2c1d10]">
+                                                {p.username}
+                                                {isHostPlayer && <span className="text-xs font-semibold text-[#7d6549] ml-1">(Host / You)</span>}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            {isHostPlayer ? (
+                                                <span className="text-[10px] md:text-xs font-black uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-300">
+                                                    Host
+                                                </span>
+                                            ) : isInert ? (
+                                                <span className="text-[10px] md:text-xs font-black uppercase px-2 py-0.5 rounded-full bg-gray-200 text-gray-700 border border-gray-400">
+                                                    Disconnected
+                                                </span>
+                                            ) : isConnected ? (
+                                                <span className="text-[10px] md:text-xs font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-400 flex items-center gap-1">
+                                                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                    Connected
+                                                </span>
+                                            ) : (
+                                                <span className="text-[10px] md:text-xs font-black uppercase px-2 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-400 flex items-center gap-1">
+                                                    <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                                                    Missing
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <p className="text-[11px] font-semibold text-[#7d6549] mb-4">
+                            Clicking <strong>Resume Game</strong> will start the match. Any missing players will be treated as disconnected and skipped.
+                        </p>
+
+                        <button
+                            onClick={handleHostResumeGame}
+                            className="w-full py-3 bg-[#2f8a43] hover:bg-[#379e4d] text-white font-black rounded-xl border-2 border-[#1e582b] shadow-lg transition-transform active:scale-95 uppercase text-sm tracking-wider cursor-pointer flex items-center justify-center gap-2"
+                        >
+                            <span>Resume Game</span>
+                        </button>
                     </div>
                 </div>
             )}

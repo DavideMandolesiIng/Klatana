@@ -30,6 +30,7 @@ function App() {
       safeNinja: false
   });
   const [resumeGameState, setResumeGameState] = useState<GameState | null>(null);
+  const [isHostReconnection, setIsHostReconnection] = useState(false);
 
   useEffect(() => {
     peerService.onConnectionRejected((reason) => {
@@ -94,6 +95,7 @@ function App() {
             setGamePlayers(players);
             setGameSettings(settings);
             setResumeGameState(state);
+            setIsHostReconnection(true);
             setGameState('playing');
           }}
         />
@@ -111,10 +113,12 @@ function App() {
               setGamePlayers(players); 
               setGameSettings(settings); 
               setResumeGameState(resumingState || null);
+              // Never a host reconnection when starting from the lobby
+              setIsHostReconnection(false);
               setGameState('playing'); 
           }} 
       />}
-      {gameState === 'playing' && gameMap && <GameScreen map={gameMap} initialPlayers={gamePlayers} settings={gameSettings!} initialGameState={resumeGameState || undefined} onReturnToLobby={() => setGameState('lobby')} onDisconnect={() => { peerService.destroy(true); setGameState('menu'); }} />}
+      {gameState === 'playing' && gameMap && <GameScreen map={gameMap} initialPlayers={gamePlayers} settings={gameSettings!} initialGameState={resumeGameState || undefined} isHostReconnection={isHostReconnection} onReturnToLobby={() => setGameState('lobby')} onDisconnect={() => { peerService.destroy(true); setGameState('menu'); }} />}
       <NetworkDebugWidget />
     </div>
   );

@@ -62,8 +62,10 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby, onPrivacyPolicy
         const { getRoomInfo } = await import('../network/firebase');
         const roomInfo = await getRoomInfo(savedRoomCode);
 
-        if (roomInfo && roomInfo.status === 'IN_PROGRESS' && savedData.state && savedData.map) {
+        if (roomInfo && roomInfo.status === 'IN_PROGRESS' && savedData.state && savedData.map && savedData.state.gamePhase === 'MAIN_GAME') {
           setActiveHostRoom({ roomCode: savedRoomCode, savedState: savedData.state, map: savedData.map });
+        } else {
+          localStorage.removeItem(`klatana_saved_game_${savedRoomCode}`);
         }
       } catch (e) {
         console.warn("Could not check active room:", e);
