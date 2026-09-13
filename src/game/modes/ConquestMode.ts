@@ -22,14 +22,14 @@ export const ConquestMode: GameModeDefinition = {
     },
 
     getTradeRates: (_gameState, _map, _peerId, baseRates) => {
-        // Gold Nuggets can always be traded 1:1 with the bank
+        // Nuggets can always be traded 1:1 with the bank
         return {
             ...baseRates,
             NUGGETS: 1
         };
     },
 
-    // Gold Nuggets are protected from Market Control and Abundance cards
+    // Nuggets are protected from Market Control and Abundance cards
     canSelectInActionCard: (_cardType, res) => res !== 'NUGGETS' && res !== 'DESERT'
 };
 

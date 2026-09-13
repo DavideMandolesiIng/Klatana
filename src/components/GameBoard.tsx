@@ -10,10 +10,10 @@ import lighthouseIcon from '/assets/icons/lighthouse_icon.webp?url';
 
 import oreTexture from '/assets/textures/ore-texture.webp?url';
 import clayTexture from '/assets/textures/clay-texture.webp?url';
-import woodTexture from '/assets/textures/wood-texture-1.webp?url';
+import oakTexture from '/assets/textures/oak-texture-1.webp?url';
 import woolTexture from '/assets/textures/wool-texture.webp?url';
-import wheatTexture from '/assets/textures/wheat-texture-1.webp?url';
-import goldTexture from '/assets/textures/gold-texture.webp?url';
+import cerealsTexture from '/assets/textures/cereals-texture-1.webp?url';
+import nuggetsTexture from '/assets/textures/nuggets-texture.webp?url';
 
 import oakIcon from '/assets/icons/resources/oak_icon.webp?url';
 import clayIcon from '/assets/icons/resources/clay_icon.webp?url';
@@ -73,12 +73,12 @@ const RESOURCE_ICONS: Record<string, string> = {
 };
 
 const RESOURCE_TEXTURES: Record<string, { src: string, opacity: number }> = {
-  OAK: { src: woodTexture, opacity: 0.5 },
+  OAK: { src: oakTexture, opacity: 0.5 },
   CLAY: { src: clayTexture, opacity: 0.5 },
-  CEREALS: { src: wheatTexture, opacity: 0.5 },
+  CEREALS: { src: cerealsTexture, opacity: 0.5 },
   WOOL: { src: woolTexture, opacity: 0.5 },
   ORE: { src: oreTexture, opacity: 0.5 },
-  NUGGETS: { src: goldTexture, opacity: 0.5 },
+  NUGGETS: { src: nuggetsTexture, opacity: 0.5 },
 };
 
 

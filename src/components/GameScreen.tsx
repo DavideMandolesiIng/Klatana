@@ -25,19 +25,19 @@ import { debugLogger } from '../network/DebugLogger';
 import tableBg from '/assets/textures/table-background.webp?url';
 import wavesBackground from '/assets/textures/waves-background.webp?url';
 import clayTexture from '/assets/textures/clay-texture.webp?url';
-import woodTexture from '/assets/textures/wood-texture-1.webp?url';
+import oakTexture from '/assets/textures/oak-texture-1.webp?url';
 import woolTexture from '/assets/textures/wool-texture.webp?url';
-import wheatTexture from '/assets/textures/wheat-texture-1.webp?url';
+import cerealsTexture from '/assets/textures/cereals-texture-1.webp?url';
 import oreTexture from '/assets/textures/ore-texture.webp?url';
-import goldTexture from '/assets/textures/gold-texture.webp?url';
+import nuggetsTexture from '/assets/textures/nuggets-texture.webp?url';
 
 export const RESOURCE_TEXTURES: Record<string, string> = {
-    OAK: woodTexture,
+    OAK: oakTexture,
     CLAY: clayTexture,
-    CEREALS: wheatTexture,
+    CEREALS: cerealsTexture,
     WOOL: woolTexture,
     ORE: oreTexture,
-    NUGGETS: goldTexture
+    NUGGETS: nuggetsTexture
 };
 
 import oakIcon from '/assets/icons/resources/oak_icon.webp?url';
@@ -288,7 +288,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                         const newPlayers = [...prev.players];
                         newPlayers[pIndex] = { ...newPlayers[pIndex], peerId, isInert: false };
 
-                        const newDisconnected = prev.disconnectedPlayers.filter(id => 
+                        const newDisconnected = prev.disconnectedPlayers.filter(id =>
                             id !== targetPlayerId && id !== oldPeerId && id !== peerId
                         );
                         const newState = {
@@ -1361,7 +1361,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             return;
         }
 
-        setPendingBuild({ type: 'HOUSE', id: nodeId, costText: isSetupPhase ? 'Free' : '1 Wood, 1 Clay, 1 Wool, 1 Cereal' });
+        setPendingBuild({ type: 'HOUSE', id: nodeId, costText: isSetupPhase ? 'Free' : '1 Oak, 1 Clay, 1 Wool, 1 Cereal' });
     };
 
     const handleEdgeClick = (edgeId: string) => {
@@ -1373,7 +1373,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             return;
         }
 
-        const costText = (isSetupPhase || gameState.gamePhase === 'FREE_STREET_BUILDING') ? 'Free' : '1 Wood, 1 Clay';
+        const costText = (isSetupPhase || gameState.gamePhase === 'FREE_STREET_BUILDING') ? 'Free' : '1 Oak, 1 Clay';
         setPendingBuild({ type: 'STREET', id: edgeId, costText });
     };
 
