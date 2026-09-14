@@ -5,7 +5,7 @@ export const ConquestMode: GameModeDefinition = {
     id: 'conquest',
     name: 'Conquest',
     description: 'Rush to the center: starting houses can only be placed on the outer ring. Mine the central Gold Nuggets hex and trade Nuggets 1:1 with the bank.',
-    supportedMapTypes: ['standard'],
+    supportedMapTypes: ['standard', 'xl'],
     activeResources: ['OAK', 'CLAY', 'CEREALS', 'WOOL', 'ORE', 'NUGGETS'],
 
     validateHousePlacement: (gameState, nodeId, _peerId, map) => {

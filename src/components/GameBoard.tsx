@@ -226,7 +226,12 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
           const isCurrentNinjaHex = gameState?.ninjaHexCoords && hex.coords.q === gameState.ninjaHexCoords.q && hex.coords.r === gameState.ninjaHexCoords.r;
           const isRolled7 = gameState?.diceRoll?.total === 7;
-          const isRolledThisHex = gameState?.diceRoll && gameState.diceRoll.total === hex.number;
+
+          // In Conquest mode, NUGGETS hexes are undiscovered until at least one house is placed on an adjacent node
+          const isConquestNuggets = gameState?.settings?.gameMode === 'conquest' && hex.resource === 'NUGGETS';
+          const isDiscovered = !isConquestNuggets || (HexMath.getHexNodeIds(hex.coords).some(nId => !!gameState?.houses[nId]));
+
+          const isRolledThisHex = gameState?.diceRoll && gameState.diceRoll.total === hex.number && isDiscovered;
           const isHexClickable = gameState?.gamePhase === 'NINJA_MOVE' && !isCurrentNinjaHex && isMyTurn;
 
           let highlightStroke = isHexClickable ? '#fbbf24' : '#0f172a';
@@ -291,17 +296,27 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               {/* Draw the Number Token if it's not a desert */}
               {hex.number && (
                 <g>
-                  <circle cx={center.x} cy={center.y + 15} r="16" fill="#f8fafc" stroke="#94a3b8" strokeWidth="1" />
+                  <circle
+                    cx={center.x}
+                    cy={center.y + 15}
+                    r="16"
+                    fill={isDiscovered ? '#f8fafc' : '#1e293b'}
+                    stroke={isDiscovered ? '#94a3b8' : '#f59e0b'}
+                    strokeWidth={isDiscovered ? '1' : '2'}
+                  />
                   <text
                     x={center.x}
                     y={center.y + 15}
                     textAnchor="middle"
                     dy=".35em"
-                    fontSize="16"
+                    fontSize={isDiscovered ? '16' : '18'}
                     fontWeight="bold"
-                    fill={(hex.number === 6 || hex.number === 8) ? '#dc2626' : '#0f172a'}
+                    fill={isDiscovered
+                      ? ((hex.number === 6 || hex.number === 8) ? '#dc2626' : '#0f172a')
+                      : '#f59e0b'
+                    }
                   >
-                    {hex.number}
+                    {isDiscovered ? hex.number : '?'}
                   </text>
                 </g>
               )}

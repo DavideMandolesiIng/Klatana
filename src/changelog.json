@@ -1,5 +1,14 @@
 [
   {
+    "version": "v1.2.3",
+    "date": "14/09/2026",
+    "title": "Conquest XL Map",
+    "changes": [
+      "New XL Map dedicated to Conquest mode (29 hexes).",
+      "General improvements to Conquest mode"
+    ]
+  },
+  {
     "version": "v1.2.2",
     "date": "11/09/2026",
     "title": "Networking improvements",

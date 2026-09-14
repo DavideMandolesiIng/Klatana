@@ -468,7 +468,7 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onDisconnect: () 
                           <option value="standard">Standard (19 Hexes)</option>
                         )}
                         {getGameMode(settings.gameMode)?.supportedMapTypes.includes('xl') && (
-                          <option value="xl">XL Map (37 Hexes)</option>
+                          <option value="xl">XL Map ({settings.gameMode === 'conquest' ? '29' : '37'} Hexes)</option>
                         )}
                       </select>
                     </div>
