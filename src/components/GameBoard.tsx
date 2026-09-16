@@ -82,9 +82,9 @@ const RESOURCE_TEXTURES: Record<string, { src: string, opacity: number }> = {
 };
 
 
-const PORT_OUTWARD_OFFSET = 25;
-const PORT_IMAGE_WIDTH = 50;
-const PORT_IMAGE_HEIGHT = 50;
+const LIGHTHOUSE_OUTWARD_OFFSET = 75;
+const LIGHTHOUSE_IMAGE_WIDTH = 50;
+const LIGHTHOUSE_IMAGE_HEIGHT = 50;
 
 export const GameBoard: React.FC<GameBoardProps> = ({
   template,
@@ -135,13 +135,13 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       const dx = midX - center.x;
       const dy = midY - center.y;
       const outwardAngle = Math.atan2(dy, dx);
-      const portX = midX + Math.cos(outwardAngle) * PORT_OUTWARD_OFFSET;
-      const portY = midY + Math.sin(outwardAngle) * PORT_OUTWARD_OFFSET;
+      const portX = midX + Math.cos(outwardAngle) * LIGHTHOUSE_OUTWARD_OFFSET;
+      const portY = midY + Math.sin(outwardAngle) * LIGHTHOUSE_OUTWARD_OFFSET;
 
-      minX = Math.min(minX, portX - (PORT_IMAGE_WIDTH / 2) - 30);
-      maxX = Math.max(maxX, portX + (PORT_IMAGE_WIDTH / 2) + 30);
-      minY = Math.min(minY, portY - (PORT_IMAGE_HEIGHT / 2) - 30);
-      maxY = Math.max(maxY, portY + (PORT_IMAGE_HEIGHT / 2) + 35);
+      minX = Math.min(minX, portX - (LIGHTHOUSE_IMAGE_WIDTH / 2) - 30);
+      maxX = Math.max(maxX, portX + (LIGHTHOUSE_IMAGE_WIDTH / 2) + 30);
+      minY = Math.min(minY, portY - (LIGHTHOUSE_IMAGE_HEIGHT / 2) - 35);
+      maxY = Math.max(maxY, portY + (LIGHTHOUSE_IMAGE_HEIGHT / 2) + 45);
     });
 
     const halfWidth = Math.max(Math.abs(minX), Math.abs(maxX));
@@ -357,8 +357,8 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           const outwardAngle = Math.atan2(dy, dx);
 
           // Port visualization coordinate (offset outward into the ocean)
-          const portX = midX + Math.cos(outwardAngle) * PORT_OUTWARD_OFFSET;
-          const portY = midY + Math.sin(outwardAngle) * PORT_OUTWARD_OFFSET;
+          const portX = midX + Math.cos(outwardAngle) * LIGHTHOUSE_OUTWARD_OFFSET;
+          const portY = midY + Math.sin(outwardAngle) * LIGHTHOUSE_OUTWARD_OFFSET;
 
           // Port UI
           return (
@@ -369,28 +369,51 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 y1={p1.y}
                 x2={p2.x}
                 y2={p2.y}
-                stroke="#451a03"
-                strokeWidth="8"
+                stroke="#5c2e0b"
+                strokeWidth="4"
                 strokeLinecap="round"
-                strokeDasharray="8,16"
                 style={{ filter: 'drop-shadow(0px 0px 4px rgba(212, 175, 55, 0.5))' }}
               />
 
+              {/* Wooden Piers connecting coastal nodes to the lighthouse */}
+              <line
+                x1={p1.x}
+                y1={p1.y}
+                x2={portX}
+                y2={portY}
+                stroke="#5c2e0b"
+                strokeWidth="4"
+                strokeLinecap="round"
+                strokeDasharray="4 8"
+                style={{ filter: 'drop-shadow(0px 1px 2px rgba(0,0,0,0.4))' }}
+              />
+              <line
+                x1={p2.x}
+                y1={p2.y}
+                x2={portX}
+                y2={portY}
+                stroke="#5c2e0b"
+                strokeWidth="4"
+                strokeLinecap="round"
+                strokeDasharray="4 8"
+                style={{ filter: 'drop-shadow(0px 1px 2px rgba(0,0,0,0.4))' }}
+              />
+
+              {/* Unified Lighthouse + Wooden Sign Group */}
               <g transform={`translate(${portX}, ${portY})`}>
                 <g transform="translate(0, -7.5)">
                   {/* Lighthouse Image */}
                   <image
                     href={lighthouseIcon}
-                    x={-(PORT_IMAGE_WIDTH / 2)}
-                    y={-(PORT_IMAGE_HEIGHT / 2)}
-                    width={PORT_IMAGE_WIDTH}
-                    height={PORT_IMAGE_HEIGHT}
+                    x={-(LIGHTHOUSE_IMAGE_WIDTH / 2)}
+                    y={-(LIGHTHOUSE_IMAGE_HEIGHT / 2)}
+                    width={LIGHTHOUSE_IMAGE_WIDTH}
+                    height={LIGHTHOUSE_IMAGE_HEIGHT}
                     preserveAspectRatio="xMidYMid slice"
-                    style={{ clipPath: 'circle(50%)' }}
                   />
 
-                  {/* Wooden Sign Overlay */}
-                  <g transform={`translate(0, ${PORT_IMAGE_HEIGHT / 2 + 5})`}>
+                  {/* Wooden Sign Overlay (Always at the base of the lighthouse) */}
+                  <g transform={`translate(0, ${LIGHTHOUSE_IMAGE_HEIGHT / 2 + 5})`}>
                     <rect
                       x="-22"
                       y="-10"

@@ -1,5 +1,13 @@
 [
   {
+    "version": "v1.2.4",
+    "date": "16/09/2026",
+    "title": "UI Improvements",
+    "changes": [
+      "New lighthouses' placement has been introduced, so that they don't overlap with player buildings anymore"
+    ]
+  },
+  {
     "version": "v1.2.3",
     "date": "14/09/2026",
     "title": "Conquest XL Map",

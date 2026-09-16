@@ -2366,7 +2366,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
                                             const [msg, , stealerId, targetId, resource] = log.split('|');
                                             const canSee = myPlayer?.peerId === stealerId || myPlayer?.peerId === targetId;
                                             return (
-                                                <div key={i} className="text-slate-300 border-b border-slate-700/50 pb-1">
+                                                <div key={i} className="text-black border-b border-[#d3be9a]/50 pb-1">
                                                     {canSee ? msg.replace('a resource', `1 ${resource}`) : msg}
                                                 </div>
                                             );
