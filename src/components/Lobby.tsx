@@ -10,6 +10,8 @@ import { useSounds } from '../context/SoundContext';
 import { DonateButton } from './DonateButton';
 import { APP_VERSION } from '../version';
 
+export const MAX_LOBBY_PLAYERS = 8;
+
 import tableBg from '/assets/textures/table-background.webp?url';
 import angle1 from '/assets/UI/Angle1.webp?url';
 import angle2 from '/assets/UI/Angle2.webp?url';
@@ -173,16 +175,53 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onDisconnect: () 
             );
             return;
           }
+          // Distinct player check: check if this player is already registered in the lobby
+          const existingPlayerIndex = data.playerId
+            ? playersRef.current.findIndex(p => p.playerId === data.playerId)
+            : playersRef.current.findIndex(p => p.peerId === incomingPeerId);
+
+          // If this is a new distinct player and the room has already reached MAX_LOBBY_PLAYERS (8)
+          if (existingPlayerIndex === -1 && playersRef.current.length >= MAX_LOBBY_PLAYERS) {
+            console.warn(`[Lobby] Lobby full (${playersRef.current.length}/${MAX_LOBBY_PLAYERS}). Rejecting ${incomingPeerId}`);
+            peerService.rejectConnection(
+              incomingPeerId,
+              'Room is full'
+            );
+            return;
+          }
+
           console.log(`[Lobby] JOIN_LOBBY from ${incomingPeerId}, version=${data.version ?? 'none'} — OK`);
           joinedPeers.current.add(incomingPeerId);
 
-          const joinText = `${data.username} joined the lobby`;
+          let nextPlayers: PlayerData[];
+          let joinText = `${data.username} joined the lobby`;
 
-          // Calcola il nuovo stato in modo imperativo usando il ref
-          const usedColors = playersRef.current.map(p => p.color).filter(c => c !== null);
-          const available = (Object.keys(PLAYER_COLORS) as PlayerColor[]).filter(c => !usedColors.includes(c));
-          const assigned = available.length > 0 ? available[0] : null;
-          const nextPlayers = [...playersRef.current, { peerId: incomingPeerId, playerId: data.playerId, username: data.username, color: assigned, isHost: false }];
+          if (existingPlayerIndex !== -1) {
+            // Player is re-joining with existing identity
+            const existing = playersRef.current[existingPlayerIndex];
+            nextPlayers = [...playersRef.current];
+            nextPlayers[existingPlayerIndex] = {
+              ...existing,
+              peerId: incomingPeerId,
+              username: data.username
+            };
+            joinText = `${data.username} rejoined the lobby`;
+          } else {
+            // New distinct player joining
+            const usedColors = playersRef.current.map(p => p.color).filter(c => c !== null);
+            const available = (Object.keys(PLAYER_COLORS) as PlayerColor[]).filter(c => !usedColors.includes(c));
+            const assigned = available.length > 0 ? available[0] : null;
+            nextPlayers = [
+              ...playersRef.current,
+              {
+                peerId: incomingPeerId,
+                playerId: data.playerId,
+                username: data.username,
+                color: assigned,
+                isHost: false
+              }
+            ];
+          }
 
           setPlayers(nextPlayers);
           setMessages(m => [...m, { senderId: 'SYSTEM', text: joinText }]);
@@ -325,22 +364,31 @@ export const Lobby: React.FC<{ initialSettings?: GameSettings, onDisconnect: () 
             <div className="bg-[#f4e6cd] border-2 border-[#d3be9a] rounded-xl p-5 shadow-[inset_0_2px_4px_rgba(0,0,0,0.05),0_4px_10px_rgba(0,0,0,0.1)] flex flex-col flex-grow">
               <div className="flex items-center gap-2 mb-4 border-b-2 border-[#d3be9a] pb-3">
                 <Users className="w-5 h-5 text-[#865d36]" />
-                <h2 className="font-bold text-lg text-[#2c1d10] tracking-wide drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]">Players ({players.length}/6)</h2>
+                <h2 className="font-bold text-lg text-[#2c1d10] tracking-wide drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]">Players ({players.length}/{MAX_LOBBY_PLAYERS})</h2>
               </div>
 
               <ul className="space-y-2.5 flex-grow">
                 {players.map((p, i) => (
-                  <li key={i} className="flex items-center justify-between gap-3 bg-[#fbf7ee] p-2.5 rounded-lg border-2 border-[#e6d9b9] shadow-inner">
-                    <div className="flex items-center gap-3">
+                  <li 
+                    key={i} 
+                    title={p.username}
+                    className="group/player relative flex items-center justify-between gap-2 bg-[#fbf7ee] p-2.5 rounded-lg border-2 border-[#e6d9b9] shadow-inner min-w-0"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
                       <div
                         className="w-5 h-5 min-w-5 rounded-full flex-shrink-0 shadow-[inset_0_2px_4px_rgba(0,0,0,0.3),0_1px_2px_rgba(255,255,255,1)] border border-[#a37941]"
                         style={{ backgroundColor: p.color ? PLAYER_COLORS[p.color].hex : '#94a3b8' }}
                       ></div>
-                      <span className="font-bold text-[#3b2a1a]">
-                        {p.username} {p.peerId === peerService.peerId ? <span className="text-[#a0743b] text-[11px] ml-1 uppercase">(You)</span> : ''}
+                      <span className="font-bold text-[#3b2a1a] truncate">
+                        {p.username} {p.peerId === peerService.peerId ? <span className="text-[#a0743b] text-[11px] ml-1 uppercase font-semibold">(You)</span> : ''}
                       </span>
                     </div>
-                    {p.isHost && <span className="text-[10px] bg-[#d3bc9a] text-[#4d3c2a] border border-[#a37941] px-2 py-0.5 rounded shadow-inner uppercase font-black tracking-widest">Host</span>}
+                    {p.isHost && <span className="text-[10px] bg-[#d3bc9a] text-[#4d3c2a] border border-[#a37941] px-2 py-0.5 rounded shadow-inner uppercase font-black tracking-widest shrink-0">Host</span>}
+
+                    {/* Instant custom tooltip on hover */}
+                    <div className="pointer-events-none absolute left-2 -top-8 z-30 hidden group-hover/player:flex items-center bg-[#2c1d10] text-[#fbf7ee] text-xs font-semibold px-2.5 py-1 rounded shadow-lg border border-[#a37941] whitespace-nowrap">
+                      {p.username} {p.peerId === peerService.peerId ? '(You)' : ''}
+                    </div>
                   </li>
                 ))}
               </ul>

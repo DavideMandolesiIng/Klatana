@@ -1454,7 +1454,7 @@ export const GameScreen: React.FC<{ map: MapTemplate, initialPlayers: PlayerData
             {/* VICTORY SCREEN */}
             {gameState.gamePhase === 'GAME_OVER' && (
                 <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center backdrop-blur-md">
-                    <div className="bg-[#f4e6cd]/95 backdrop-blur-md p-10 rounded-3xl border-4 border-[#a37941] shadow-[0_15px_40px_rgba(0,0,0,0.6)] max-w-lg w-full text-center flex flex-col items-center gap-4">
+                    <div className="bg-[#f4e6cd]/95 backdrop-blur-md p-10 rounded-3xl border-4 border-[#a37941] shadow-[0_15px_40px_rgba(0,0,0,0.6)] max-w-2xl w-full text-center flex flex-col items-center gap-4">
                         {(() => {
                             const sortedPlayers = gameState.players.slice().sort((a, b) => (b.victoryPoints + b.actionCards.filter(c => c.type === 'MONUMENT').length) - (a.victoryPoints + a.actionCards.filter(c => c.type === 'MONUMENT').length));
                             const myRankIndex = sortedPlayers.findIndex(p => p.peerId === myPlayer?.peerId);

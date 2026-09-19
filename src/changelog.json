@@ -1,5 +1,15 @@
 [
   {
+    "version": "v1.2.5",
+    "date": "19/09/2026",
+    "title": "Lobby size increase and minor UI fixes",
+    "changes": [
+      "Max number of players in lobby increased to 8",
+      "Host badge doesn't overlap with long usernames anymore (lobby)",
+      "Victory screen now fits properly on any screen size"
+    ]
+  },
+  {
     "version": "v1.2.4",
     "date": "16/09/2026",
     "title": "UI Improvements",

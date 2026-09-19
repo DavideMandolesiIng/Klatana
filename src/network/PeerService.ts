@@ -326,6 +326,7 @@ export class PeerService {
     conn.on('data', (data: any) => {
       if (data && data.type === 'CONNECTION_REJECTED') {
         debugLogger.log('ERROR', `Connection rejected by remote peer: ${data.reason}`);
+        localStorage.removeItem('klatana_room_code');
         if (this.onConnectionRejectedCallback) {
           this.onConnectionRejectedCallback(data.reason);
         }

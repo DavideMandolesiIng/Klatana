@@ -31,6 +31,7 @@ function App() {
   });
   const [resumeGameState, setResumeGameState] = useState<GameState | null>(null);
   const [isHostReconnection, setIsHostReconnection] = useState(false);
+  const [menuError, setMenuError] = useState<string>('');
 
   useEffect(() => {
     peerService.onConnectionRejected((reason) => {
@@ -45,8 +46,13 @@ function App() {
           `The game version must match the host's to join.\n` +
           `Please reload the page (F5 / Ctrl+R) to get the latest version, then try again.`
         );
+        setMenuError(`Version mismatch (host: ${hostVersion}, you: ${yourVersion})`);
+      } else if (reason === 'Room is full' || reason === 'ROOM_FULL') {
+        alert('Room is full');
+        setMenuError('Room is full');
       } else {
         alert(`Connection rejected: ${reason}`);
+        setMenuError(`Connection rejected: ${reason}`);
       }
       setGameState('menu');
       setGameMap(null);
@@ -87,7 +93,11 @@ function App() {
 
       {gameState === 'menu' && (
         <MainMenu 
-          onJoinLobby={() => setGameState('lobby')} 
+          initialError={menuError}
+          onJoinLobby={() => {
+            setMenuError('');
+            setGameState('lobby');
+          }} 
           onPrivacyPolicy={() => setGameState('privacy')} 
           onChangelog={() => setGameState('changelog')}
           onReconnectHost={(map, players, settings, state) => {

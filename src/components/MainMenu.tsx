@@ -17,9 +17,10 @@ interface MainMenuProps {
   onPrivacyPolicy: () => void;
   onChangelog: () => void;
   onReconnectHost?: (map: MapTemplate, players: PlayerData[], settings: GameSettings, state: GameState) => void;
+  initialError?: string;
 }
 
-export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby, onPrivacyPolicy, onChangelog, onReconnectHost }) => {
+export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby, onPrivacyPolicy, onChangelog, onReconnectHost, initialError }) => {
   const { playClick } = useSounds();
   const [joinCode, setJoinCode] = useState('');
   const [username, setUsername] = useState(localStorage.getItem('klatana_username') || '');
@@ -27,8 +28,14 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onJoinLobby, onPrivacyPolicy
   const [isJoining, setIsJoining] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [activeHostRoom, setActiveHostRoom] = useState<{ roomCode: string; savedState: GameState; map: MapTemplate } | null>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(initialError || '');
   const [uiScale, setUiScale] = useState(1);
+
+  React.useEffect(() => {
+    if (initialError) {
+      setError(initialError);
+    }
+  }, [initialError]);
 
   React.useEffect(() => {
     const handleResize = () => {
